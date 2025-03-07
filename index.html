@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sailing Simulator</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h2>Sailing Simulator</h2>
+        <p>Left-click: Move ship to location</p>
+        <p>Right-click drag: Move camera</p>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/objects/Water.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/objects/Sky.js"></script>
+    <script>
+        // Main game variables
+        let scene, camera, renderer, water, ship;
+        let targetPosition = new THREE.Vector3();
+        let isMoving = false;
+        let controls;
+        let clock = new THREE.Clock();
+        let sunLight;
+        let cameraOffset = new THREE.Vector3(0, 10, 20); // Camera offset from ship
+        let sun, sky;
+
+        // Initialize the scene
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 20000);
+            camera.position.set(0, 10, 20);
+            camera.lookAt(0, 0, 0);
+
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 0.5;
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            // Create sky and sun
+            createSky();
+
+            // Add lighting
+            setupLighting();
+
+            // Create HD water
+            createHDWater();
+
+            // Create ship
+            createShip();
+
+            // Setup controls
+            setupControls();
+
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+
+            // Start animation loop
+            animate();
+        }
+
+        function createSky() {
+            // Add Sky
+            sky = new THREE.Sky();
+            sky.scale.setScalar(10000);
+            scene.add(sky);
+
+            // Add Sun
+            sun = new THREE.Vector3();
+
+            // Configure sky
+            const skyUniforms = sky.material.uniforms;
+            skyUniforms['turbidity'].value = 10;
+            skyUniforms['rayleigh'].value = 2;
+            skyUniforms['mieCoefficient'].value = 0.005;
+            skyUniforms['mieDirectionalG'].value = 0.8;
+
+            // Configure sun position
+            const parameters = {
+                elevation: 2,
+                azimuth: 180
+            };
+
+            const phi = THREE.MathUtils.degToRad(90 - parameters.elevation);
+            const theta = THREE.MathUtils.degToRad(parameters.azimuth);
+
+            sun.setFromSphericalCoords(1, phi, theta);
+
+            skyUniforms['sunPosition'].value.copy(sun);
+        }
+
+        function setupLighting() {
+            // Ambient light
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            // Directional light (sun)
+            sunLight = new THREE.DirectionalLight(0xffffff, 1);
+            sunLight.position.set(sun.x * 100, sun.y * 100, sun.z * 100);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            sunLight.shadow.camera.near = 10;
+            sunLight.shadow.camera.far = 200;
+            sunLight.shadow.camera.left = -50;
+            sunLight.shadow.camera.right = 50;
+            sunLight.shadow.camera.top = 50;
+            sunLight.shadow.camera.bottom = -50;
+            scene.add(sunLight);
+        }
+
+        function createHDWater() {
+            // Create water geometry
+            const waterGeometry = new THREE.PlaneGeometry(10000, 10000);
+
+            // Create HD water with reflections and refractions
+            water = new THREE.Water(
+                waterGeometry,
+                {
+                    textureWidth: 512,
+                    textureHeight: 512,
+                    waterNormals: new THREE.TextureLoader().load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/waternormals.jpg', function(texture) {
+                        texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+                    }),
+                    sunDirection: new THREE.Vector3(sun.x, sun.y, sun.z),
+                    sunColor: 0xffffff,
+                    waterColor: 0x001e0f,
+                    distortionScale: 3.7,
+                    fog: scene.fog !== undefined
+                }
+            );
+
+            water.rotation.x = -Math.PI / 2;
+            water.receiveShadow = true;
+            scene.add(water);
+        }
+
+        function createShip() {
+            // Create a simple ship using basic geometries
+            const shipGroup = new THREE.Group();
+            
+            // Hull
+            const hullGeometry = new THREE.BoxGeometry(2, 0.8, 4);
+            const hullMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x8B4513,
+                roughness: 0.7,
+                metalness: 0.2
+            });
+            const hull = new THREE.Mesh(hullGeometry, hullMaterial);
+            hull.position.y = 0.4;
+            hull.castShadow = true;
+            shipGroup.add(hull);
+            
+            // Deck
+            const deckGeometry = new THREE.BoxGeometry(1.8, 0.2, 3.8);
+            const deckMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0xD2B48C,
+                roughness: 0.8,
+                metalness: 0.1
+            });
+            const deck = new THREE.Mesh(deckGeometry, deckMaterial);
+            deck.position.y = 0.9;
+            deck.castShadow = true;
+            shipGroup.add(deck);
+            
+            // Mast
+            const mastGeometry = new THREE.CylinderGeometry(0.1, 0.1, 4, 8);
+            const mastMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x8B4513,
+                roughness: 0.9,
+                metalness: 0.1
+            });
+            const mast = new THREE.Mesh(mastGeometry, mastMaterial);
+            mast.position.y = 3;
+            mast.position.z = -0.5;
+            mast.castShadow = true;
+            shipGroup.add(mast);
+            
+            // Sail
+            const sailGeometry = new THREE.PlaneGeometry(2, 3);
+            const sailMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0xFFFFFF,
+                side: THREE.DoubleSide,
+                roughness: 0.5,
+                metalness: 0.0
+            });
+            const sail = new THREE.Mesh(sailGeometry, sailMaterial);
+            sail.position.y = 2.5;
+            sail.position.z = 0.2;
+            sail.rotation.y = Math.PI / 2;
+            sail.castShadow = true;
+            shipGroup.add(sail);
+
+            // Position the ship
+            shipGroup.position.y = 0.5;
+            scene.add(shipGroup);
+            
+            ship = shipGroup;
+        }
+
+        function setupControls() {
+            // Orbit controls for camera movement with right-click
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enablePan = false;
+            controls.minDistance = 5;
+            controls.maxDistance = 50;
+            controls.maxPolarAngle = Math.PI / 2 - 0.1; // Prevent going below horizon
+            controls.mouseButtons = {
+                LEFT: null,
+                MIDDLE: THREE.MOUSE.DOLLY,
+                RIGHT: THREE.MOUSE.ROTATE
+            };
+            
+            // Set the target of the controls to the ship
+            controls.target.copy(ship.position);
+            
+            // Left-click to move ship
+            renderer.domElement.addEventListener('click', onMouseClick);
+        }
+
+        function onMouseClick(event) {
+            // Only handle left clicks
+            if (event.button !== 0) return;
+            
+            // Calculate mouse position in normalized device coordinates (-1 to +1)
+            const mouse = new THREE.Vector2();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            // Create a raycaster
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            
+            // Check for intersections with the water
+            const intersects = raycaster.intersectObject(water);
+            
+            if (intersects.length > 0) {
+                // Set target position to the intersection point
+                targetPosition.copy(intersects[0].point);
+                
+                // Calculate direction to target
+                const direction = new THREE.Vector3()
+                    .subVectors(targetPosition, ship.position)
+                    .normalize();
+                
+                // Set ship rotation to face the target
+                ship.rotation.y = Math.atan2(direction.x, direction.z);
+                
+                isMoving = true;
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const delta = clock.getDelta();
+            const time = performance.now() * 0.001;
+            
+            // Animate water
+            water.material.uniforms['time'].value += 1.0 / 60.0;
+            
+            // Move ship towards target
+            if (isMoving) {
+                // Calculate direction and distance to target
+                const direction = new THREE.Vector3()
+                    .subVectors(targetPosition, ship.position)
+                    .normalize();
+                const distance = ship.position.distanceTo(targetPosition);
+                
+                // Move ship if not very close to target
+                if (distance > 0.1) {
+                    // Move ship at a constant speed
+                    const moveSpeed = 5 * delta;
+                    ship.position.add(direction.multiplyScalar(moveSpeed));
+                    
+                    // Add slight bobbing motion
+                    ship.rotation.x = Math.sin(time * 2) * 0.05;
+                    ship.rotation.z = Math.sin(time * 1.5) * 0.05;
+                    
+                    // Update camera target to follow ship
+                    controls.target.copy(ship.position);
+                } else {
+                    isMoving = false;
+                }
+            }
+            
+            // Add gentle bobbing even when not moving
+            if (!isMoving) {
+                ship.rotation.x = Math.sin(time * 1.5) * 0.03;
+                ship.rotation.z = Math.sin(time * 1.2) * 0.03;
+            }
+            
+            // Update controls
+            controls.update();
+            
+            // Render scene
+            renderer.render(scene, camera);
+        }
+
+        // Start the application
+        init();
+    </script>
+</body>
+</html> 
