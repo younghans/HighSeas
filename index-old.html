@@ -31,22 +31,12 @@
         <p>Left-click: Move ship to location</p>
         <p>Right-click drag: Move camera</p>
     </div>
-    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://cdn.jsdelivr.net/npm/three@0.174.0/build/three.module.js",
-            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.174.0/examples/jsm/"
-        }
-    }
-    </script>
-    <script type="module">
-        import * as THREE from 'three';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-        import { Water } from 'three/addons/objects/Water.js';
-        import { Sky } from 'three/addons/objects/Sky.js';
-
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/objects/Water.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/objects/Sky.js"></script>
+    <script>
         // WindParticleSystem class
         class WindParticleSystem {
             constructor(scene, camera, windDirection, windSpeed, visibilityRadius = 800) {
@@ -310,8 +300,6 @@
 
         // Initialize the scene
         function init() {
-            console.log("Initializing Sailing Simulator with Three.js version:", THREE.REVISION);
-            
             // Create scene
             scene = new THREE.Scene();
             
@@ -433,7 +421,7 @@
 
         function createSky() {
             // Add Sky
-            sky = new Sky();
+            sky = new THREE.Sky();
             sky.scale.setScalar(10000);
             scene.add(sky);
 
@@ -486,7 +474,7 @@
             const waterGeometry = new THREE.PlaneGeometry(10000, 10000);
 
             // Create HD water with reflections and refractions
-            water = new Water(
+            water = new THREE.Water(
                 waterGeometry,
                 {
                     textureWidth: 512,
@@ -670,7 +658,7 @@
 
         function setupControls() {
             // Orbit controls for camera movement with right-click
-            controls = new OrbitControls(camera, renderer.domElement);
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enablePan = false;
             controls.minDistance = 5;
             controls.maxDistance = 200; // Increased from 50 to 200 for much wider zoom-out
@@ -1128,6 +1116,74 @@
                 // Add the cloud to the clouds group
                 clouds.add(cloudGroup);
             }
+        }
+
+        function initWindParticleSystem() {
+            // Enable camera layers for wind particles
+            camera.layers.enable(1);
+            
+            // Create wind particle system
+            windParticleSystem = new WindParticleSystem(
+                scene,
+                camera,
+                windDirection.clone().normalize(),
+                windSpeed,
+                800 // visibility radius
+            );
+        }
+        
+        function updateWindDirection(deltaTime) {
+            // Update wind change timer
+            windChangeTimer += deltaTime;
+            
+            // If we're in a transition, update the transition progress
+            if (isWindChanging) {
+                windTransitionProgress += deltaTime;
+                
+                // Calculate transition factor (0 to 1)
+                const t = Math.min(windTransitionProgress / WIND_TRANSITION_DURATION, 1.0);
+                
+                // Smoothly interpolate between old and new wind direction
+                const lerpFactor = smoothStep(0, 1, t);
+                const currentDirection = new THREE.Vector3().lerpVectors(
+                    windDirection, 
+                    newWindDirection, 
+                    lerpFactor
+                ).normalize();
+                
+                // Update wind particle system with interpolated direction
+                windParticleSystem.setWind(currentDirection, windSpeed);
+                
+                // If transition is complete, finalize the change
+                if (t >= 1.0) {
+                    windDirection.copy(newWindDirection);
+                    isWindChanging = false;
+                    windTransitionProgress = 0;
+                }
+            }
+            // Start a new wind direction change
+            else if (windChangeTimer >= WIND_CHANGE_INTERVAL) {
+                // Reset timer
+                windChangeTimer = 0;
+                
+                // Generate new random wind direction
+                const angle = Math.random() * Math.PI * 2;
+                newWindDirection.set(
+                    Math.cos(angle),
+                    0, // Keep y component at 0 for horizontal wind
+                    Math.sin(angle)
+                );
+                
+                // Start transition
+                isWindChanging = true;
+                windTransitionProgress = 0;
+            }
+        }
+        
+        // Smooth step function for nicer transitions
+        function smoothStep(min, max, value) {
+            const x = Math.max(0, Math.min(1, (value - min) / (max - min)));
+            return x * x * (3 - 2 * x);
         }
 
         // Start the application
