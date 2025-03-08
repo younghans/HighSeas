@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sailing Simulator</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h2>Sailing Simulator</h2>
+        <p>Left-click: Move ship to location</p>
+        <p>Right-click drag: Move camera</p>
+    </div>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.174.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.174.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { Water } from 'three/addons/objects/Water.js';
+        import { Sky } from 'three/addons/objects/Sky.js';
+
+        // Main game variables
+        let scene, camera, renderer, water, ship;
+        let targetPosition = new THREE.Vector3();
+        let isMoving = false;
+        let controls;
+        let clock = new THREE.Clock();
+        let sunLight;
+        let cameraOffset = new THREE.Vector3(0, 10, 20); // Camera offset from ship
+        let sun, sky, stars;
+        // Wake effect variables
+        let wakeParticles = [];
+        let wakeEmitters = [];
+        const MAX_WAKE_PARTICLES = 100;
+        const WAKE_PARTICLE_LIFETIME = 2; // seconds
+
+        // Initialize the scene
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 20000);
+            camera.position.set(0, 10, 20);
+            camera.lookAt(0, 0, 0);
+
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                powerPreference: "high-performance"
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 0.5;
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+
+            // Create sky and sun
+            createSky();
+
+            // Add lighting
+            setupLighting();
+
+            // Create HD water
+            createHDWater();
+
+            // Create ship
+            createShip();
+            
+            // Create wake emitters
+            createWakeEmitters();
+
+            // Setup controls
+            setupControls();
+
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+            
+            // Start animation loop
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const delta = clock.getDelta();
+            const time = performance.now() * 0.001;
+            
+            // Update water
+            water.material.uniforms['time'].value += 1.0 / 300.0;
+            
+            // Move ship towards target
+            if (isMoving) {
+                // Calculate direction and distance to target
+                const direction = new THREE.Vector3()
+                    .subVectors(targetPosition, ship.position)
+                    .normalize();
+                const distance = ship.position.distanceTo(targetPosition);
+                
+                // Move ship if not very close to target
+                if (distance > 0.1) {
+                    // Move ship at a constant speed
+                    const moveSpeed = 5 * delta;
+                    ship.position.add(direction.multiplyScalar(moveSpeed));
+                    
+                    // Add slight bobbing motion
+                    ship.rotation.x = Math.sin(time * 2) * 0.05;
+                    ship.rotation.z = Math.sin(time * 1.5) * 0.05;
+                    
+                    // Update camera target to follow ship
+                    controls.target.copy(ship.position);
+                    
+                    // Emit wake particles
+                    emitWakeParticles(delta);
+                } else {
+                    isMoving = false;
+                }
+            }
+            
+            // Update wake particles
+            updateWakeParticles(delta);
+            
+            // Add gentle bobbing even when not moving
+            if (!isMoving) {
+                ship.rotation.x = Math.sin(time * 1.5) * 0.03;
+                ship.rotation.z = Math.sin(time * 1.2) * 0.03;
+            }
+            
+            // Update controls
+            controls.update();
+            
+            // Render scene
+            renderer.render(scene, camera);
+        }
+
+        function createSky() {
+            // Add Sky
+            sky = new Sky();
+            sky.scale.setScalar(10000);
+            scene.add(sky);
+
+            // Create stars
+            const starsGeometry = new THREE.BufferGeometry();
+            const starsVertices = [];
+            
+            // Create 1000 stars at random positions
+            for (let i = 0; i < 1000; i++) {
+                const x = THREE.MathUtils.randFloatSpread(2000);
+                const y = THREE.MathUtils.randFloatSpread(2000);
+                const z = THREE.MathUtils.randFloatSpread(2000);
+                starsVertices.push(x, y, z);
+            }
+            
+            starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
+            
+            const starsMaterial = new THREE.PointsMaterial({
+                color: 0xffffff,
+                size: 2,
+                transparent: true,
+                opacity: 0
+            });
+            
+            stars = new THREE.Points(starsGeometry, starsMaterial);
+            scene.add(stars);
+
+            // Initialize sky uniforms
+            const skyUniforms = sky.material.uniforms;
+            skyUniforms.turbidity.value = 5;
+            skyUniforms.rayleigh.value = 0.7;
+            skyUniforms.mieCoefficient.value = 0.001;
+            skyUniforms.mieDirectionalG.value = 0.7;
+            
+            // Initial update of day/night cycle
+            updateDayNightCycle(0);
+        }
+
+        function updateDayNightCycle(delta) {
+            // Update time of day
+            dayTime = (dayTime + delta / dayLength) % 1;
+            
+            // Calculate sun elevation based on time of day
+            const elevation = Math.sin(dayTime * Math.PI * 2) * 90; // -90 to 90 degrees
+            const azimuth = 180;
+
+            const phi = THREE.MathUtils.degToRad(90 - elevation);
+            const theta = THREE.MathUtils.degToRad(azimuth);
+
+            sun.setFromSphericalCoords(1, phi, theta);
+
+            // Update sky uniforms
+            const skyUniforms = sky.material.uniforms;
+            
+            // Night time adjustments
+            const isNight = elevation < 0;
+            const nightFactor = Math.max(0, -Math.sin(dayTime * Math.PI * 2));
+            
+            skyUniforms.turbidity.value = isNight ? 0.1 : 5;
+            skyUniforms.rayleigh.value = isNight ? 0.1 : 0.7;
+            skyUniforms.mieCoefficient.value = isNight ? 0.0001 : 0.001;
+            skyUniforms.mieDirectionalG.value = isNight ? 0.3 : 0.7;
+            skyUniforms.sunPosition.value.copy(sun);
+
+            // Update sun light
+            sunLight.position.set(sun.x * 100, sun.y * 100, sun.z * 100);
+            
+            // Calculate light intensity based on sun position
+            const sunIntensity = Math.max(0, Math.sin(dayTime * Math.PI * 2));
+            sunLight.intensity = sunIntensity;
+            
+            // Update ambient light based on time of day
+            scene.children.forEach(child => {
+                if (child instanceof THREE.AmbientLight) {
+                    child.intensity = isNight ? 0.1 : 0.7;
+                }
+            });
+
+            // Update stars visibility
+            if (stars) {
+                stars.material.opacity = nightFactor;
+            }
+
+            // Update water color based on time of day
+            if (water) {
+                const dayWaterColor = 0x001e0f;
+                const nightWaterColor = 0x000000;
+                water.material.uniforms.waterColor.value.setHex(
+                    isNight ? nightWaterColor : dayWaterColor
+                );
+            }
+        }
+
+        function setupLighting() {
+            // Ambient light
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            // Directional light (sun)
+            sunLight = new THREE.DirectionalLight(0xffffff, 1);
+            sunLight.position.set(sun.x * 100, sun.y * 100, sun.z * 100);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            sunLight.shadow.camera.near = 10;
+            sunLight.shadow.camera.far = 200;
+            sunLight.shadow.camera.left = -50;
+            sunLight.shadow.camera.right = 50;
+            sunLight.shadow.camera.top = 50;
+            sunLight.shadow.camera.bottom = -50;
+            scene.add(sunLight);
+        }
+
+        function createHDWater() {
+            // Create water geometry
+            const waterGeometry = new THREE.PlaneGeometry(10000, 10000);
+
+            // Create HD water with reflections and refractions
+            water = new Water(
+                waterGeometry,
+                {
+                    textureWidth: 512,
+                    textureHeight: 512,
+                    waterNormals: new THREE.TextureLoader().load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/waternormals.jpg', function(texture) {
+                        texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+                    }),
+                    sunDirection: new THREE.Vector3(sun.x, sun.y, sun.z),
+                    sunColor: 0xffffff,
+                    waterColor: 0x001e0f,
+                    distortionScale: 3.7,
+                    fog: scene.fog !== undefined,
+                    alpha: 1.0,
+                    clipBias: 0.0,
+                    normalSampler: null,
+                    side: THREE.DoubleSide
+                }
+            );
+
+            water.material.uniforms.size.value = 4.0;
+            water.rotation.x = -Math.PI / 2;
+            water.receiveShadow = true;
+            scene.add(water);
+        }
+
+        function createShip() {
+            const shipGroup = new THREE.Group();
+            
+            // Hull material - changed to double-sided and adjusted properties
+            const hullMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x8B4513,
+                roughness: 0.7,
+                metalness: 0.2,
+                side: THREE.DoubleSide,  // Changed to double-sided
+                transparent: false,      // Ensure it's not transparent
+                opacity: 1.0            // Full opacity
+            });
+            
+            const hullWidth = 2;
+            const hullHeight = 0.8;
+            const hullLength = 4;
+            
+            const hullGeometry = new THREE.BufferGeometry();
+            
+            // Define vertices for boat hull with triangular front
+            const vertices = [];
+            
+            // Top vertices (deck level)
+            vertices.push(
+                // Main hull vertices
+                -hullWidth/2, hullHeight, hullLength/2,    // 0: back left
+                hullWidth/2, hullHeight, hullLength/2,     // 1: back right
+                hullWidth/2, hullHeight, -hullLength/2,    // 2: front right
+                -hullWidth/2, hullHeight, -hullLength/2,   // 3: front left
+                0, hullHeight, hullLength/2 + 1            // 4: bow point (top)
+            );
+            
+            // Bottom vertices (narrower)
+            const bottomWidth = hullWidth * 0.6;
+            const bottomLength = hullLength * 0.8;
+            vertices.push(
+                -bottomWidth/2, 0, bottomLength/2,         // 5: back left
+                bottomWidth/2, 0, bottomLength/2,          // 6: back right
+                bottomWidth/2, 0, -bottomLength/2,         // 7: front right
+                -bottomWidth/2, 0, -bottomLength/2,        // 8: front left
+                0, 0, bottomLength/2 + 1                   // 9: bow point (bottom)
+            );
+            
+            // Define triangles with correct winding order
+            const indices = [
+                // Bottom face (now properly oriented)
+                5, 7, 6,    // Bottom face main 1
+                5, 8, 7,    // Bottom face main 2
+                5, 6, 9,    // Bottom bow triangle
+                
+                // Top face
+                2, 3, 0,    // Top face main 1
+                2, 0, 1,    // Top face main 2
+                1, 0, 4,    // Top bow triangle
+                
+                // Back face
+                0, 3, 5,    // Back left
+                5, 8, 3,    // Back right
+                
+                // Left side
+                0, 5, 4,    // Left main
+                5, 9, 4,    // Left bow
+                
+                // Right side
+                1, 6, 2,    // Right main
+                6, 7, 2,    // Right connection
+                1, 4, 9,    // Right bow top
+                1, 9, 6,    // Right bow bottom
+                
+                // Front faces (bow)
+                3, 2, 8,    // Front face left
+                8, 2, 7,    // Front face right
+                
+                // Bow closure faces
+                4, 9, 0,    // Bow left
+                4, 1, 9     // Bow right
+            ];
+            
+            // Set geometry attributes
+            hullGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            hullGeometry.setIndex(indices);
+            hullGeometry.computeVertexNormals();
+            
+            const hull = new THREE.Mesh(hullGeometry, hullMaterial);
+            hull.castShadow = true;
+            hull.receiveShadow = true;
+            shipGroup.add(hull);
+            
+            // Create custom deck geometry to match hull shape including bow
+            const deckGeometry = new THREE.BufferGeometry();
+            
+            // Define deck vertices (slightly smaller than hull top)
+            const deckScale = 0.9; // Make deck slightly smaller than hull
+            const deckVertices = [
+                // Main deck rectangle
+                -hullWidth/2 * deckScale, hullHeight + 0.05, hullLength/2 * deckScale,     // 0: back left
+                hullWidth/2 * deckScale, hullHeight + 0.05, hullLength/2 * deckScale,      // 1: back right
+                hullWidth/2 * deckScale, hullHeight + 0.05, -hullLength/2 * deckScale,     // 2: front right
+                -hullWidth/2 * deckScale, hullHeight + 0.05, -hullLength/2 * deckScale,    // 3: front left
+                0, hullHeight + 0.05, hullLength/2 + 0.9                                    // 4: bow point
+            ];
+            
+            // Define deck triangles
+            const deckIndices = [
+                // Main deck surface
+                3, 2, 1,        // Main deck triangle 1
+                3, 1, 0,        // Main deck triangle 2
+                0, 1, 4         // Bow triangle
+            ];
+            
+            deckGeometry.setAttribute('position', new THREE.Float32BufferAttribute(deckVertices, 3));
+            deckGeometry.setIndex(deckIndices);
+            deckGeometry.computeVertexNormals();
+            
+            const deckMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0xD2B48C,
+                roughness: 0.8,
+                metalness: 0.1,
+                side: THREE.DoubleSide  // Make sure both sides are visible
+            });
+            
+            const deck = new THREE.Mesh(deckGeometry, deckMaterial);
+            deck.castShadow = true;
+            deck.receiveShadow = true;
+            shipGroup.add(deck);
+            
+            // Mast - centered on the boat
+            const mastGeometry = new THREE.CylinderGeometry(0.1, 0.1, 4, 8);
+            const mastMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x8B4513,
+                roughness: 0.9,
+                metalness: 0.1
+            });
+            const mast = new THREE.Mesh(mastGeometry, mastMaterial);
+            mast.position.y = hullHeight + 0.1 + 2; // Height above deck
+            mast.position.z = 0; // Centered on boat
+            mast.castShadow = true;
+            shipGroup.add(mast);
+            
+            // Sail - centered with mast
+            const sailGeometry = new THREE.PlaneGeometry(2, 3);
+            const sailMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0xFFFFFF,
+                side: THREE.DoubleSide,
+                roughness: 0.5,
+                metalness: 0.0
+            });
+            const sail = new THREE.Mesh(sailGeometry, sailMaterial);
+            sail.position.y = hullHeight + 0.1 + 2; // Same height as mast
+            sail.position.z = 0; // Centered with mast
+            sail.rotation.y = 0; // Perpendicular to boat length
+            sail.castShadow = true;
+            shipGroup.add(sail);
+
+            // Position the ship
+            shipGroup.position.y = 0.5;
+            scene.add(shipGroup);
+            
+            ship = shipGroup;
+        }
+
+        function setupControls() {
+            // Orbit controls for camera movement with right-click
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enablePan = false;
+            controls.minDistance = 5;
+            controls.maxDistance = 200; // Increased from 50 to 200 for much wider zoom-out
+            controls.maxPolarAngle = Math.PI / 2 - 0.1; // Prevent going below horizon
+            
+            // Configure mouse buttons
+            controls.mouseButtons = {
+                LEFT: null,
+                MIDDLE: THREE.MOUSE.DOLLY,
+                RIGHT: THREE.MOUSE.ROTATE
+            };
+            
+            // Set the target of the controls to the ship
+            controls.target.copy(ship.position);
+            
+            // Left-click to move ship
+            renderer.domElement.addEventListener('click', onMouseClick);
+        }
+
+        function onMouseClick(event) {
+            // Only handle left clicks
+            if (event.button !== 0) return;
+            
+            // Calculate mouse position in normalized device coordinates (-1 to +1)
+            const mouse = new THREE.Vector2();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            // Create a raycaster
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            
+            // Check for intersections with the water
+            const intersects = raycaster.intersectObject(water);
+            
+            if (intersects.length > 0) {
+                // Set target position to the intersection point
+                targetPosition.copy(intersects[0].point);
+                
+                // Calculate direction to target
+                const direction = new THREE.Vector3()
+                    .subVectors(targetPosition, ship.position)
+                    .normalize();
+                
+                // Set ship rotation to face the target
+                ship.rotation.y = Math.atan2(direction.x, direction.z);
+                
+                isMoving = true;
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Add function to create wake emitters
+        function createWakeEmitters() {
+            // Create two wake emitter points at the back of the ship
+            const wakeOffset = 0.4; // Distance between the two wake trails
+            
+            // Left wake emitter
+            const leftEmitter = new THREE.Object3D();
+            leftEmitter.position.set(-wakeOffset, 0, -1.5); // Position at back left of ship
+            ship.add(leftEmitter);
+            
+            // Right wake emitter
+            const rightEmitter = new THREE.Object3D();
+            rightEmitter.position.set(wakeOffset, 0, -1.5); // Position at back right of ship
+            ship.add(rightEmitter);
+
+            wakeEmitters = [leftEmitter, rightEmitter];
+            
+            // Create particle pool
+            for (let i = 0; i < MAX_WAKE_PARTICLES; i++) {
+                createWakeParticle();
+            }
+        }
+        
+        // Create a single wake particle
+        function createWakeParticle() {
+            // Create particle geometry - increased size
+            const size = 0.1 + Math.random() * 0.2; // Increased from 0.05-0.15 to 0.15-0.35
+            const geometry = new THREE.PlaneGeometry(size, size);
+            
+            // Create particle material
+            const material = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.8,
+                side: THREE.DoubleSide
+            });
+            
+            // Create particle mesh
+            const particle = new THREE.Mesh(geometry, material);
+            particle.rotation.x = Math.PI / 2; // Align with water surface
+            particle.visible = false; // Start invisible
+            scene.add(particle);
+            
+            // Add to particle pool with metadata
+            wakeParticles.push({
+                mesh: particle,
+                active: false,
+                lifetime: 0,
+                maxLifetime: WAKE_PARTICLE_LIFETIME,
+                speed: 0.5 + Math.random() * 0.5,
+                offset: new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.5, // Increased X offset for wider wake
+                    0, // No Y offset (stay on water)
+                    (Math.random() - 0.5) * 0.5  // Increased Z offset
+                )
+            });
+            
+            return wakeParticles[wakeParticles.length - 1];
+        }
+        
+        // Emit wake particles
+        function emitWakeParticles(delta) {
+            if (!isMoving) return;
+            
+            // Emit rate based on ship speed
+            const emitChance = 0.3; // Chance to emit per frame per emitter
+            
+            // Try to emit from each emitter
+            wakeEmitters.forEach(emitter => {
+                if (Math.random() < emitChance) {
+                    // Find an inactive particle
+                    let particle = wakeParticles.find(p => !p.active);
+                    
+                    // If no inactive particles, don't emit
+                    if (!particle) return;
+                    
+                    // Get world position of emitter
+                    const emitterWorldPos = new THREE.Vector3();
+                    emitter.getWorldPosition(emitterWorldPos);
+                    
+                    // Activate particle
+                    particle.active = true;
+                    particle.lifetime = 0;
+                    particle.maxLifetime = WAKE_PARTICLE_LIFETIME * (0.8 + Math.random() * 0.4); // Slight variation in lifetime
+                    
+                    // Position particle at emitter with small random offset
+                    particle.mesh.position.copy(emitterWorldPos);
+                    particle.mesh.position.y = 0.1; // Slightly above water
+                    
+                    // Add random offset
+                    particle.mesh.position.add(particle.offset);
+                    
+                    // Make visible
+                    particle.mesh.visible = true;
+                    
+                    // Set initial scale and opacity
+                    particle.mesh.scale.set(0.5, 0.5, 0.5);
+                    particle.mesh.material.opacity = 0.8;
+                }
+            });
+        }
+        
+        // Update wake particles
+        function updateWakeParticles(delta) {
+            wakeParticles.forEach(particle => {
+                if (!particle.active) return;
+                
+                // Update lifetime
+                particle.lifetime += delta;
+                
+                // Check if particle should die
+                if (particle.lifetime >= particle.maxLifetime) {
+                    particle.active = false;
+                    particle.mesh.visible = false;
+                    return;
+                }
+                
+                // Calculate life progress (0 to 1)
+                const lifeProgress = particle.lifetime / particle.maxLifetime;
+                
+                // Update position - particles slow down and spread out over time
+                const speed = particle.speed * (1 - lifeProgress * 0.8);
+                particle.mesh.position.z -= speed * delta; // Move backward
+                
+                // Add some sideways drift - increased for more spread
+                particle.mesh.position.x += (Math.random() - 0.5) * 0.03; // Increased from 0.02
+                
+                // Grow in size - increased growth factor
+                const scale = 0.8 + lifeProgress * 1.8; // Increased from 0.5 + lifeProgress * 1.5
+                particle.mesh.scale.set(scale, scale, scale);
+                
+                // Fade out
+                particle.mesh.material.opacity = 0.8 * (1 - lifeProgress);
+            });
+        }
+
+        // Initialize the application
+        init();
+    </script>
+</body>
+</html> 

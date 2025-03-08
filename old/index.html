@@ -31,11 +31,11 @@
         <p>Left-click: Move ship to location</p>
         <p>Right-click drag: Move camera</p>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/GLTFLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/objects/Water.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/objects/Sky.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@174.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@174.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@174.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@174.0/examples/js/objects/Water.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@174.0/examples/js/objects/Sky.js"></script>
     <script>
         // WindParticleSystem class
         class WindParticleSystem {
@@ -275,12 +275,6 @@
         let sunLight;
         let cameraOffset = new THREE.Vector3(0, 10, 20); // Camera offset from ship
         let sun, sky;
-        let stars; // Add stars group
-        let clouds; // Add clouds group
-        let dayNightCycle = 0; // Track cycle time
-        const DAY_DURATION = 0; // 30 seconds of day
-        const NIGHT_DURATION = 10; // 10 seconds of night
-        const TOTAL_CYCLE = DAY_DURATION + NIGHT_DURATION;
         // Wake effect variables
         let wakeParticles = [];
         let wakeEmitters = [];
@@ -319,9 +313,6 @@
 
             // Create sky and sun
             createSky();
-            
-            // Create beautiful cumulus clouds
-            createClouds();
 
             // Add lighting
             setupLighting();
@@ -340,9 +331,6 @@
 
             // Handle window resize
             window.addEventListener('resize', onWindowResize);
-
-            // Create stars
-            createStars();
             
             // Initialize wind particle system
             initWindParticleSystem();
@@ -435,14 +423,12 @@
             skyUniforms['mieCoefficient'].value = 0.001; // Reduced from 0.005 to decrease whiteness at horizon
             skyUniforms['mieDirectionalG'].value = 0.7; // Reduced from 0.8 for less concentrated scattering
 
-            // Configure sun position
-            const parameters = {
-                elevation: 5,
-                azimuth: 180
-            };
+            // Configure sun position at fixed 5 degrees elevation
+            const elevation = 5;
+            const azimuth = 180;
 
-            const phi = THREE.MathUtils.degToRad(90 - parameters.elevation);
-            const theta = THREE.MathUtils.degToRad(parameters.azimuth);
+            const phi = THREE.MathUtils.degToRad(90 - elevation);
+            const theta = THREE.MathUtils.degToRad(azimuth);
 
             sun.setFromSphericalCoords(1, phi, theta);
 
@@ -720,85 +706,7 @@
             const delta = clock.getDelta();
             const time = performance.now() * 0.001;
             
-            // Update day-night cycle
-            dayNightCycle = (dayNightCycle + delta) % TOTAL_CYCLE;
-            
-            // Calculate sun elevation based on cycle
-            let elevation;
-            let isNight;
-            if (dayNightCycle < DAY_DURATION) {
-                // Day time
-                const dayProgress = dayNightCycle / DAY_DURATION;
-                elevation = 5 + Math.sin(dayProgress * Math.PI) * 85; // Sun moves from 5° to 90° and back
-                isNight = false;
-            } else {
-                // Night time
-                const nightProgress = (dayNightCycle - DAY_DURATION) / NIGHT_DURATION;
-                elevation = 5 - Math.sin(nightProgress * Math.PI) * 45; // Sun moves below horizon
-                isNight = true;
-            }
-
-            // Update sun position
-            const phi = THREE.MathUtils.degToRad(90 - elevation);
-            const theta = THREE.MathUtils.degToRad(180);
-            sun.setFromSphericalCoords(1, phi, theta);
-            
-            // Update sky
-            const skyUniforms = sky.material.uniforms;
-            skyUniforms['sunPosition'].value.copy(sun);
-            
-            // Update stars visibility and intensity
-            if (stars) {
-                stars.visible = isNight;
-                if (isNight) {
-                    const starOpacity = Math.min(-elevation / 15, 1); // Fade stars in/out
-                    stars.children[0].material.opacity = starOpacity;
-                }
-            }
-            
-            // Update clouds visibility during night
-            if (clouds) {
-                // Make clouds darker at night
-                clouds.children.forEach(cloud => {
-                    cloud.children.forEach(puff => {
-                        if (isNight) {
-                            // Darken clouds at night with slight blue tint
-                            puff.material.color.setRGB(0.3, 0.3, 0.4);
-                            puff.material.opacity = 0.7;
-                        } else {
-                            // Bright white clouds during day
-                            puff.material.color.setRGB(1, 1, 1);
-                            puff.material.opacity = 0.9;
-                        }
-                    });
-                });
-                
-                // Gently move clouds
-                clouds.children.forEach((cloud, index) => {
-                    // Each cloud moves at a slightly different speed
-                    const cloudSpeed = 0.2 + (index % 5) * 0.05;
-                    cloud.position.x += cloudSpeed * delta;
-                    
-                    // Reset cloud position when it moves too far
-                    if (cloud.position.x > 2000) {
-                        cloud.position.x = -2000;
-                    }
-                });
-            }
-            
-            // Update lighting
-            const lightIntensity = isNight ? 
-                Math.max(0.1, (elevation + 45) / 45) : // Night intensity (0.1 to 1)
-                Math.max(0.5, elevation / 90); // Day intensity (0.5 to 1)
-            
-            sunLight.position.set(sun.x * 100, sun.y * 100, sun.z * 100);
-            sunLight.intensity = lightIntensity;
-            
-            // Update water color based on time of day
-            const waterColor = isNight ? 0x001428 : 0x001e0f;
-            water.material.uniforms['waterColor'].value.setHex(waterColor);
-            
-            // Animate water - reduced speed by 5x
+            // Update water - reduced speed by 5x
             water.material.uniforms['time'].value += 1.0 / 300.0;
             
             // Move ship towards target
@@ -849,48 +757,6 @@
             
             // Render scene
             renderer.render(scene, camera);
-        }
-
-        // Add function to create stars
-        function createStars() {
-            stars = new THREE.Group();
-            const starsGeometry = new THREE.BufferGeometry();
-            const starPositions = [];
-            const starColors = [];
-            
-            // Create 1000 stars
-            for(let i = 0; i < 1000; i++) {
-                // Position stars in a dome above the scene
-                const theta = 2 * Math.PI * Math.random();
-                const phi = Math.acos(2 * Math.random() - 1);
-                const radius = 1000 + Math.random() * 2000; // Random distance between 1000 and 3000
-                
-                const x = radius * Math.sin(phi) * Math.cos(theta);
-                const y = Math.abs(radius * Math.sin(phi) * Math.sin(theta)); // Keep stars above horizon
-                const z = radius * Math.cos(phi);
-                
-                starPositions.push(x, y, z);
-                
-                // Random star colors (mostly white with some blue and yellow tints)
-                const r = 0.9 + Math.random() * 0.1;
-                const g = 0.9 + Math.random() * 0.1;
-                const b = 0.9 + Math.random() * 0.1;
-                starColors.push(r, g, b);
-            }
-            
-            starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
-            starsGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starColors, 3));
-            
-            const starsMaterial = new THREE.PointsMaterial({
-                size: 2,
-                vertexColors: true,
-                transparent: true
-            });
-            
-            const starField = new THREE.Points(starsGeometry, starsMaterial);
-            stars.add(starField);
-            stars.visible = false; // Start with stars hidden
-            scene.add(stars);
         }
 
         // Add function to create wake emitters
@@ -1027,163 +893,6 @@
                 // Fade out
                 particle.mesh.material.opacity = 0.8 * (1 - lifeProgress);
             });
-        }
-
-        // Create beautiful cumulus clouds
-        function createClouds() {
-            clouds = new THREE.Group();
-            scene.add(clouds);
-            
-            // Create 80 clouds (doubled from 40) for much higher density
-            for (let i = 0; i < 80; i++) {
-                // Create a cloud group for each cloud formation
-                const cloudGroup = new THREE.Group();
-                
-                // Random position in the sky - more distributed to fill the sky
-                const angle = Math.random() * Math.PI * 2;
-                // Wider distribution range to prevent overcrowding
-                const distance = 300 + Math.random() * 1800; 
-                // More varied heights for layered appearance
-                const height = 150 + Math.random() * 350; 
-                
-                cloudGroup.position.set(
-                    Math.cos(angle) * distance,
-                    height,
-                    Math.sin(angle) * distance
-                );
-                
-                // Random rotation for variety
-                cloudGroup.rotation.y = Math.random() * Math.PI * 2;
-                
-                // Create cloud material
-                const cloudMaterial = new THREE.MeshStandardMaterial({
-                    color: 0xffffff,
-                    transparent: true,
-                    opacity: 0.92, // Slightly more opaque
-                    roughness: 1,
-                    metalness: 0
-                });
-                
-                // Create a complex cumulus cloud shape using multiple overlapping spheres
-                const numPuffs = 8 + Math.floor(Math.random() * 12); // 8-19 puffs per cloud (increased)
-                
-                // Base large puffs
-                for (let j = 0; j < numPuffs; j++) {
-                    // Create a puff with random size - increased size for puffier clouds
-                    const puffSize = 25 + Math.random() * 12; // Increased from 20-60 to 25-70
-                    const puffGeometry = new THREE.SphereGeometry(puffSize, 8, 8);
-                    const puff = new THREE.Mesh(puffGeometry, cloudMaterial);
-                    
-                    // Position puffs to form a cumulus shape
-                    // Horizontal positioning - cluster around center
-                    const puffDistance = Math.random() * 60; // Increased from 50 for wider clouds
-                    const puffAngle = Math.random() * Math.PI * 2;
-                    puff.position.x = Math.cos(puffAngle) * puffDistance;
-                    puff.position.z = Math.sin(puffAngle) * puffDistance;
-                    
-                    // Vertical positioning - higher in the middle for puffier appearance
-                    const heightFactor = 1 - (puffDistance / 70); // Taller in the middle (adjusted ratio)
-                    puff.position.y = Math.random() * 30 * heightFactor; // Increased height variation
-                    
-                    // Add some random scaling for organic look - increased vertical scale for puffiness
-                    const scaleVar = 0.8 + Math.random() * 0.4;
-                    const verticalScale = 0.7 + Math.random() * 0.6; // Increased vertical scale
-                    puff.scale.set(scaleVar, verticalScale, scaleVar);
-                    
-                    cloudGroup.add(puff);
-                }
-                
-                // Add smaller detail puffs - more of them for puffier appearance
-                for (let j = 0; j < numPuffs * 0.7; j++) { // Increased from numPuffs/2
-                    const detailSize = 12 + Math.random() * 18; // Increased from 10-25 to 12-30
-                    const detailGeometry = new THREE.SphereGeometry(detailSize, 6, 6);
-                    const detailPuff = new THREE.Mesh(detailGeometry, cloudMaterial);
-                    
-                    // Position on top of the main cloud mass
-                    const puffDistance = Math.random() * 70; // Increased from 60
-                    const puffAngle = Math.random() * Math.PI * 2;
-                    detailPuff.position.x = Math.cos(puffAngle) * puffDistance;
-                    detailPuff.position.z = Math.sin(puffAngle) * puffDistance;
-                    detailPuff.position.y = 25 + Math.random() * 20; // Higher position for more volume
-                    
-                    cloudGroup.add(detailPuff);
-                }
-                
-                // Random cloud scale for variety - slightly smaller on average to prevent overwhelming
-                const cloudScale = 0.6 + Math.random() * 0.6;
-                cloudGroup.scale.set(cloudScale, cloudScale * 0.9, cloudScale);
-                
-                // Add the cloud to the clouds group
-                clouds.add(cloudGroup);
-            }
-        }
-
-        function initWindParticleSystem() {
-            // Enable camera layers for wind particles
-            camera.layers.enable(1);
-            
-            // Create wind particle system
-            windParticleSystem = new WindParticleSystem(
-                scene,
-                camera,
-                windDirection.clone().normalize(),
-                windSpeed,
-                800 // visibility radius
-            );
-        }
-        
-        function updateWindDirection(deltaTime) {
-            // Update wind change timer
-            windChangeTimer += deltaTime;
-            
-            // If we're in a transition, update the transition progress
-            if (isWindChanging) {
-                windTransitionProgress += deltaTime;
-                
-                // Calculate transition factor (0 to 1)
-                const t = Math.min(windTransitionProgress / WIND_TRANSITION_DURATION, 1.0);
-                
-                // Smoothly interpolate between old and new wind direction
-                const lerpFactor = smoothStep(0, 1, t);
-                const currentDirection = new THREE.Vector3().lerpVectors(
-                    windDirection, 
-                    newWindDirection, 
-                    lerpFactor
-                ).normalize();
-                
-                // Update wind particle system with interpolated direction
-                windParticleSystem.setWind(currentDirection, windSpeed);
-                
-                // If transition is complete, finalize the change
-                if (t >= 1.0) {
-                    windDirection.copy(newWindDirection);
-                    isWindChanging = false;
-                    windTransitionProgress = 0;
-                }
-            }
-            // Start a new wind direction change
-            else if (windChangeTimer >= WIND_CHANGE_INTERVAL) {
-                // Reset timer
-                windChangeTimer = 0;
-                
-                // Generate new random wind direction
-                const angle = Math.random() * Math.PI * 2;
-                newWindDirection.set(
-                    Math.cos(angle),
-                    0, // Keep y component at 0 for horizontal wind
-                    Math.sin(angle)
-                );
-                
-                // Start transition
-                isWindChanging = true;
-                windTransitionProgress = 0;
-            }
-        }
-        
-        // Smooth step function for nicer transitions
-        function smoothStep(min, max, value) {
-            const x = Math.max(0, Math.min(1, (value - min) / (max - min)));
-            return x * x * (3 - 2 * x);
         }
 
         // Start the application
