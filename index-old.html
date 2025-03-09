@@ -137,13 +137,14 @@
                         }
                     `,
                     transparent: true,
-                    depthTest: false,
+                    depthTest: true,
                     depthWrite: false,
                     blending: THREE.AdditiveBlending
                 });
                 
                 this.trailSystem = new THREE.LineSegments(trails, trailMaterial);
                 this.trailSystem.layers.set(1);
+                this.trailSystem.renderOrder = -1;
                 
                 this.scene.add(this.trailSystem);
             }
@@ -363,6 +364,13 @@
                 windSpeed,
                 800 // visibility radius
             );
+            
+            // Ensure wind particles are rendered with proper depth testing
+            if (windParticleSystem.trailSystem) {
+                windParticleSystem.trailSystem.material.depthTest = true;
+                windParticleSystem.trailSystem.material.depthWrite = false;
+                windParticleSystem.trailSystem.renderOrder = -1; // Render before ship
+            }
         }
         
         function updateWindDirection(deltaTime) {
@@ -435,10 +443,10 @@
             skyUniforms['mieCoefficient'].value = 0.001; // Reduced from 0.005 to decrease whiteness at horizon
             skyUniforms['mieDirectionalG'].value = 0.7; // Reduced from 0.8 for less concentrated scattering
 
-            // Configure sun position
+            // Initial sun position (will be updated in animate)
             const parameters = {
                 elevation: 5,
-                azimuth: 180
+                azimuth: 90  // Start at east (90 degrees)
             };
 
             const phi = THREE.MathUtils.degToRad(90 - parameters.elevation);
@@ -484,7 +492,7 @@
                     }),
                     sunDirection: new THREE.Vector3(sun.x, sun.y, sun.z),
                     sunColor: 0xffffff,
-                    waterColor: 0x001e0f,
+                    waterColor: 0x001e0f, // Single water color for both day and night
                     distortionScale: 3.7,
                     fog: scene.fog !== undefined
                 }
@@ -651,6 +659,17 @@
 
             // Position the ship
             shipGroup.position.y = 0.5;
+            
+            // Ensure ship renders properly with wind particles
+            shipGroup.renderOrder = 0; // Higher than wind particles
+            
+            // Add all meshes in the ship to ensure they render properly
+            shipGroup.traverse(function(object) {
+                if (object.isMesh) {
+                    object.renderOrder = 0; // Higher than wind particles
+                }
+            });
+            
             scene.add(shipGroup);
             
             ship = shipGroup;
@@ -723,53 +742,77 @@
             // Update day-night cycle
             dayNightCycle = (dayNightCycle + delta) % TOTAL_CYCLE;
             
-            // Calculate sun elevation based on cycle
-            let elevation;
-            let isNight;
+            // Calculate sun elevation and azimuth based on cycle
+            let elevation, azimuth;
+            let dayNightTransition;
+            
             if (dayNightCycle < DAY_DURATION) {
                 // Day time
                 const dayProgress = dayNightCycle / DAY_DURATION;
                 elevation = 5 + Math.sin(dayProgress * Math.PI) * 85; // Sun moves from 5° to 90° and back
-                isNight = false;
+                // Azimuth changes from 90° (east) to 270° (west) during the day
+                azimuth = 90 + dayProgress * 180;
+                
+                // Calculate transition factor for day/night (0 = full day, 1 = full night)
+                // Smooth transition near sunrise and sunset
+                if (dayProgress < 0.1) {
+                    // Sunrise transition (night to day)
+                    dayNightTransition = 1 - smoothStep(0, 1, dayProgress / 0.1);
+                } else if (dayProgress > 0.9) {
+                    // Sunset transition (day to night)
+                    dayNightTransition = smoothStep(0, 1, (dayProgress - 0.9) / 0.1);
+                } else {
+                    // Full day
+                    dayNightTransition = 0;
+                }
             } else {
                 // Night time
                 const nightProgress = (dayNightCycle - DAY_DURATION) / NIGHT_DURATION;
                 elevation = 5 - Math.sin(nightProgress * Math.PI) * 45; // Sun moves below horizon
-                isNight = true;
+                // Continue azimuth movement during night (from west back to east)
+                azimuth = 270 + nightProgress * 180;
+                if (azimuth > 360) azimuth -= 360;
+                
+                // During night, transition factor is always 1 except near dawn
+                if (nightProgress > 0.9) {
+                    // Dawn transition (approaching day)
+                    dayNightTransition = 1 - smoothStep(0, 1, (nightProgress - 0.9) / 0.1);
+                } else {
+                    // Full night
+                    dayNightTransition = 1;
+                }
             }
 
             // Update sun position
             const phi = THREE.MathUtils.degToRad(90 - elevation);
-            const theta = THREE.MathUtils.degToRad(180);
+            const theta = THREE.MathUtils.degToRad(azimuth);
             sun.setFromSphericalCoords(1, phi, theta);
             
             // Update sky
             const skyUniforms = sky.material.uniforms;
             skyUniforms['sunPosition'].value.copy(sun);
             
-            // Update stars visibility and intensity
+            // Update stars visibility and intensity with smooth transition
             if (stars) {
-                stars.visible = isNight;
-                if (isNight) {
-                    const starOpacity = Math.min(-elevation / 15, 1); // Fade stars in/out
-                    stars.children[0].material.opacity = starOpacity;
-                }
+                // Always visible but opacity controlled by transition
+                stars.visible = true;
+                const baseStarOpacity = Math.min(-elevation / 15, 1); // Original calculation
+                stars.children[0].material.opacity = baseStarOpacity * dayNightTransition;
             }
             
-            // Update clouds visibility during night
+            // Update clouds with smooth transition between day/night appearance
             if (clouds) {
-                // Make clouds darker at night
+                // Make clouds transition smoothly between day and night appearance
                 clouds.children.forEach(cloud => {
                     cloud.children.forEach(puff => {
-                        if (isNight) {
-                            // Darken clouds at night with slight blue tint
-                            puff.material.color.setRGB(0.3, 0.3, 0.4);
-                            puff.material.opacity = 0.7;
-                        } else {
-                            // Bright white clouds during day
-                            puff.material.color.setRGB(1, 1, 1);
-                            puff.material.opacity = 0.9;
-                        }
+                        // Interpolate between day and night colors/opacity
+                        const r = 1 - dayNightTransition * 0.7; // 1.0 to 0.3
+                        const g = 1 - dayNightTransition * 0.7; // 1.0 to 0.3
+                        const b = 1 - dayNightTransition * 0.6; // 1.0 to 0.4
+                        puff.material.color.setRGB(r, g, b);
+                        
+                        // Transition opacity from 0.9 (day) to 0.7 (night)
+                        puff.material.opacity = 0.9 - dayNightTransition * 0.2;
                     });
                 });
                 
@@ -786,17 +829,20 @@
                 });
             }
             
-            // Update lighting
-            const lightIntensity = isNight ? 
-                Math.max(0.1, (elevation + 45) / 45) : // Night intensity (0.1 to 1)
-                Math.max(0.5, elevation / 90); // Day intensity (0.5 to 1)
+            // Update lighting with smooth transition
+            // Calculate light intensity with smoother transition
+            let lightIntensity;
+            if (elevation > 0) {
+                // Day intensity with smooth transition near sunset
+                const baseIntensity = Math.max(0.5, elevation / 90);
+                lightIntensity = baseIntensity * (1 - dayNightTransition) + 0.1 * dayNightTransition;
+            } else {
+                // Night intensity with smooth transition near sunrise
+                lightIntensity = 0.1 + (1 - dayNightTransition) * 0.4;
+            }
             
             sunLight.position.set(sun.x * 100, sun.y * 100, sun.z * 100);
             sunLight.intensity = lightIntensity;
-            
-            // Update water color based on time of day
-            const waterColor = isNight ? 0x001428 : 0x001e0f;
-            water.material.uniforms['waterColor'].value.setHex(waterColor);
             
             // Animate water - reduced speed by 5x
             water.material.uniforms['time'].value += 1.0 / 300.0;
@@ -1116,74 +1162,6 @@
                 // Add the cloud to the clouds group
                 clouds.add(cloudGroup);
             }
-        }
-
-        function initWindParticleSystem() {
-            // Enable camera layers for wind particles
-            camera.layers.enable(1);
-            
-            // Create wind particle system
-            windParticleSystem = new WindParticleSystem(
-                scene,
-                camera,
-                windDirection.clone().normalize(),
-                windSpeed,
-                800 // visibility radius
-            );
-        }
-        
-        function updateWindDirection(deltaTime) {
-            // Update wind change timer
-            windChangeTimer += deltaTime;
-            
-            // If we're in a transition, update the transition progress
-            if (isWindChanging) {
-                windTransitionProgress += deltaTime;
-                
-                // Calculate transition factor (0 to 1)
-                const t = Math.min(windTransitionProgress / WIND_TRANSITION_DURATION, 1.0);
-                
-                // Smoothly interpolate between old and new wind direction
-                const lerpFactor = smoothStep(0, 1, t);
-                const currentDirection = new THREE.Vector3().lerpVectors(
-                    windDirection, 
-                    newWindDirection, 
-                    lerpFactor
-                ).normalize();
-                
-                // Update wind particle system with interpolated direction
-                windParticleSystem.setWind(currentDirection, windSpeed);
-                
-                // If transition is complete, finalize the change
-                if (t >= 1.0) {
-                    windDirection.copy(newWindDirection);
-                    isWindChanging = false;
-                    windTransitionProgress = 0;
-                }
-            }
-            // Start a new wind direction change
-            else if (windChangeTimer >= WIND_CHANGE_INTERVAL) {
-                // Reset timer
-                windChangeTimer = 0;
-                
-                // Generate new random wind direction
-                const angle = Math.random() * Math.PI * 2;
-                newWindDirection.set(
-                    Math.cos(angle),
-                    0, // Keep y component at 0 for horizontal wind
-                    Math.sin(angle)
-                );
-                
-                // Start transition
-                isWindChanging = true;
-                windTransitionProgress = 0;
-            }
-        }
-        
-        // Smooth step function for nicer transitions
-        function smoothStep(min, max, value) {
-            const x = Math.max(0, Math.min(1, (value - min) / (max - min)));
-            return x * x * (3 - 2 * x);
         }
 
         // Start the application
