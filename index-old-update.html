@@ -45,6 +45,7 @@
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { Water } from 'three/addons/objects/Water.js';
         import { Sky } from 'three/addons/objects/Sky.js';
+        import IslandGenerator from './IslandGenerator.js';
         // WindParticleSystem class
         class WindParticleSystem {
             constructor(scene, camera, windDirection, windSpeed, visibilityRadius = 800) {
@@ -307,6 +308,9 @@
         let windTransitionProgress = 0;
         const WIND_TRANSITION_DURATION = 3; // Transition duration in seconds
 
+        // Island generator
+        let islandGenerator;
+        
         // Initialize the scene
         function init() {
             // Create scene
@@ -356,8 +360,33 @@
             // Initialize wind particle system
             initWindParticleSystem();
             
+            // Generate islands
+            generateIslands();
+            
             // Start animation loop
             animate();
+        }
+
+        // Generate islands in the ocean
+        function generateIslands() {
+            // Initialize island generator
+            islandGenerator = new IslandGenerator(scene);
+            
+            // Define island positions
+            const islandPositions = [
+                new THREE.Vector3(500, 0, 300),
+                new THREE.Vector3(-700, 0, -400),
+                new THREE.Vector3(300, 0, -800),
+                new THREE.Vector3(-500, 0, 600),
+                new THREE.Vector3(1000, 0, -200)
+            ];
+            
+            // Generate islands with 15 trees per island
+            islandGenerator.generateIslands(islandPositions, 15);
+            
+            // Generate a larger custom island
+            const customGeometry = new THREE.PlaneGeometry(400, 400, 80, 80);
+            islandGenerator.generateCustomIsland(new THREE.Vector3(-200, 0, 1000), customGeometry, 30);
         }
 
         function initWindParticleSystem() {
