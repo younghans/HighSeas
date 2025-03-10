@@ -44,7 +44,7 @@ class IslandGenerator {
         };
     }
 
-    generateIslands(islandPositions, numTreesPerIsland = 10, islandSize = 500) {
+    generateIslands(islandPositions, numTreesPerIsland = 10, islandSize = 400) {
         islandPositions.forEach(pos => {
             // Generate island geometry with larger size
             const islandGeometry = new THREE.PlaneGeometry(islandSize, islandSize, 50, 50);
@@ -52,7 +52,7 @@ class IslandGenerator {
             const colors = new Float32Array(positions.count * 3);
 
             // Adjust noise scale based on island size to maintain terrain detail
-            const noiseScale = 0.03 * (200 / islandSize);
+            const noiseScale = 0.015 * (200 / islandSize);
             
             // Scale the distance falloff based on island size
             const falloffFactor = 0.3 * (200 / islandSize);
@@ -63,7 +63,7 @@ class IslandGenerator {
                 const distance = Math.sqrt(x * x + y * y);
                 
                 // Scale the distance falloff with island size
-                const height = this.noise.perlin((x + pos.x) * noiseScale, (y + pos.z) * noiseScale) * 30 - distance * falloffFactor;
+                const height = this.noise.perlin((x + pos.x) * noiseScale, (y + pos.z) * noiseScale) * 80 - distance * falloffFactor;
                 positions.setZ(i, height);
 
                 const color = new THREE.Color();
