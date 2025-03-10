@@ -44,18 +44,26 @@ class IslandGenerator {
         };
     }
 
-    generateIslands(islandPositions, numTreesPerIsland = 10) {
+    generateIslands(islandPositions, numTreesPerIsland = 10, islandSize = 500) {
         islandPositions.forEach(pos => {
-            // Generate island geometry
-            const islandGeometry = new THREE.PlaneGeometry(200, 200, 50, 50);
+            // Generate island geometry with larger size
+            const islandGeometry = new THREE.PlaneGeometry(islandSize, islandSize, 50, 50);
             const positions = islandGeometry.attributes.position;
             const colors = new Float32Array(positions.count * 3);
+
+            // Adjust noise scale based on island size to maintain terrain detail
+            const noiseScale = 0.03 * (200 / islandSize);
+            
+            // Scale the distance falloff based on island size
+            const falloffFactor = 0.3 * (200 / islandSize);
 
             for (let i = 0; i < positions.count; i++) {
                 const x = positions.getX(i);
                 const y = positions.getY(i);
                 const distance = Math.sqrt(x * x + y * y);
-                const height = this.noise.perlin((x + pos.x) * 0.03, (y + pos.z) * 0.03) * 30 - distance * 0.3;
+                
+                // Scale the distance falloff with island size
+                const height = this.noise.perlin((x + pos.x) * noiseScale, (y + pos.z) * noiseScale) * 30 - distance * falloffFactor;
                 positions.setZ(i, height);
 
                 const color = new THREE.Color();
@@ -98,7 +106,11 @@ class IslandGenerator {
 
         // Scale height based on the island size - larger islands get taller mountains
         const sizeScaleFactor = Math.max(customGeometry.parameters.width, customGeometry.parameters.height) / 200;
-        const heightMultiplier = 30 * Math.sqrt(sizeScaleFactor); // Scale height, but not linearly
+        // Increase the height multiplier for larger islands
+        const heightMultiplier = 40 * Math.sqrt(sizeScaleFactor);
+        
+        // Scale the falloff factor inversely with island size
+        const falloffFactor = 0.2 * (1 / sizeScaleFactor);
 
         for (let i = 0; i < positions.count; i++) {
             const x = positions.getX(i);
@@ -106,8 +118,8 @@ class IslandGenerator {
             const distance = Math.sqrt(x * x + y * y);
             
             // Use a smaller frequency for larger islands to maintain realistic terrain
-            const frequency = 0.03 / Math.sqrt(sizeScaleFactor);
-            const height = this.noise.perlin((x + position.x) * frequency, (y + position.z) * frequency) * heightMultiplier - distance * 0.3;
+            const frequency = 0.02 / Math.sqrt(sizeScaleFactor);
+            const height = this.noise.perlin((x + position.x) * frequency, (y + position.z) * frequency) * heightMultiplier - distance * falloffFactor;
             positions.setZ(i, height);
 
             const color = new THREE.Color();
