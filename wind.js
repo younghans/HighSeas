@@ -14,7 +14,7 @@ class WindParticleSystem {
     }
 
     init() {
-        const particleCount = 500;
+        const particleCount = 30;
         const trails = new THREE.BufferGeometry();
         
         const positions = new Float32Array(particleCount * 3);
@@ -99,13 +99,14 @@ class WindParticleSystem {
                 }
             `,
             transparent: true,
-            depthTest: false,
+            depthTest: true,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
         
         this.trailSystem = new THREE.LineSegments(trails, trailMaterial);
         this.trailSystem.layers.set(1);
+        this.trailSystem.renderOrder = -1;
         
         this.scene.add(this.trailSystem);
     }
@@ -228,4 +229,121 @@ class WindParticleSystem {
     }
 }
 
-export default WindParticleSystem; 
+class WindSystem {
+    constructor(scene, camera, options = {}) {
+        this.scene = scene;
+        this.camera = camera;
+        
+        // Wind system variables
+        this.windDirection = new THREE.Vector3(1, 0, 0); // Initial wind direction
+        this.windSpeed = options.windSpeed || 20; // Wind speed
+        this.windChangeTimer = 0;
+        this.WIND_CHANGE_INTERVAL = options.changeInterval || 15; // Change wind direction every 15 seconds
+        this.newWindDirection = new THREE.Vector3(1, 0, 0); // Target wind direction during transitions
+        this.isWindChanging = false;
+        this.windTransitionProgress = 0;
+        this.WIND_TRANSITION_DURATION = options.transitionDuration || 3; // Transition duration in seconds
+        
+        // Initialize wind particle system
+        this.initWindParticleSystem();
+    }
+    
+    initWindParticleSystem() {
+        // Enable camera layers for wind particles
+        this.camera.layers.enable(1);
+        
+        // Create wind particle system
+        this.particleSystem = new WindParticleSystem(
+            this.scene,
+            this.camera,
+            this.windDirection.clone().normalize(),
+            this.windSpeed,
+            800 // visibility radius
+        );
+        
+        // Ensure wind particles are rendered with proper depth testing
+        if (this.particleSystem.trailSystem) {
+            this.particleSystem.trailSystem.material.depthTest = true;
+            this.particleSystem.trailSystem.material.depthWrite = false;
+            this.particleSystem.trailSystem.renderOrder = -1; // Render before ship
+        }
+    }
+    
+    update(deltaTime) {
+        // Update wind change timer
+        this.windChangeTimer += deltaTime;
+        
+        // If we're in a transition, update the transition progress
+        if (this.isWindChanging) {
+            this.windTransitionProgress += deltaTime;
+            
+            // Calculate transition factor (0 to 1)
+            const t = Math.min(this.windTransitionProgress / this.WIND_TRANSITION_DURATION, 1.0);
+            
+            // Smoothly interpolate between old and new wind direction
+            const lerpFactor = this.smoothStep(0, 1, t);
+            const currentDirection = new THREE.Vector3().lerpVectors(
+                this.windDirection, 
+                this.newWindDirection, 
+                lerpFactor
+            ).normalize();
+            
+            // Update wind particle system with interpolated direction
+            this.particleSystem.setWind(currentDirection, this.windSpeed);
+            
+            // If transition is complete, finalize the change
+            if (t >= 1.0) {
+                this.windDirection.copy(this.newWindDirection);
+                this.isWindChanging = false;
+                this.windTransitionProgress = 0;
+            }
+        }
+        // Start a new wind direction change
+        else if (this.windChangeTimer >= this.WIND_CHANGE_INTERVAL) {
+            // Reset timer
+            this.windChangeTimer = 0;
+            
+            // Generate new random wind direction
+            const angle = Math.random() * Math.PI * 2;
+            this.newWindDirection.set(
+                Math.cos(angle),
+                0, // Keep y component at 0 for horizontal wind
+                Math.sin(angle)
+            );
+            
+            // Start transition
+            this.isWindChanging = true;
+            this.windTransitionProgress = 0;
+        }
+        
+        // Update the particle system
+        this.particleSystem.update(deltaTime);
+    }
+    
+    // Smooth step function for nicer transitions
+    smoothStep(min, max, value) {
+        const x = Math.max(0, Math.min(1, (value - min) / (max - min)));
+        return x * x * (3 - 2 * x);
+    }
+    
+    setWindSpeed(speed) {
+        this.windSpeed = Math.max(0, speed);
+        this.particleSystem.setWind(this.windDirection, this.windSpeed);
+    }
+    
+    getWindDirection() {
+        return this.windDirection.clone();
+    }
+    
+    getWindSpeed() {
+        return this.windSpeed;
+    }
+    
+    // Force an immediate wind direction change
+    setWindDirection(direction) {
+        this.windDirection.copy(direction).normalize();
+        this.particleSystem.setWind(this.windDirection, this.windSpeed);
+    }
+}
+
+export { WindSystem, WindParticleSystem }; 
