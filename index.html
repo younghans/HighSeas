@@ -27,7 +27,7 @@
 </head>
 <body>
     <div id="info">
-        <h2>Sailing Simulator</h2>
+        <h2>Yarr!</h2>
         <p>Left-click: Move ship to location</p>
         <p>Right-click drag: Move camera</p>
     </div>
@@ -810,14 +810,8 @@
                 azimuth = 270 + nightProgress * 180;
                 if (azimuth > 360) azimuth -= 360;
                 
-                // During night, transition factor is always 1 except near dawn
-                if (nightProgress > 0.9) {
-                    // Dawn transition (approaching day)
-                    dayNightTransition = 1 - smoothStep(0, 1, (nightProgress - 0.9) / 0.1);
-                } else {
-                    // Full night
-                    dayNightTransition = 1;
-                }
+                // During night, transition factor is always 1
+                dayNightTransition = 1;
             }
 
             // Update sun position
