@@ -14,8 +14,8 @@ class World {
         
         // Day-night cycle parameters
         this.dayNightCycle = 0;
-        this.DAY_DURATION = 30; // 30 seconds of day
-        this.NIGHT_DURATION = 10; // 10 seconds of night
+        this.DAY_DURATION = 300; // 30 seconds of day
+        this.NIGHT_DURATION = 150; // 10 seconds of night
         this.TOTAL_CYCLE = this.DAY_DURATION + this.NIGHT_DURATION;
         
         // Initialize world components

@@ -25,6 +25,16 @@
         }
         #islandMenu {
             display: none;
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 1000;
+            min-width: 300px;
+            text-align: center;
         }
         
         #islandMenu button {
@@ -69,6 +79,7 @@
         import World from './world.js';
         import Ship from './ship.js';
         import { WindSystem } from './wind.js';
+        import MarketStall from './objects/market-stall.js';
 
         // Main game variables
         let scene, camera, renderer;
@@ -89,6 +100,16 @@
 
         // Add a variable to track the clicked point on the island
         let selectedIslandPoint = null;
+        
+        // Build mode variables
+        let buildMode = false;
+        let buildObject = null;
+        let buildPreview = null;
+        const WATER_LEVEL_THRESHOLD = 0; // Y-value above which we consider the island to be "above water"
+        
+        // Raycaster for build mode
+        const buildRaycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
 
         // Initialize the scene
         function init() {
@@ -130,6 +151,12 @@
             
             // Generate islands
             generateIslands();
+            
+            // Add event listener for mouse movement (for build mode)
+            renderer.domElement.addEventListener('mousemove', onMouseMove);
+            
+            // Add event listener for keyboard (for exiting build mode)
+            document.addEventListener('keydown', onKeyDown);
             
             // Start animation loop
             animate();
@@ -181,12 +208,38 @@
             // Only handle left clicks
             if (event.button !== 0) return;
             
-            // Calculate mouse position in normalized device coordinates (-1 to +1)
-            const mouse = new THREE.Vector2();
+            // Update mouse position
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
             
-            // Create a raycaster
+            // If in build mode, handle building placement
+            if (buildMode && buildPreview) {
+                // Create a raycaster
+                buildRaycaster.setFromCamera(mouse, camera);
+                
+                // Check for intersections with islands
+                const islandIntersects = buildRaycaster.intersectObjects(islandGenerator.getIslands());
+                
+                if (islandIntersects.length > 0) {
+                    const intersection = islandIntersects[0];
+                    const clickedPoint = intersection.point;
+                    
+                    // Check if the clicked point is above water
+                    if (clickedPoint.y > WATER_LEVEL_THRESHOLD) {
+                        // Place the building at the clicked point
+                        placeBuilding(clickedPoint);
+                        
+                        // Exit build mode
+                        exitBuildMode();
+                        return;
+                    }
+                }
+                
+                // If we get here, the click wasn't on a valid build location
+                return;
+            }
+            
+            // Calculate mouse position in normalized device coordinates (-1 to +1)
             const raycaster = new THREE.Raycaster();
             raycaster.setFromCamera(mouse, camera);
             
@@ -203,9 +256,6 @@
                 
                 // Get the exact point of intersection in world coordinates
                 const intersectionPoint = intersection.point;
-                
-                // Define the water level threshold - adjust this value as needed
-                const WATER_LEVEL_THRESHOLD = 0; // This is the y-value above which we consider the island to be "above water"
                 
                 // Check if the clicked point is above water
                 if (intersectionPoint.y > WATER_LEVEL_THRESHOLD) {
@@ -265,6 +315,9 @@
 
         // Helper function to handle water clicks
         function handleWaterClick(raycaster) {
+            // If in build mode, ignore water clicks
+            if (buildMode) return;
+            
             const waterIntersects = raycaster.intersectObject(world.getWater());
             
             if (waterIntersects.length > 0) {
@@ -298,32 +351,20 @@
             if (!document.getElementById('islandMenu')) {
                 const menu = document.createElement('div');
                 menu.id = 'islandMenu';
-                menu.style.position = 'absolute';
-                menu.style.top = '50%';
-                menu.style.left = '50%';
-                menu.style.transform = 'translate(-50%, -50%)';
-                menu.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-                menu.style.color = 'white';
-                menu.style.padding = '20px';
-                menu.style.borderRadius = '10px';
-                menu.style.zIndex = '1000';
-                menu.style.minWidth = '300px';
-                menu.style.textAlign = 'center';
                 
                 // Add menu content
                 menu.innerHTML = `
                     <h2>Island Menu</h2>
                     <p>You've discovered an island!</p>
-                    <button id="exploreButton">Explore Island</button>
+                    <button id="placeStallButton">Place Stall</button>
                     <button id="closeMenuButton">Close</button>
                 `;
                 
                 document.body.appendChild(menu);
                 
                 // Add event listeners to buttons
-                document.getElementById('exploreButton').addEventListener('click', () => {
-                    console.log('Exploring island...');
-                    // Add exploration functionality here
+                document.getElementById('placeStallButton').addEventListener('click', () => {
+                    enterBuildMode('marketStall');
                 });
                 
                 document.getElementById('closeMenuButton').addEventListener('click', hideIslandMenu);
@@ -340,6 +381,147 @@
             islandMenuOpen = false;
             selectedIsland = null;
             selectedIslandPoint = null;
+        }
+        
+        function enterBuildMode(buildingType) {
+            // Set build mode flag
+            buildMode = true;
+            
+            // Hide the island menu
+            hideIslandMenu();
+            
+            // Create the build preview based on the building type
+            if (buildingType === 'marketStall') {
+                // Create a market stall with 50% opacity
+                buildObject = new MarketStall({
+                    position: new THREE.Vector3(0, 0, 0),
+                    detailLevel: 0.8
+                });
+                
+                buildPreview = buildObject.getObject();
+                
+                // Make the preview semi-transparent
+                buildPreview.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(mat => {
+                                mat.transparent = true;
+                                mat.opacity = 0.5;
+                            });
+                        } else {
+                            child.material.transparent = true;
+                            child.material.opacity = 0.5;
+                        }
+                    }
+                });
+                
+                // Add the preview to the scene
+                scene.add(buildPreview);
+                
+                // Update the info display
+                const infoElement = document.getElementById('info');
+                infoElement.innerHTML = `
+                    <h2>Build Mode</h2>
+                    <p>Left-click: Place building</p>
+                    <p>ESC: Cancel building</p>
+                `;
+                
+                // Create a cancel button
+                const cancelButton = document.createElement('button');
+                cancelButton.id = 'cancelBuildButton';
+                cancelButton.textContent = 'Stop Building';
+                cancelButton.style.position = 'absolute';
+                cancelButton.style.top = '10px';
+                cancelButton.style.right = '10px';
+                cancelButton.style.padding = '10px';
+                cancelButton.style.backgroundColor = '#c44';
+                cancelButton.style.color = 'white';
+                cancelButton.style.border = 'none';
+                cancelButton.style.borderRadius = '5px';
+                cancelButton.style.cursor = 'pointer';
+                cancelButton.addEventListener('click', exitBuildMode);
+                document.body.appendChild(cancelButton);
+            }
+        }
+        
+        function exitBuildMode() {
+            // Reset build mode flag
+            buildMode = false;
+            
+            // Remove the build preview from the scene
+            if (buildPreview) {
+                scene.remove(buildPreview);
+                buildPreview = null;
+            }
+            
+            // Reset the info display
+            const infoElement = document.getElementById('info');
+            infoElement.innerHTML = `
+                <h2>Yarr!</h2>
+                <p>Left-click: Move ship to location</p>
+                <p>Right-click drag: Move camera</p>
+            `;
+            
+            // Remove the cancel button
+            const cancelButton = document.getElementById('cancelBuildButton');
+            if (cancelButton) {
+                cancelButton.remove();
+            }
+        }
+        
+        function placeBuilding(position) {
+            // Create a new building at the specified position
+            if (buildObject) {
+                const newBuilding = new MarketStall({
+                    position: position,
+                    detailLevel: 0.8
+                });
+                
+                // Add the building to the scene
+                scene.add(newBuilding.getObject());
+            }
+        }
+        
+        function onMouseMove(event) {
+            // Update mouse position
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            // If in build mode, update the preview position
+            if (buildMode && buildPreview) {
+                // Create a raycaster
+                buildRaycaster.setFromCamera(mouse, camera);
+                
+                // Check for intersections with islands
+                const islandIntersects = buildRaycaster.intersectObjects(islandGenerator.getIslands());
+                
+                if (islandIntersects.length > 0) {
+                    const intersection = islandIntersects[0];
+                    const point = intersection.point;
+                    
+                    // Check if the point is above water
+                    if (point.y > WATER_LEVEL_THRESHOLD) {
+                        // Update the preview position
+                        buildPreview.position.copy(point);
+                        
+                        // Make the preview visible
+                        buildPreview.visible = true;
+                    } else {
+                        // Hide the preview if below water level
+                        buildPreview.visible = false;
+                    }
+                } else {
+                    // Hide the preview if not over an island
+                    buildPreview.visible = false;
+                }
+            }
+        }
+        
+        function onKeyDown(event) {
+            // Check for ESC key to exit build mode
+            if (event.key === 'Escape' && buildMode) {
+                exitBuildMode();
+            }
         }
 
         function onWindowResize() {
