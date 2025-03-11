@@ -14,7 +14,7 @@ class WindParticleSystem {
     }
 
     init() {
-        const particleCount = 30;
+        const particleCount = 50;
         const trails = new THREE.BufferGeometry();
         
         const positions = new Float32Array(particleCount * 3);

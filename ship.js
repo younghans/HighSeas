@@ -345,6 +345,11 @@ class Ship {
         this.isMoving = true;
     }
     
+    stopMoving() {
+        this.isMoving = false;
+        this.targetPosition = null;
+    }
+    
     update(delta, time) {
         // Move ship towards target
         if (this.isMoving && this.targetPosition) {

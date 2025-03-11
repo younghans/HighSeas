@@ -23,6 +23,26 @@
             border-radius: 5px;
             pointer-events: none;
         }
+        #islandMenu {
+            display: none;
+        }
+        
+        #islandMenu button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            background-color: #4a6d8c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        #islandMenu button:hover {
+            background-color: #5a8dac;
+        }
     </style>
 </head>
 <body>
@@ -62,6 +82,14 @@
         // Island generator
         let islandGenerator;
         
+        // Add this variable to track the currently selected island
+        let selectedIsland = null;
+        let islandMenuOpen = false;
+        const ISLAND_INTERACTION_DISTANCE = 50; // Distance at which ship can interact with island
+
+        // Add a variable to track the clicked point on the island
+        let selectedIslandPoint = null;
+
         // Initialize the scene
         function init() {
             // Create scene
@@ -145,7 +173,7 @@
             // Set the target of the controls to the ship
             controls.target.copy(ship.getPosition());
             
-            // Left-click to move ship
+            // Left-click to move ship or interact with islands
             renderer.domElement.addEventListener('click', onMouseClick);
         }
 
@@ -162,13 +190,156 @@
             const raycaster = new THREE.Raycaster();
             raycaster.setFromCamera(mouse, camera);
             
-            // Check for intersections with the water
-            const intersects = raycaster.intersectObject(world.getWater());
+            // Get all islands from the island generator
+            const islands = islandGenerator.getIslands();
             
-            if (intersects.length > 0) {
-                // Tell the ship to move to the target position
-                ship.moveTo(intersects[0].point);
+            // Check for intersections with islands first
+            const islandIntersects = raycaster.intersectObjects(islands);
+            
+            if (islandIntersects.length > 0) {
+                // An island was clicked
+                const intersection = islandIntersects[0];
+                const clickedIsland = intersection.object;
+                
+                // Get the exact point of intersection in world coordinates
+                const intersectionPoint = intersection.point;
+                
+                // Define the water level threshold - adjust this value as needed
+                const WATER_LEVEL_THRESHOLD = 0; // This is the y-value above which we consider the island to be "above water"
+                
+                // Check if the clicked point is above water
+                if (intersectionPoint.y > WATER_LEVEL_THRESHOLD) {
+                    // Clicked on a part of the island that's above water
+                    selectedIsland = clickedIsland;
+                    
+                    // Store the exact clicked point (only X and Z coordinates, ignoring Y/height)
+                    // We'll use the ship's current Y value for the target position
+                    const clickedPoint = new THREE.Vector3(
+                        intersectionPoint.x,
+                        ship.getPosition().y, // Use ship's Y position, not the terrain height
+                        intersectionPoint.z
+                    );
+                    
+                    // Get ship position
+                    const shipPos = ship.getPosition().clone();
+                    
+                    // Calculate distance between ship and clicked point (ignoring Y axis)
+                    const shipPosFlat = new THREE.Vector3(shipPos.x, 0, shipPos.z);
+                    const clickedPointFlat = new THREE.Vector3(clickedPoint.x, 0, clickedPoint.z);
+                    const distance = shipPosFlat.distanceTo(clickedPointFlat);
+                    
+                    if (distance <= ISLAND_INTERACTION_DISTANCE) {
+                        // Ship is close enough to the clicked point, stop the ship and show menu
+                        ship.stopMoving();
+                        showIslandMenu(clickedIsland, clickedPoint);
+                    } else {
+                        // Ship is too far, move it closer to the clicked point
+                        // Calculate a position near the clicked point for the ship to move to
+                        const direction = new THREE.Vector3().subVectors(clickedPointFlat, shipPosFlat).normalize();
+                        
+                        // Calculate a position that's just within interaction distance of the clicked point
+                        const targetPosition = new THREE.Vector3().addVectors(
+                            clickedPointFlat,
+                            direction.multiplyScalar(-ISLAND_INTERACTION_DISTANCE * 0.8) // Move slightly closer than the minimum distance
+                        );
+                        
+                        // Ensure Y position is the same as the ship's current Y position
+                        targetPosition.y = ship.getPosition().y;
+                        
+                        // Store the clicked point for later use when the ship arrives
+                        // We store only the X and Z coordinates, using the ship's Y position
+                        ship.targetIslandPoint = clickedPoint;
+                        
+                        // Move ship to the target position
+                        ship.moveTo(targetPosition);
+                    }
+                } else {
+                    // Clicked on a part of the island that's underwater - treat as water click
+                    handleWaterClick(raycaster);
+                }
+            } else {
+                // No island was clicked, check for water intersection
+                handleWaterClick(raycaster);
             }
+        }
+
+        // Helper function to handle water clicks
+        function handleWaterClick(raycaster) {
+            const waterIntersects = raycaster.intersectObject(world.getWater());
+            
+            if (waterIntersects.length > 0) {
+                // Close island menu if open
+                if (islandMenuOpen) {
+                    hideIslandMenu();
+                }
+                
+                // Get target position
+                const targetPosition = waterIntersects[0].point;
+                
+                // Ensure Y position doesn't change - use the ship's current Y position
+                targetPosition.y = ship.getPosition().y;
+                
+                // Tell the ship to move to the target position
+                ship.moveTo(targetPosition);
+            }
+        }
+
+        function showIslandMenu(island, clickedPoint) {
+            // Stop the ship's movement when opening the island menu
+            ship.stopMoving();
+            
+            // Create or show the island menu
+            islandMenuOpen = true;
+            
+            // Store the clicked point
+            selectedIslandPoint = clickedPoint;
+            
+            // If menu doesn't exist, create it
+            if (!document.getElementById('islandMenu')) {
+                const menu = document.createElement('div');
+                menu.id = 'islandMenu';
+                menu.style.position = 'absolute';
+                menu.style.top = '50%';
+                menu.style.left = '50%';
+                menu.style.transform = 'translate(-50%, -50%)';
+                menu.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+                menu.style.color = 'white';
+                menu.style.padding = '20px';
+                menu.style.borderRadius = '10px';
+                menu.style.zIndex = '1000';
+                menu.style.minWidth = '300px';
+                menu.style.textAlign = 'center';
+                
+                // Add menu content
+                menu.innerHTML = `
+                    <h2>Island Menu</h2>
+                    <p>You've discovered an island!</p>
+                    <button id="exploreButton">Explore Island</button>
+                    <button id="closeMenuButton">Close</button>
+                `;
+                
+                document.body.appendChild(menu);
+                
+                // Add event listeners to buttons
+                document.getElementById('exploreButton').addEventListener('click', () => {
+                    console.log('Exploring island...');
+                    // Add exploration functionality here
+                });
+                
+                document.getElementById('closeMenuButton').addEventListener('click', hideIslandMenu);
+            } else {
+                document.getElementById('islandMenu').style.display = 'block';
+            }
+        }
+
+        function hideIslandMenu() {
+            const menu = document.getElementById('islandMenu');
+            if (menu) {
+                menu.style.display = 'none';
+            }
+            islandMenuOpen = false;
+            selectedIsland = null;
+            selectedIslandPoint = null;
         }
 
         function onWindowResize() {
@@ -188,6 +359,29 @@
             
             // Update ship and wake particles
             ship.update(delta, time);
+            
+            // Check if ship has reached the selected island point
+            if (selectedIsland && !islandMenuOpen && ship.targetIslandPoint) {
+                const shipPos = ship.getPosition().clone();
+                
+                // Calculate distance between ship and clicked point (ignoring Y axis)
+                const shipPosFlat = new THREE.Vector3(shipPos.x, 0, shipPos.z);
+                const targetPointFlat = new THREE.Vector3(
+                    ship.targetIslandPoint.x, 
+                    0, 
+                    ship.targetIslandPoint.z
+                );
+                
+                const distance = shipPosFlat.distanceTo(targetPointFlat);
+                
+                // If ship has reached the clicked point and is not moving, show menu
+                if (distance <= ISLAND_INTERACTION_DISTANCE && !ship.isMoving) {
+                    // Stop the ship explicitly (although it should already be stopped)
+                    ship.stopMoving();
+                    showIslandMenu(selectedIsland, ship.targetIslandPoint);
+                    ship.targetIslandPoint = null; // Clear the target point
+                }
+            }
             
             // Update camera target to follow ship
             controls.target.copy(ship.getPosition());
