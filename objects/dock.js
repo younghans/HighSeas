@@ -3,8 +3,8 @@ import * as THREE from 'three';
 class Dock {
     constructor(params = {}) {
         // Default parameters
-        this.width = params.width || 3;
-        this.length = params.length || 10;
+        this.width = params.width || 6;
+        this.length = params.length || 20;
         this.height = params.height || 1;
         this.position = params.position || new THREE.Vector3(0, 0, 0);
         this.rotation = params.rotation || 0;
@@ -124,11 +124,11 @@ class Dock {
         // Add decorative railings
         this.addHistoricalRailings();
         
-        // Add lanterns along the sides
-        this.addLanterns();
-        
         // Add mooring posts for ships
         this.addMooringPosts();
+        
+        // Add support pillars under the dock
+        this.addSupportPillars();
         
         // Add a ladder at the end
         this.addHistoricalLadder();
@@ -316,78 +316,6 @@ class Dock {
         }
     }
     
-    addLanterns() {
-        const lanternSpacing = 6; // Space between lanterns
-        const lanternHeight = 1.8;
-        const halfWidth = this.width / 2;
-        const halfLength = this.length / 2;
-        
-        // Create lantern material with emissive properties
-        const metalMaterial = new THREE.MeshStandardMaterial({
-            color: new THREE.Color(0.2, 0.2, 0.2),
-            roughness: 0.5,
-            metalness: 0.8
-        });
-        
-        const glassMaterial = new THREE.MeshStandardMaterial({
-            color: this.lanternColor,
-            roughness: 0.2,
-            metalness: 0.1,
-            transparent: true,
-            opacity: 0.8,
-            emissive: this.lanternColor,
-            emissiveIntensity: 0.5
-        });
-        
-        // Create lanterns along both sides
-        for (let z = -halfLength + 3; z < halfLength; z += lanternSpacing) {
-            // Create a lantern function
-            const createLantern = (x, z) => {
-                const lanternGroup = new THREE.Group();
-                
-                // Lantern post
-                const postGeometry = new THREE.CylinderGeometry(0.05, 0.05, lanternHeight, 6);
-                const post = new THREE.Mesh(postGeometry, metalMaterial);
-                post.position.y = lanternHeight/2;
-                lanternGroup.add(post);
-                
-                // Lantern housing
-                const housingGeometry = new THREE.BoxGeometry(0.3, 0.4, 0.3);
-                const housing = new THREE.Mesh(housingGeometry, metalMaterial);
-                housing.position.y = lanternHeight - 0.2;
-                lanternGroup.add(housing);
-                
-                // Lantern glass
-                const glassGeometry = new THREE.BoxGeometry(0.25, 0.35, 0.25);
-                const glass = new THREE.Mesh(glassGeometry, glassMaterial);
-                glass.position.y = lanternHeight - 0.2;
-                lanternGroup.add(glass);
-                
-                // Lantern top
-                const topGeometry = new THREE.ConeGeometry(0.2, 0.15, 4);
-                const top = new THREE.Mesh(topGeometry, metalMaterial);
-                top.position.y = lanternHeight + 0.05;
-                lanternGroup.add(top);
-                
-                // Add light source
-                const light = new THREE.PointLight(this.lanternColor, 0.8, 3);
-                light.position.y = lanternHeight - 0.2;
-                lanternGroup.add(light);
-                
-                lanternGroup.position.set(x, this.height * 0.1, z);
-                return lanternGroup;
-            };
-            
-            // Left side lantern
-            const leftLantern = createLantern(-halfWidth, z);
-            this.object.add(leftLantern);
-            
-            // Right side lantern
-            const rightLantern = createLantern(halfWidth, z);
-            this.object.add(rightLantern);
-        }
-    }
-    
     addMooringPosts() {
         const mooringMaterial = new THREE.MeshStandardMaterial({
             color: this.woodColor.clone().multiplyScalar(0.6), // Dark aged wood
@@ -425,6 +353,124 @@ class Dock {
             rope.position.set(pos[0], this.height * 0.1 + 0.9, pos[2]);
             this.object.add(rope);
         });
+    }
+    
+    addSupportPillars() {
+        const pillarMaterial = new THREE.MeshStandardMaterial({
+            color: this.woodColor.clone().multiplyScalar(0.65), // Darker wood for underwater pillars
+            roughness: 1.0,
+            metalness: 0.0
+        });
+        
+        const pillarRadius = 0.35; // Thick support pillars
+        const pillarHeight = 4.0; // Tall enough to reach below water
+        
+        // Calculate positions for pillars
+        const halfWidth = this.width / 2;
+        const halfLength = this.length / 2;
+        
+        // Define exact positions for pillars to ensure perfect symmetry
+        const pillarPositions = [];
+        
+        // Corner pillars (always present)
+        pillarPositions.push(
+            [-halfWidth, -halfLength], // Back left corner
+            [halfWidth, -halfLength],  // Back right corner
+            [-halfWidth, halfLength],  // Front left corner
+            [halfWidth, halfLength]    // Front right corner
+        );
+        
+        // Add pillars along the length edges
+        const lengthSegments = Math.floor(this.length / 4); // One pillar every 4 units
+        if (lengthSegments > 1) {
+            const lengthStep = this.length / lengthSegments;
+            
+            for (let i = 1; i < lengthSegments; i++) {
+                const z = -halfLength + i * lengthStep;
+                // Left edge
+                pillarPositions.push([-halfWidth, z]);
+                // Right edge
+                pillarPositions.push([halfWidth, z]);
+            }
+        }
+        
+        // Add pillars along the width edges (front and back)
+        const widthSegments = Math.floor(this.width / 4); // One pillar every 4 units
+        if (widthSegments > 1) {
+            const widthStep = this.width / widthSegments;
+            
+            for (let i = 1; i < widthSegments; i++) {
+                const x = -halfWidth + i * widthStep;
+                // Back edge
+                pillarPositions.push([x, -halfLength]);
+                // Front edge
+                pillarPositions.push([x, halfLength]);
+            }
+        }
+        
+        // Create pillars at all defined positions
+        pillarPositions.forEach(pos => {
+            // Create the main pillar
+            const pillarGeometry = new THREE.CylinderGeometry(
+                pillarRadius, 
+                pillarRadius * 1.2, // Slightly wider at the bottom
+                pillarHeight, 
+                8
+            );
+            
+            const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
+            pillar.position.set(pos[0], -pillarHeight / 2 - this.height * 0.1, pos[1]);
+            this.object.add(pillar);
+            
+            // Add a simple cap to the top of each pillar
+            const capGeometry = new THREE.CylinderGeometry(
+                pillarRadius * 1.2,
+                pillarRadius,
+                pillarRadius * 0.5,
+                8
+            );
+            
+            const cap = new THREE.Mesh(capGeometry, pillarMaterial);
+            cap.position.set(pos[0], -this.height * 0.1, pos[1]);
+            this.object.add(cap);
+        });
+        
+        // For very wide docks, add a center row of pillars
+        if (this.width > 10) {
+            const centerPillarPositions = [];
+            const lengthSegments = Math.floor(this.length / 4);
+            const lengthStep = this.length / lengthSegments;
+            
+            for (let i = 0; i <= lengthSegments; i++) {
+                const z = -halfLength + i * lengthStep;
+                centerPillarPositions.push([0, z]);
+            }
+            
+            centerPillarPositions.forEach(pos => {
+                const pillarGeometry = new THREE.CylinderGeometry(
+                    pillarRadius, 
+                    pillarRadius * 1.2, 
+                    pillarHeight, 
+                    8
+                );
+                
+                const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
+                pillar.position.set(pos[0], -pillarHeight / 2 - this.height * 0.1, pos[1]);
+                this.object.add(pillar);
+                
+                // Add a simple cap to the top
+                const capGeometry = new THREE.CylinderGeometry(
+                    pillarRadius * 1.2,
+                    pillarRadius,
+                    pillarRadius * 0.5,
+                    8
+                );
+                
+                const cap = new THREE.Mesh(capGeometry, pillarMaterial);
+                cap.position.set(pos[0], -this.height * 0.1, pos[1]);
+                this.object.add(cap);
+            });
+        }
     }
     
     addHistoricalLadder() {
