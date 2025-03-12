@@ -101,7 +101,7 @@ function setupMenuControls() {
     
     // Set auto-rotation for a cinematic effect
     controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.5;
+    controls.autoRotateSpeed = 0.1;
     
     // Set the target to the center of the scene
     controls.target.set(0, 0, 0);
@@ -131,7 +131,7 @@ function startGame() {
     controls.autoRotate = false;
     
     // Create ship with custom speed
-    ship = new Ship(scene, { speed: 100 });
+    ship = new Ship(scene, { speed: 5 });
     
     // Setup gameplay controls
     setupGameplayControls();
