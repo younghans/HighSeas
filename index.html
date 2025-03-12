@@ -53,6 +53,35 @@
         #islandMenu button:hover {
             background-color: #5a8dac;
         }
+
+        #buildingMenu {
+            display: none;
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+
+        #buildingMenu button {
+            display: block;
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            background-color: #4a6d8c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #buildingMenu button:hover {
+            background-color: #5a8dac;
+        }
     </style>
 </head>
 <body>
@@ -80,6 +109,7 @@
         import Ship from './ship.js';
         import { WindSystem } from './wind.js';
         import MarketStall from './objects/market-stall.js';
+        import Dock from './objects/dock.js';
 
         // Main game variables
         let scene, camera, renderer;
@@ -110,6 +140,10 @@
         // Raycaster for build mode
         const buildRaycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
+
+        // Add these variables with the other game variables
+        let buildingMenuOpen = false;
+        let currentBuildingType = null;
 
         // Initialize the scene
         function init() {
@@ -356,15 +390,15 @@
                 menu.innerHTML = `
                     <h2>Island Menu</h2>
                     <p>You've discovered an island!</p>
-                    <button id="placeStallButton">Place Stall</button>
+                    <button id="buildingModeButton">Building Mode</button>
                     <button id="closeMenuButton">Close</button>
                 `;
                 
                 document.body.appendChild(menu);
                 
                 // Add event listeners to buttons
-                document.getElementById('placeStallButton').addEventListener('click', () => {
-                    enterBuildMode('marketStall');
+                document.getElementById('buildingModeButton').addEventListener('click', () => {
+                    enterBuildMode();
                 });
                 
                 document.getElementById('closeMenuButton').addEventListener('click', hideIslandMenu);
@@ -383,12 +417,83 @@
             selectedIslandPoint = null;
         }
         
-        function enterBuildMode(buildingType) {
+        function enterBuildMode() {
             // Set build mode flag
             buildMode = true;
             
             // Hide the island menu
             hideIslandMenu();
+            
+            // Create the building menu first if it doesn't exist
+            if (!document.getElementById('buildingMenu')) {
+                const menu = document.createElement('div');
+                menu.id = 'buildingMenu';
+                
+                // Add menu content
+                menu.innerHTML = `
+                    <h3>Available Buildings</h3>
+                    <button id="marketStallButton">Market Stall</button>
+                    <button id="dockButton">Dock</button>
+                `;
+                
+                document.body.appendChild(menu);
+                
+                // Add event listeners to buttons
+                document.getElementById('marketStallButton').addEventListener('click', () => {
+                    selectBuildingType('marketStall');
+                });
+                
+                document.getElementById('dockButton').addEventListener('click', () => {
+                    selectBuildingType('dock');
+                });
+            }
+            
+            // Now show the building menu
+            document.getElementById('buildingMenu').style.display = 'block';
+            buildingMenuOpen = true;
+            
+            // Update the info display
+            const infoElement = document.getElementById('info');
+            infoElement.innerHTML = `
+                <h2>Build Mode</h2>
+                <p>Select a building type from the menu</p>
+                <p>ESC: Exit build mode</p>
+            `;
+            
+            // Create a cancel button
+            const cancelButton = document.createElement('button');
+            cancelButton.id = 'cancelBuildButton';
+            cancelButton.textContent = 'Exit Build Mode';
+            cancelButton.style.position = 'absolute';
+            cancelButton.style.top = '10px';
+            cancelButton.style.right = '10px';
+            cancelButton.style.padding = '10px';
+            cancelButton.style.backgroundColor = '#c44';
+            cancelButton.style.color = 'white';
+            cancelButton.style.border = 'none';
+            cancelButton.style.borderRadius = '5px';
+            cancelButton.style.cursor = 'pointer';
+            cancelButton.addEventListener('click', exitBuildMode);
+            document.body.appendChild(cancelButton);
+        }
+
+        function hideBuildingMenu() {
+            const menu = document.getElementById('buildingMenu');
+            if (menu) {
+                menu.style.display = 'none';
+            }
+            buildingMenuOpen = false;
+        }
+
+        function selectBuildingType(buildingType) {
+            // Store the selected building type
+            currentBuildingType = buildingType;
+            
+            // Remove any existing preview
+            if (buildPreview) {
+                scene.remove(buildPreview);
+                buildPreview = null;
+            }
             
             // Create the build preview based on the building type
             if (buildingType === 'marketStall') {
@@ -399,8 +504,17 @@
                 });
                 
                 buildPreview = buildObject.getObject();
+            } else if (buildingType === 'dock') {
+                // Create a dock with 50% opacity
+                buildObject = new Dock({
+                    position: new THREE.Vector3(0, 0, 0)
+                });
                 
-                // Make the preview semi-transparent
+                buildPreview = buildObject.getObject();
+            }
+            
+            // Make the preview semi-transparent
+            if (buildPreview) {
                 buildPreview.traverse(child => {
                     if (child.isMesh && child.material) {
                         if (Array.isArray(child.material)) {
@@ -421,29 +535,17 @@
                 // Update the info display
                 const infoElement = document.getElementById('info');
                 infoElement.innerHTML = `
-                    <h2>Build Mode</h2>
+                    <h2>Build Mode: ${buildingType === 'marketStall' ? 'Market Stall' : 'Dock'}</h2>
                     <p>Left-click: Place building</p>
+                    <p>R: Rotate building</p>
                     <p>ESC: Cancel building</p>
                 `;
                 
-                // Create a cancel button
-                const cancelButton = document.createElement('button');
-                cancelButton.id = 'cancelBuildButton';
-                cancelButton.textContent = 'Stop Building';
-                cancelButton.style.position = 'absolute';
-                cancelButton.style.top = '10px';
-                cancelButton.style.right = '10px';
-                cancelButton.style.padding = '10px';
-                cancelButton.style.backgroundColor = '#c44';
-                cancelButton.style.color = 'white';
-                cancelButton.style.border = 'none';
-                cancelButton.style.borderRadius = '5px';
-                cancelButton.style.cursor = 'pointer';
-                cancelButton.addEventListener('click', exitBuildMode);
-                document.body.appendChild(cancelButton);
+                // Hide the building menu
+                hideBuildingMenu();
             }
         }
-        
+
         function exitBuildMode() {
             // Reset build mode flag
             buildMode = false;
@@ -453,6 +555,12 @@
                 scene.remove(buildPreview);
                 buildPreview = null;
             }
+            
+            // Hide the building menu
+            hideBuildingMenu();
+            
+            // Reset the current building type
+            currentBuildingType = null;
             
             // Reset the info display
             const infoElement = document.getElementById('info');
@@ -471,14 +579,61 @@
         
         function placeBuilding(position) {
             // Create a new building at the specified position
-            if (buildObject) {
-                const newBuilding = new MarketStall({
-                    position: position,
-                    detailLevel: 0.8
-                });
+            if (buildObject && currentBuildingType) {
+                let newBuilding;
                 
-                // Add the building to the scene
-                scene.add(newBuilding.getObject());
+                if (currentBuildingType === 'marketStall') {
+                    newBuilding = new MarketStall({
+                        position: position.clone(),
+                        detailLevel: 0.8,
+                        rotation: buildPreview.rotation.y
+                    });
+                } else if (currentBuildingType === 'dock') {
+                    newBuilding = new Dock({
+                        position: position.clone(),
+                        rotation: buildPreview.rotation.y
+                    });
+                }
+                
+                if (newBuilding) {
+                    // Add the building to the scene
+                    scene.add(newBuilding.getObject());
+                }
+                
+                // After placing, show the building menu again to allow placing more buildings
+                // Create the building menu first if it doesn't exist
+                if (!document.getElementById('buildingMenu')) {
+                    const menu = document.createElement('div');
+                    menu.id = 'buildingMenu';
+                    
+                    // Add menu content
+                    menu.innerHTML = `
+                        <h3>Available Buildings</h3>
+                        <button id="marketStallButton">Market Stall</button>
+                        <button id="dockButton">Dock</button>
+                    `;
+                    
+                    document.body.appendChild(menu);
+                    
+                    // Add event listeners to buttons
+                    document.getElementById('marketStallButton').addEventListener('click', () => {
+                        selectBuildingType('marketStall');
+                    });
+                    
+                    document.getElementById('dockButton').addEventListener('click', () => {
+                        selectBuildingType('dock');
+                    });
+                }
+                
+                // Now show the building menu
+                document.getElementById('buildingMenu').style.display = 'block';
+                buildingMenuOpen = true;
+                
+                // Remove the preview temporarily until a new building type is selected
+                if (buildPreview) {
+                    scene.remove(buildPreview);
+                    buildPreview = null;
+                }
             }
         }
         
@@ -521,6 +676,14 @@
             // Check for ESC key to exit build mode
             if (event.key === 'Escape' && buildMode) {
                 exitBuildMode();
+            }
+            
+            // Add rotation functionality when 'R' key is pressed in build mode
+            if (event.key === 'r' || event.key === 'R') {
+                if (buildMode && buildPreview) {
+                    // Rotate the preview object by 90 degrees (π/2 radians)
+                    buildPreview.rotation.y += Math.PI / 2;
+                }
             }
         }
 
