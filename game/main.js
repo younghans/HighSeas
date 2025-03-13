@@ -131,7 +131,7 @@ function startGame() {
     controls.autoRotate = false;
     
     // Create ship with custom speed
-    ship = new Ship(scene, { speed: 5 });
+    ship = new Ship(scene, { speed: 100 });
     
     // Setup gameplay controls
     setupGameplayControls();
@@ -144,6 +144,14 @@ function startGame() {
     
     // Add event listener for keyboard (for exiting build mode)
     document.addEventListener('keydown', onKeyDown);
+    
+    // Create an empty island menu container if it doesn't exist
+    if (!document.getElementById('islandMenu')) {
+        const menu = document.createElement('div');
+        menu.id = 'islandMenu';
+        menu.style.display = 'none';
+        document.body.appendChild(menu);
+    }
 }
 
 // Setup controls for gameplay
@@ -270,43 +278,37 @@ function onMouseClick(event) {
             // Clicked on a part of the island that's above water
             selectedIsland = clickedIsland;
             
-            // Store the exact clicked point (only X and Z coordinates, ignoring Y/height)
-            // We'll use the ship's current Y value for the target position
-            const clickedPoint = new THREE.Vector3(
-                intersectionPoint.x,
-                ship.getPosition().y, // Use ship's Y position, not the terrain height
-                intersectionPoint.z
-            );
-            
             // Get ship position
             const shipPos = ship.getPosition().clone();
             
-            // Calculate distance between ship and clicked point (ignoring Y axis)
+            // Calculate the closest shoreline point for the ship to navigate to
+            const shorelinePoint = findClosestShorelinePoint(clickedIsland, intersectionPoint, shipPos);
+            
+            // Calculate distance between ship and shoreline point (ignoring Y axis)
             const shipPosFlat = new THREE.Vector3(shipPos.x, 0, shipPos.z);
-            const clickedPointFlat = new THREE.Vector3(clickedPoint.x, 0, clickedPoint.z);
-            const distance = shipPosFlat.distanceTo(clickedPointFlat);
+            const shorelinePointFlat = new THREE.Vector3(shorelinePoint.x, 0, shorelinePoint.z);
+            const distance = shipPosFlat.distanceTo(shorelinePointFlat);
             
             if (distance <= ISLAND_INTERACTION_DISTANCE) {
-                // Ship is close enough to the clicked point, stop the ship and show menu
+                // Ship is close enough to the shoreline point, stop the ship and show menu
                 ship.stopMoving();
-                showIslandMenu(clickedIsland, clickedPoint);
+                showIslandMenu(clickedIsland, shorelinePoint);
             } else {
-                // Ship is too far, move it closer to the clicked point
-                // Calculate a position near the clicked point for the ship to move to
-                const direction = new THREE.Vector3().subVectors(clickedPointFlat, shipPosFlat).normalize();
+                // Ship is too far, move it closer to the shoreline point
+                // Calculate a position near the shoreline point for the ship to move to
+                const direction = new THREE.Vector3().subVectors(shorelinePointFlat, shipPosFlat).normalize();
                 
-                // Calculate a position that's just within interaction distance of the clicked point
+                // Calculate a position that's just within interaction distance of the shoreline point
                 const targetPosition = new THREE.Vector3().addVectors(
-                    clickedPointFlat,
+                    shorelinePointFlat,
                     direction.multiplyScalar(-ISLAND_INTERACTION_DISTANCE * 0.8) // Move slightly closer than the minimum distance
                 );
                 
                 // Ensure Y position is the same as the ship's current Y position
                 targetPosition.y = ship.getPosition().y;
                 
-                // Store the clicked point for later use when the ship arrives
-                // We store only the X and Z coordinates, using the ship's Y position
-                ship.targetIslandPoint = clickedPoint;
+                // Store the shoreline point for later use when the ship arrives
+                ship.targetIslandPoint = shorelinePoint;
                 
                 // Move ship to the target position
                 ship.moveTo(targetPosition);
@@ -319,6 +321,83 @@ function onMouseClick(event) {
         // No island was clicked, check for water intersection
         handleWaterClick(raycaster);
     }
+}
+
+// Function to find the closest point on the shoreline of an island
+function findClosestShorelinePoint(island, clickedPoint, shipPosition) {
+    // We'll use a simplified approach to find a point on the shoreline
+    // by casting a ray from the ship position towards the clicked point
+    
+    // Direction from ship to clicked point
+    const direction = new THREE.Vector3()
+        .subVectors(clickedPoint, shipPosition)
+        .normalize();
+    
+    // Create a raycaster from the ship position towards the clicked point
+    const raycaster = new THREE.Raycaster(shipPosition, direction);
+    
+    // Intersect with the island
+    const intersects = raycaster.intersectObject(island);
+    
+    if (intersects.length > 0) {
+        // We found an intersection point on the island
+        const intersectionPoint = intersects[0].point;
+        
+        // If this point is at or near the water level, it's a good shoreline point
+        if (Math.abs(intersectionPoint.y - WATER_LEVEL_THRESHOLD) < 1.0) {
+            return intersectionPoint;
+        }
+    }
+    
+    // If the direct ray approach didn't work, we'll use a different method
+    // We'll sample points around the perimeter of the island to find a good shoreline point
+    
+    // Get the island's geometry
+    const geometry = island.geometry;
+    const positions = geometry.attributes.position;
+    
+    // Variables to track the closest shoreline point
+    let closestPoint = null;
+    let closestDistance = Infinity;
+    
+    // Sample points from the geometry
+    for (let i = 0; i < positions.count; i++) {
+        const x = positions.getX(i);
+        const y = positions.getY(i);
+        const z = positions.getZ(i);
+        
+        // Convert to world coordinates
+        const worldPoint = new THREE.Vector3(x, y, z).applyMatrix4(island.matrixWorld);
+        
+        // Check if this point is near the water level (potential shoreline)
+        if (Math.abs(worldPoint.y - WATER_LEVEL_THRESHOLD) < 1.0) {
+            // Calculate distance from ship to this point (ignoring Y)
+            const shipPosFlat = new THREE.Vector3(shipPosition.x, 0, shipPosition.z);
+            const worldPointFlat = new THREE.Vector3(worldPoint.x, 0, worldPoint.z);
+            const distance = shipPosFlat.distanceTo(worldPointFlat);
+            
+            // If this is closer than our current closest point, update
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestPoint = worldPoint.clone();
+            }
+        }
+    }
+    
+    // If we found a shoreline point, return it
+    if (closestPoint) {
+        // Ensure Y position is at water level
+        closestPoint.y = WATER_LEVEL_THRESHOLD;
+        return closestPoint;
+    }
+    
+    // Fallback: If we couldn't find a good shoreline point,
+    // use the clicked point but adjust its Y to the ship's Y
+    return new THREE.Vector3(
+        clickedPoint.x,
+        ship.getPosition().y,
+        clickedPoint.z
+    );
 }
 
 // Helper function to handle water clicks
@@ -345,47 +424,58 @@ function handleWaterClick(raycaster) {
     }
 }
 
+function toggleMenu(menuId, show, setupFn = null) {
+    const menu = document.getElementById(menuId);
+    
+    if (!menu) {
+        console.error(`Menu with ID ${menuId} not found!`);
+        return;
+    }
+    
+    // Show or hide the menu
+    menu.style.display = show ? 'block' : 'none';
+    
+    // Run any additional setup if provided
+    if (show && setupFn) {
+        setupFn(menu);
+    }
+}
+
 function showIslandMenu(island, clickedPoint) {
-    // Stop the ship's movement when opening the island menu
     ship.stopMoving();
-    
-    // Create or show the island menu
     islandMenuOpen = true;
-    
-    // Store the clicked point
     selectedIslandPoint = clickedPoint;
     
-    // If menu doesn't exist, create it
-    if (!document.getElementById('islandMenu')) {
-        const menu = document.createElement('div');
-        menu.id = 'islandMenu';
-        
-        // Add menu content
+    toggleMenu('islandMenu', true, (menu) => {
+        // Update menu content with a Build button
         menu.innerHTML = `
             <h2>Island Menu</h2>
-            <p>You've discovered an island!</p>
-            <button id="buildingModeButton">Building Mode</button>
+            <p>You've discovered ${island.name || 'an island'}!</p>
+            <button id="exploreButton">Explore Island</button>
+            <button id="buildButton">Build</button>
             <button id="closeMenuButton">Close</button>
         `;
         
-        document.body.appendChild(menu);
-        
         // Add event listeners to buttons
-        document.getElementById('buildingModeButton').addEventListener('click', () => {
+        document.getElementById('exploreButton').addEventListener('click', () => {
+            console.log('Exploring island...');
+            // Add exploration functionality here
+        });
+        
+        document.getElementById('buildButton').addEventListener('click', () => {
+            // Hide the island menu
+            hideIslandMenu();
+            
+            // Enter build mode
             enterBuildMode();
         });
         
         document.getElementById('closeMenuButton').addEventListener('click', hideIslandMenu);
-    } else {
-        document.getElementById('islandMenu').style.display = 'block';
-    }
+    });
 }
 
 function hideIslandMenu() {
-    const menu = document.getElementById('islandMenu');
-    if (menu) {
-        menu.style.display = 'none';
-    }
+    toggleMenu('islandMenu', false);
     islandMenuOpen = false;
     selectedIsland = null;
     selectedIslandPoint = null;
