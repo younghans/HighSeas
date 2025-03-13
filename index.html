@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>High Seas</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <style>
         body {
             margin: 0;
@@ -121,6 +124,100 @@
             background-color: #5a8dac;
             transform: scale(1.05);
         }
+
+        /* Login Menu Styles */
+        #loginMenu {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            z-index: 3000;
+            min-width: 300px;
+            text-align: center;
+        }
+
+        #loginMenu h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+        }
+
+        #loginMenu button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin: 15px 0;
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #loginMenu button:hover {
+            background-color: #5a95f5;
+        }
+
+        #loginMenu button img {
+            margin-right: 10px;
+            width: 20px;
+            height: 20px;
+        }
+
+        #loginMenu .close-button {
+            background-color: #666;
+            margin-top: 20px;
+        }
+
+        #loginMenu .close-button:hover {
+            background-color: #888;
+        }
+
+        /* User info display */
+        #userInfo {
+            display: none;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+        }
+
+        #userInfo img {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+
+        #logoutButton {
+            margin-left: 10px;
+            padding: 5px 10px;
+            background-color: #666;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        #logoutButton:hover {
+            background-color: #888;
+        }
     </style>
 </head>
 <body>
@@ -128,6 +225,23 @@
     <div id="mainMenu">
         <h1>High Seas</h1>
         <button id="playButton">Play</button>
+    </div>
+
+    <!-- Login Menu Overlay -->
+    <div id="loginMenu">
+        <h2>Login to Play</h2>
+        <button id="googleLoginButton">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+            Sign in with Google
+        </button>
+        <button id="closeLoginButton" class="close-button">Cancel</button>
+    </div>
+
+    <!-- User Info Display -->
+    <div id="userInfo">
+        <img id="userAvatar" src="" alt="User Avatar">
+        <span id="userName"></span>
+        <button id="logoutButton">Logout</button>
     </div>
 
     <script type="importmap">
@@ -151,7 +265,7 @@
                 // Hide the main menu
                 document.getElementById('mainMenu').style.display = 'none';
                 
-                // Start the full game with the ship
+                // Start the game (this will check authentication)
                 Game.startGame();
             });
         });

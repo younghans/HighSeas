@@ -9,6 +9,7 @@ import Ship from './ship.js';
 import { WindSystem } from './wind.js';
 import MarketStall from './objects/market-stall.js';
 import Dock from './objects/dock.js';
+import Auth from './auth.js';
 
 // Main game variables
 let scene, camera, renderer;
@@ -86,8 +87,107 @@ function initWorldOnly() {
     // Create minimal UI for main menu
     createMinimalUI();
     
-    // Start animation loop
+    // Setup auth event listeners
+    setupAuthListeners();
+    
     animate();
+}
+
+// Setup auth event listeners
+function setupAuthListeners() {
+    // Add auth state listener
+    Auth.addAuthStateListener((user) => {
+        if (user && gameStarted) {
+            // If user is logged in and game has started flag is true, start the game
+            startGameWithShip();
+        } else if (!user && gameStarted) {
+            // If user logged out and game was started, reset the game
+            resetGame();
+        }
+    });
+    
+    // Add event listeners for login buttons
+    document.getElementById('googleLoginButton').addEventListener('click', () => {
+        Auth.signInWithGoogle()
+            .then(() => {
+                // Login successful, hide login menu
+                Auth.hideLoginMenu();
+            })
+            .catch(error => {
+                console.error('Google login error:', error);
+                // You could show an error message here
+            });
+    });
+    
+    // Add event listener for close login button
+    document.getElementById('closeLoginButton').addEventListener('click', () => {
+        Auth.hideLoginMenu();
+        // Show main menu again
+        document.getElementById('mainMenu').style.display = 'flex';
+    });
+    
+    // Add event listener for logout button
+    document.getElementById('logoutButton').addEventListener('click', () => {
+        Auth.signOut()
+            .catch(error => {
+                console.error('Logout error:', error);
+            });
+        // Note: We don't need to call resetGame() here as it will be triggered by the auth state listener
+    });
+}
+
+// Reset game state and return to main menu
+function resetGame() {
+    // Reset game started flag
+    gameStarted = false;
+    
+    // Remove ship if it exists
+    if (ship) {
+        try {
+            // Check if ship has getObject method before calling it
+            if (typeof ship.getObject === 'function') {
+                const shipObject = ship.getObject();
+                if (shipObject) {
+                    scene.remove(shipObject);
+                }
+            } else {
+                // If ship doesn't have getObject method, try to remove it directly
+                scene.remove(ship);
+            }
+        } catch (error) {
+            console.warn('Error removing ship:', error);
+        }
+        
+        // Set ship to null regardless of removal success
+        ship = null;
+    }
+    
+    // Reset camera position
+    camera.position.set(0, 100, 300);
+    camera.lookAt(0, 0, 0);
+    
+    // Setup menu controls again
+    setupMenuControls();
+    
+    // Show main menu
+    document.getElementById('mainMenu').style.display = 'flex';
+    
+    // Hide any open menus
+    if (islandMenuOpen) {
+        hideIslandMenu();
+    }
+    
+    if (buildingMenuOpen) {
+        hideBuildingMenu();
+    }
+    
+    // Exit build mode if active
+    if (buildMode) {
+        exitBuildMode();
+    }
+    
+    // Update UI for main menu
+    createMinimalUI();
 }
 
 // Setup controls for the main menu (orbiting camera)
@@ -109,6 +209,12 @@ function setupMenuControls() {
 
 // Create minimal UI for main menu
 function createMinimalUI() {
+    // Remove any existing info panel first
+    const existingInfoElement = document.getElementById('info');
+    if (existingInfoElement) {
+        existingInfoElement.remove();
+    }
+    
     // Create info panel with minimal information
     const infoElement = document.createElement('div');
     infoElement.id = 'info';
@@ -123,6 +229,21 @@ function createMinimalUI() {
 function startGame() {
     // Set game started flag
     gameStarted = true;
+    
+    // Check if user is authenticated
+    if (Auth.isAuthenticated()) {
+        // User is already logged in, start the game with ship
+        startGameWithShip();
+    } else {
+        // User is not logged in, show login menu
+        Auth.showLoginMenu();
+    }
+}
+
+// Start the game with ship after authentication
+function startGameWithShip() {
+    // Hide the main menu
+    document.getElementById('mainMenu').style.display = 'none';
     
     // Reset camera position for gameplay
     camera.position.set(0, 10, 20);
