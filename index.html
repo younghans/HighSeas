@@ -182,42 +182,6 @@
         #loginMenu .close-button:hover {
             background-color: #888;
         }
-
-        /* User info display */
-        #userInfo {
-            display: none;
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background-color: rgba(0, 0, 0, 0.5);
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
-            z-index: 1000;
-            display: flex;
-            align-items: center;
-        }
-
-        #userInfo img {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            margin-right: 10px;
-        }
-
-        #logoutButton {
-            margin-left: 10px;
-            padding: 5px 10px;
-            background-color: #666;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-        }
-
-        #logoutButton:hover {
-            background-color: #888;
-        }
     </style>
 </head>
 <body>
@@ -235,13 +199,6 @@
             Sign in with Google
         </button>
         <button id="closeLoginButton" class="close-button">Cancel</button>
-    </div>
-
-    <!-- User Info Display -->
-    <div id="userInfo">
-        <img id="userAvatar" src="" alt="User Avatar">
-        <span id="userName"></span>
-        <button id="logoutButton">Logout</button>
     </div>
 
     <script type="importmap">

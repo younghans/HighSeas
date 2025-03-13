@@ -10,6 +10,7 @@ import { WindSystem } from './wind.js';
 import MarketStall from './objects/market-stall.js';
 import Dock from './objects/dock.js';
 import Auth from './auth.js';
+import GameUI from './UI.js';
 
 // Main game variables
 let scene, camera, renderer;
@@ -45,6 +46,9 @@ const mouse = new THREE.Vector2();
 // Add these variables with the other game variables
 let buildingMenuOpen = false;
 let currentBuildingType = null;
+
+// Add gameUI variable
+let gameUI;
 
 // Function to completely reset camera controls
 function resetCameraControls() {
@@ -137,15 +141,6 @@ function setupAuthListeners() {
         // Show main menu again
         document.getElementById('mainMenu').style.display = 'flex';
     });
-    
-    // Add event listener for logout button
-    document.getElementById('logoutButton').addEventListener('click', () => {
-        Auth.signOut()
-            .catch(error => {
-                console.error('Logout error:', error);
-            });
-        // Note: We don't need to call resetGame() here as it will be triggered by the auth state listener
-    });
 }
 
 // Reset game state and return to main menu
@@ -207,6 +202,11 @@ function resetGame() {
     
     // Update UI for main menu
     createMinimalUI();
+    
+    // Hide game UI if it exists
+    if (gameUI) {
+        gameUI.hide();
+    }
 }
 
 // Setup controls for the main menu (orbiting camera)
@@ -248,6 +248,12 @@ function createMinimalUI() {
     const existingInfoElement = document.getElementById('info');
     if (existingInfoElement) {
         existingInfoElement.remove();
+    }
+    
+    // Remove the old user info panel if it exists
+    const oldUserInfo = document.getElementById('userInfo');
+    if (oldUserInfo) {
+        oldUserInfo.remove();
     }
     
     // Create info panel with minimal information
@@ -296,6 +302,22 @@ function startGameWithShip() {
     
     // Update UI for gameplay
     updateUIForGameplay();
+    
+    // Initialize game UI
+    if (!gameUI) {
+        gameUI = new GameUI({
+            auth: Auth,
+            onLogout: () => {
+                // Handle logout by hiding the game UI
+                if (gameUI) {
+                    gameUI.hide();
+                }
+            }
+        });
+    }
+    
+    // Show the game UI
+    gameUI.show();
     
     // Remove any existing event listeners to prevent duplicates
     renderer.domElement.removeEventListener('mousemove', onMouseMove);
@@ -936,6 +958,11 @@ function animate() {
     // Update ship and wake particles only if game has started
     if (gameStarted && ship) {
         ship.update(delta, time);
+        
+        // Update game UI if it exists
+        if (gameUI && gameUI.isVisible) {
+            gameUI.update();
+        }
         
         // Check if ship has reached the selected island point
         if (selectedIsland && !islandMenuOpen && ship.targetIslandPoint) {

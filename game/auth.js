@@ -34,27 +34,6 @@ function hideLoginMenu() {
   document.getElementById('loginMenu').style.display = 'none';
 }
 
-// Function to update UI based on auth state
-function updateUIForUser(user) {
-  if (user) {
-    // User is signed in
-    const userInfo = document.getElementById('userInfo');
-    const userAvatar = document.getElementById('userAvatar');
-    const userName = document.getElementById('userName');
-    
-    // Update user info display
-    userAvatar.src = user.photoURL || 'https://www.gravatar.com/avatar/?d=mp';
-    userName.textContent = user.displayName || user.email || 'Sailor';
-    userInfo.style.display = 'flex';
-    
-    // Hide login menu if it's open
-    hideLoginMenu();
-  } else {
-    // User is signed out
-    document.getElementById('userInfo').style.display = 'none';
-  }
-}
-
 // Sign in with Google
 function signInWithGoogle() {
   return auth.signInWithPopup(googleProvider)
@@ -100,7 +79,6 @@ function addAuthStateListener(callback) {
 // Initialize auth state listener
 auth.onAuthStateChanged((user) => {
   currentUser = user;
-  updateUIForUser(user);
   
   // Notify all listeners
   authStateListeners.forEach(callback => callback(user));
