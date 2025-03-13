@@ -5,7 +5,7 @@ import { Water } from 'three/addons/objects/Water.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import IslandGenerator from './IslandGenerator.js';
 import World from './world.js';
-import Ship from './ship.js';
+import { Sloop } from './ships/index.js';
 import { WindSystem } from './wind.js';
 import MarketStall from './objects/market-stall.js';
 import Dock from './objects/dock.js';
@@ -45,6 +45,18 @@ const mouse = new THREE.Vector2();
 // Add these variables with the other game variables
 let buildingMenuOpen = false;
 let currentBuildingType = null;
+
+// Function to completely reset camera controls
+function resetCameraControls() {
+    // Remove any existing event listeners
+    if (controls) {
+        controls.dispose();
+        controls = null;
+    }
+    
+    // Remove click event listener
+    renderer.domElement.removeEventListener('click', onMouseClick);
+}
 
 // Initialize only the world (for main menu)
 function initWorldOnly() {
@@ -141,6 +153,13 @@ function resetGame() {
     // Reset game started flag
     gameStarted = false;
     
+    // Remove event listeners that are only needed during gameplay
+    renderer.domElement.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('keydown', onKeyDown);
+    
+    // Reset camera controls completely
+    resetCameraControls();
+    
     // Remove ship if it exists
     if (ship) {
         try {
@@ -192,6 +211,12 @@ function resetGame() {
 
 // Setup controls for the main menu (orbiting camera)
 function setupMenuControls() {
+    // Reset camera controls completely
+    resetCameraControls();
+    
+    // Remove any existing click event listeners
+    renderer.domElement.removeEventListener('click', onMouseClick);
+    
     // Orbit controls for camera movement
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enablePan = false;
@@ -199,12 +224,22 @@ function setupMenuControls() {
     controls.maxDistance = 500;
     controls.maxPolarAngle = Math.PI / 2 - 0.1; // Prevent going below horizon
     
+    // Explicitly set the mouse buttons configuration for menu
+    controls.mouseButtons = {
+        LEFT: THREE.MOUSE.ROTATE,
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT: THREE.MOUSE.ROTATE
+    };
+    
     // Set auto-rotation for a cinematic effect
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.1;
     
     // Set the target to the center of the scene
     controls.target.set(0, 0, 0);
+    
+    // Reset the controls' internal state
+    controls.update();
 }
 
 // Create minimal UI for main menu
@@ -249,16 +284,22 @@ function startGameWithShip() {
     camera.position.set(0, 10, 20);
     
     // Remove auto-rotation
-    controls.autoRotate = false;
+    if (controls) {
+        controls.autoRotate = false;
+    }
     
     // Create ship with custom speed
-    ship = new Ship(scene, { speed: 100 });
+    ship = new Sloop(scene, { speed: 100 });
     
     // Setup gameplay controls
     setupGameplayControls();
     
     // Update UI for gameplay
     updateUIForGameplay();
+    
+    // Remove any existing event listeners to prevent duplicates
+    renderer.domElement.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('keydown', onKeyDown);
     
     // Add event listener for mouse movement (for build mode)
     renderer.domElement.addEventListener('mousemove', onMouseMove);
@@ -277,8 +318,8 @@ function startGameWithShip() {
 
 // Setup controls for gameplay
 function setupGameplayControls() {
-    // Remove existing controls
-    controls.dispose();
+    // Reset camera controls completely
+    resetCameraControls();
     
     // Create new orbit controls for gameplay
     controls = new OrbitControls(camera, renderer.domElement);
@@ -286,11 +327,16 @@ function setupGameplayControls() {
     controls.minDistance = 5;
     controls.maxDistance = 200;
     controls.maxPolarAngle = Math.PI / 2 - 0.1; // Prevent going below horizon
+    
+    // Explicitly set the mouse buttons configuration for gameplay
     controls.mouseButtons = {
-        LEFT: null,
-        MIDDLE: THREE.MOUSE.DOLLY,
-        RIGHT: THREE.MOUSE.ROTATE
+        LEFT: null,  // Left click is used for ship movement
+        MIDDLE: THREE.MOUSE.DOLLY,  // Middle mouse (wheel click) for dolly/zoom
+        RIGHT: THREE.MOUSE.ROTATE   // Right click for rotation
     };
+    
+    // Reset the controls' internal state
+    controls.update();
     
     // Set the target of the controls to the ship
     controls.target.copy(ship.getPosition());
@@ -914,15 +960,19 @@ function animate() {
             }
         }
         
-        // Update camera target to follow ship
-        controls.target.copy(ship.getPosition());
+        // Update camera target to follow ship only if game has started
+        if (controls) {
+            controls.target.copy(ship.getPosition());
+        }
     }
     
     // Update wind system
     windSystem.update(delta);
     
     // Update controls
-    controls.update();
+    if (controls) {
+        controls.update();
+    }
     
     // Render scene
     renderer.render(scene, camera);

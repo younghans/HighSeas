@@ -1,0 +1,18 @@
+- organize ships, make objects/ships/ and add the sloop to be instanced
+- make ship speed up as it starts, and rotate to destination?
+- make sails blow while ship is moving? (different increments?)
+
+- add multiplayer
+    - organize ships.js, make objects/ships/ and add the sloop to be instanced
+    - spawn ship instance on login, clear ship on logout
+    - sync ship pos, destintation pos, timestamp to DB and let client predict where ship instance
+
+- add UI
+    - Icons
+        - profile page (set username)
+        - Inventory (Hull)
+        - Ship speed
+
+
+Bugs:
+    - ship camera goes crazy after you logout and log back in
