@@ -9,20 +9,26 @@ class GameUI {
         this.auth = options.auth;
         this.onLogout = options.onLogout;
         this.isVisible = false;
-        this.activeMenu = null;
+        this.activeMenuBottom = null;
+        this.activeMenuTop = null;
         
         // UI elements
-        this.uiContainer = null;
-        this.buttonContainer = null;
-        this.menuContainer = null;
+        this.bottomUIContainer = null;
+        this.topUIContainer = null;
+        this.bottomButtonContainer = null;
+        this.topButtonContainer = null;
+        this.bottomMenuContainer = null;
+        this.topMenuContainer = null;
         
         // Button references
         this.profileButton = null;
         this.inventoryButton = null;
+        this.mapButton = null;
         
         // Menu references
         this.profileMenu = null;
         this.inventoryMenu = null;
+        this.mapMenu = null;
         
         // Initialize UI
         this.init();
@@ -32,50 +38,111 @@ class GameUI {
      * Initialize UI elements
      */
     init() {
-        // Create main UI container
-        this.uiContainer = document.createElement('div');
-        this.uiContainer.id = 'game-ui-container';
-        this.uiContainer.style.position = 'absolute';
-        this.uiContainer.style.bottom = '20px';
-        this.uiContainer.style.right = '20px';
-        this.uiContainer.style.display = 'flex';
-        this.uiContainer.style.flexDirection = 'column';
-        this.uiContainer.style.alignItems = 'flex-end';
-        this.uiContainer.style.zIndex = '1000';
-        this.uiContainer.style.transition = 'all 0.3s ease';
-        this.uiContainer.style.boxSizing = 'border-box'; // Add box-sizing
-        document.body.appendChild(this.uiContainer);
+        // Create bottom UI container
+        this.bottomUIContainer = document.createElement('div');
+        this.bottomUIContainer.id = 'game-ui-bottom-container';
+        this.bottomUIContainer.style.position = 'absolute';
+        this.bottomUIContainer.style.bottom = '20px';
+        this.bottomUIContainer.style.right = '20px';
+        this.bottomUIContainer.style.display = 'flex';
+        this.bottomUIContainer.style.flexDirection = 'column';
+        this.bottomUIContainer.style.alignItems = 'flex-end';
+        this.bottomUIContainer.style.zIndex = '1000';
+        this.bottomUIContainer.style.transition = 'all 0.3s ease';
+        this.bottomUIContainer.style.boxSizing = 'border-box';
+        document.body.appendChild(this.bottomUIContainer);
         
-        // Create menu container (positioned above buttons)
-        this.menuContainer = document.createElement('div');
-        this.menuContainer.id = 'menu-container';
-        this.menuContainer.style.marginBottom = '10px';
-        this.menuContainer.style.display = 'none'; // Hidden by default
-        this.menuContainer.style.width = '250px'; // Set explicit width
-        this.menuContainer.style.boxSizing = 'border-box'; // Add box-sizing
-        this.uiContainer.appendChild(this.menuContainer);
+        // Create bottom menu container (positioned above buttons)
+        this.bottomMenuContainer = document.createElement('div');
+        this.bottomMenuContainer.id = 'bottom-menu-container';
+        this.bottomMenuContainer.style.marginBottom = '10px';
+        this.bottomMenuContainer.style.display = 'none'; // Hidden by default
+        this.bottomMenuContainer.style.width = '250px'; // Set explicit width
+        this.bottomMenuContainer.style.boxSizing = 'border-box';
+        this.bottomUIContainer.appendChild(this.bottomMenuContainer);
         
-        // Create button container
-        this.buttonContainer = document.createElement('div');
-        this.buttonContainer.id = 'button-container';
-        this.buttonContainer.style.display = 'flex';
-        this.buttonContainer.style.flexDirection = 'row';
-        this.buttonContainer.style.gap = '10px';
-        this.buttonContainer.style.zIndex = '1000';
-        this.uiContainer.appendChild(this.buttonContainer);
+        // Create bottom button container
+        this.bottomButtonContainer = document.createElement('div');
+        this.bottomButtonContainer.id = 'bottom-button-container';
+        this.bottomButtonContainer.style.display = 'flex';
+        this.bottomButtonContainer.style.flexDirection = 'row';
+        this.bottomButtonContainer.style.gap = '10px';
+        this.bottomButtonContainer.style.zIndex = '1000';
+        this.bottomUIContainer.appendChild(this.bottomButtonContainer);
         
-        // Create profile button
+        // Create top UI container
+        this.topUIContainer = document.createElement('div');
+        this.topUIContainer.id = 'game-ui-top-container';
+        this.topUIContainer.style.position = 'absolute';
+        this.topUIContainer.style.top = '20px';
+        this.topUIContainer.style.right = '20px';
+        this.topUIContainer.style.display = 'flex';
+        this.topUIContainer.style.flexDirection = 'column';
+        this.topUIContainer.style.alignItems = 'flex-end';
+        this.topUIContainer.style.zIndex = '1000';
+        this.topUIContainer.style.transition = 'all 0.3s ease';
+        this.topUIContainer.style.boxSizing = 'border-box';
+        document.body.appendChild(this.topUIContainer);
+        
+        // Create top button container
+        this.topButtonContainer = document.createElement('div');
+        this.topButtonContainer.id = 'top-button-container';
+        this.topButtonContainer.style.display = 'flex';
+        this.topButtonContainer.style.flexDirection = 'row';
+        this.topButtonContainer.style.gap = '10px';
+        this.topButtonContainer.style.zIndex = '1000';
+        this.topUIContainer.appendChild(this.topButtonContainer);
+        
+        // Create top menu container (positioned below buttons)
+        this.topMenuContainer = document.createElement('div');
+        this.topMenuContainer.id = 'top-menu-container';
+        this.topMenuContainer.style.marginTop = '10px';
+        this.topMenuContainer.style.display = 'none'; // Hidden by default
+        this.topMenuContainer.style.width = '250px'; // Set explicit width
+        this.topMenuContainer.style.boxSizing = 'border-box';
+        this.topUIContainer.appendChild(this.topMenuContainer);
+        
+        // Create profile button in top container
         this.createProfileButton();
         
-        // Create inventory button
+        // Create inventory button in bottom container
         this.createInventoryButton();
+        
+        // Create map button in bottom container
+        this.createMapButton();
         
         // Create menus
         this.createProfileMenu();
         this.createInventoryMenu();
+        this.createMapMenu();
+        
+        // Add event listener for game interactions to close top menus
+        document.addEventListener('click', this.handleGameInteraction.bind(this));
         
         // Hide UI initially
         this.hide();
+    }
+    
+    /**
+     * Handle game interactions to close top menus
+     */
+    handleGameInteraction(event) {
+        // Check if the click is on the water or island (not on UI elements)
+        if (this.activeMenuTop !== null) {
+            // Check if the click is outside of the top UI container
+            if (!this.topUIContainer.contains(event.target)) {
+                // Close the top menu
+                this.closeTopMenu();
+            }
+        }
+    }
+    
+    /**
+     * Close the top menu
+     */
+    closeTopMenu() {
+        this.topMenuContainer.style.display = 'none';
+        this.activeMenuTop = null;
     }
     
     /**
@@ -117,11 +184,13 @@ class GameUI {
         });
         
         // Add click handler to toggle profile menu
-        profileButton.addEventListener('click', () => {
-            this.toggleMenu('profile');
+        profileButton.addEventListener('click', (event) => {
+            // Prevent the click from propagating to document
+            event.stopPropagation();
+            this.toggleTopMenu('profile');
         });
         
-        this.buttonContainer.appendChild(profileButton);
+        this.topButtonContainer.appendChild(profileButton);
         this.profileButton = profileButton;
     }
     
@@ -168,12 +237,63 @@ class GameUI {
         });
         
         // Add click handler to toggle inventory menu
-        inventoryButton.addEventListener('click', () => {
-            this.toggleMenu('inventory');
+        inventoryButton.addEventListener('click', (event) => {
+            // Prevent the click from propagating to document
+            event.stopPropagation();
+            this.toggleBottomMenu('inventory');
         });
         
-        this.buttonContainer.appendChild(inventoryButton);
+        this.bottomButtonContainer.appendChild(inventoryButton);
         this.inventoryButton = inventoryButton;
+    }
+    
+    /**
+     * Create map button with map icon
+     */
+    createMapButton() {
+        const mapButton = document.createElement('div');
+        mapButton.id = 'map-button';
+        mapButton.style.width = '40px';
+        mapButton.style.height = '40px';
+        mapButton.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        mapButton.style.color = 'white';
+        mapButton.style.display = 'flex';
+        mapButton.style.alignItems = 'center';
+        mapButton.style.justifyContent = 'center';
+        mapButton.style.cursor = 'pointer';
+        mapButton.style.borderRadius = '8px';
+        mapButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+        mapButton.style.transition = 'all 0.2s ease';
+        mapButton.style.userSelect = 'none';
+        mapButton.style.webkitUserSelect = 'none';
+        
+        // Use SVG icon for map - old-style square map with tattered edges
+        mapButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3,3 L5,2 L8,4 L10,3 L14,5 L16,4 L19,6 L21,5 L21,19 L19,20 L16,18 L14,19 L10,17 L8,18 L5,16 L3,17 Z"></path>
+        </svg>`;
+        
+        mapButton.title = 'Map';
+        
+        // Add hover effect
+        mapButton.addEventListener('mouseover', () => {
+            mapButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+            mapButton.style.transform = 'scale(1.05)';
+        });
+        
+        mapButton.addEventListener('mouseout', () => {
+            mapButton.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            mapButton.style.transform = 'scale(1)';
+        });
+        
+        // Add click handler to toggle map menu
+        mapButton.addEventListener('click', (event) => {
+            // Prevent the click from propagating to document
+            event.stopPropagation();
+            this.toggleBottomMenu('map');
+        });
+        
+        this.bottomButtonContainer.appendChild(mapButton);
+        this.mapButton = mapButton;
     }
     
     /**
@@ -245,7 +365,9 @@ class GameUI {
         });
         
         // Add click handler to save username
-        saveButton.addEventListener('click', () => {
+        saveButton.addEventListener('click', (event) => {
+            // Prevent the click from propagating to document
+            event.stopPropagation();
             const newUsername = usernameInput.value.trim();
             if (newUsername) {
                 this.saveUsername(newUsername);
@@ -284,13 +406,20 @@ class GameUI {
         });
         
         // Add click handler to logout
-        logoutButton.addEventListener('click', () => {
+        logoutButton.addEventListener('click', (event) => {
+            // Prevent the click from propagating to document
+            event.stopPropagation();
             this.logout();
         });
         
         profileMenu.appendChild(logoutButton);
         
-        this.menuContainer.appendChild(profileMenu);
+        // Add click handler to prevent clicks from closing the menu
+        profileMenu.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+        
+        this.topMenuContainer.appendChild(profileMenu);
         this.profileMenu = profileMenu;
     }
     
@@ -326,38 +455,109 @@ class GameUI {
         emptyMessage.style.fontStyle = 'italic';
         inventoryMenu.appendChild(emptyMessage);
         
-        this.menuContainer.appendChild(inventoryMenu);
+        // Add click handler to prevent clicks from closing the menu
+        inventoryMenu.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+        
+        this.bottomMenuContainer.appendChild(inventoryMenu);
         this.inventoryMenu = inventoryMenu;
     }
     
     /**
-     * Toggle menu visibility
-     * @param {string} menuType - Type of menu to toggle ('profile' or 'inventory')
+     * Create map menu (currently empty)
      */
-    toggleMenu(menuType) {
-        // Hide all menus first
+    createMapMenu() {
+        const mapMenu = document.createElement('div');
+        mapMenu.id = 'map-menu';
+        mapMenu.className = 'game-menu';
+        mapMenu.style.width = '250px';
+        mapMenu.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+        mapMenu.style.color = 'white';
+        mapMenu.style.padding = '15px';
+        mapMenu.style.borderRadius = '8px';
+        mapMenu.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.5)';
+        mapMenu.style.display = 'none'; // Hidden by default
+        mapMenu.style.boxSizing = 'border-box'; // Add box-sizing to include padding in width calculation
+        
+        // Menu title
+        const title = document.createElement('h3');
+        title.textContent = 'Map';
+        title.style.margin = '0 0 15px 0';
+        title.style.textAlign = 'center';
+        title.style.color = '#3399ff';
+        mapMenu.appendChild(title);
+        
+        // Empty map message
+        const emptyMessage = document.createElement('p');
+        emptyMessage.textContent = "You don't have any map.";
+        emptyMessage.style.textAlign = 'center';
+        emptyMessage.style.color = 'rgba(255, 255, 255, 0.7)';
+        emptyMessage.style.fontStyle = 'italic';
+        mapMenu.appendChild(emptyMessage);
+        
+        // Add click handler to prevent clicks from closing the menu
+        mapMenu.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+        
+        this.bottomMenuContainer.appendChild(mapMenu);
+        this.mapMenu = mapMenu;
+    }
+    
+    /**
+     * Toggle menu visibility in the top container
+     * @param {string} menuType - Type of menu to toggle ('profile')
+     */
+    toggleTopMenu(menuType) {
+        // Hide all top menus first
         this.profileMenu.style.display = 'none';
-        this.inventoryMenu.style.display = 'none';
         
         // If we're toggling the currently active menu, just close it
-        if (this.activeMenu === menuType) {
-            this.menuContainer.style.display = 'none';
-            this.activeMenu = null;
+        if (this.activeMenuTop === menuType) {
+            this.topMenuContainer.style.display = 'none';
+            this.activeMenuTop = null;
             return;
         }
         
         // Otherwise, show the selected menu
-        this.menuContainer.style.display = 'block';
+        this.topMenuContainer.style.display = 'block';
         
         if (menuType === 'profile') {
             this.profileMenu.style.display = 'block';
             // Load current username if available
             this.loadUsername();
-        } else if (menuType === 'inventory') {
-            this.inventoryMenu.style.display = 'block';
         }
         
-        this.activeMenu = menuType;
+        this.activeMenuTop = menuType;
+    }
+    
+    /**
+     * Toggle menu visibility in the bottom container
+     * @param {string} menuType - Type of menu to toggle ('inventory' or 'map')
+     */
+    toggleBottomMenu(menuType) {
+        // Hide all bottom menus first
+        this.inventoryMenu.style.display = 'none';
+        this.mapMenu.style.display = 'none';
+        
+        // If we're toggling the currently active menu, just close it
+        if (this.activeMenuBottom === menuType) {
+            this.bottomMenuContainer.style.display = 'none';
+            this.activeMenuBottom = null;
+            return;
+        }
+        
+        // Otherwise, show the selected menu
+        this.bottomMenuContainer.style.display = 'block';
+        
+        if (menuType === 'inventory') {
+            this.inventoryMenu.style.display = 'block';
+        } else if (menuType === 'map') {
+            this.mapMenu.style.display = 'block';
+        }
+        
+        this.activeMenuBottom = menuType;
     }
     
     /**
@@ -472,7 +672,8 @@ class GameUI {
      * Show the UI
      */
     show() {
-        this.uiContainer.style.display = 'flex';
+        this.bottomUIContainer.style.display = 'flex';
+        this.topUIContainer.style.display = 'flex';
         this.isVisible = true;
     }
     
@@ -480,11 +681,14 @@ class GameUI {
      * Hide the UI
      */
     hide() {
-        this.uiContainer.style.display = 'none';
+        this.bottomUIContainer.style.display = 'none';
+        this.topUIContainer.style.display = 'none';
         this.isVisible = false;
         // Also close any open menus
-        this.menuContainer.style.display = 'none';
-        this.activeMenu = null;
+        this.bottomMenuContainer.style.display = 'none';
+        this.topMenuContainer.style.display = 'none';
+        this.activeMenuBottom = null;
+        this.activeMenuTop = null;
     }
     
     /**

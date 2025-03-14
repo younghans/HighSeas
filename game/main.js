@@ -636,6 +636,11 @@ function handleWaterClick(raycaster) {
             exitBuildMode();
         }
         
+        // Close top UI menus if game UI exists
+        if (gameUI) {
+            gameUI.closeTopMenu();
+        }
+        
         // Get the intersection point
         const intersectionPoint = waterIntersects[0].point;
         
@@ -671,6 +676,11 @@ function showIslandMenu(island, clickedPoint) {
     islandMenuOpen = true;
     selectedIslandPoint = clickedPoint;
     selectedIsland = island;
+    
+    // Close top UI menus if game UI exists
+    if (gameUI) {
+        gameUI.closeTopMenu();
+    }
     
     toggleMenu('islandMenu', true, (menu) => {
         // Update menu content with a Build button
@@ -742,7 +752,7 @@ function enterBuildMode() {
     infoElement.innerHTML = `
         <h2>Build Mode</h2>
         <p>Select a building type from the menu</p>
-        <p>ESC: Exit build mode</p>
+        <p>Click anywhere to exit build mode</p>
     `;
 }
 
@@ -799,7 +809,7 @@ function selectBuildingType(buildingType) {
             <h2>Build Mode: ${buildingType === 'marketStall' ? 'Market Stall' : 'Dock'}</h2>
             <p>Left-click: Place building</p>
             <p>R: Rotate building</p>
-            <p>ESC: Cancel building</p>
+            <p>Click away to cancel</p>
         `;
         
         // Update the island menu to show building placement instructions
@@ -934,10 +944,10 @@ function onMouseMove(event) {
 }
 
 function onKeyDown(event) {
-    // Check for ESC key to exit build mode
-    if (event.key === 'Escape' && buildMode) {
-        exitBuildMode();
-    }
+    // Remove ESC key functionality for exiting build mode
+    // if (event.key === 'Escape' && buildMode) {
+    //     exitBuildMode();
+    // }
     
     // Add rotation functionality when 'R' key is pressed in build mode
     if (event.key === 'r' || event.key === 'R') {
