@@ -205,6 +205,9 @@ class Sloop extends BaseShip {
         
         this.scene.add(shipGroup);
         this.shipMesh = shipGroup;
+        
+        // Ensure the internal position matches the mesh position
+        this.position.copy(this.shipMesh.position);
     }
 }
 

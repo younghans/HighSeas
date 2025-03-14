@@ -302,8 +302,15 @@ function startGameWithShip() {
         controls.autoRotate = false;
     }
     
-    // Create ship with custom speed
-    ship = new Sloop(scene, { speed: 5 });
+    // Create ship with custom speed but don't position it yet
+    // The position will be set by the multiplayer system
+    ship = new Sloop(scene, { 
+        speed: 10,
+        // Set a default position that will be overridden by multiplayer
+        position: new THREE.Vector3(0, 0.5, 0)
+    });
+    
+    console.log('Ship created with initial position:', ship.getPosition());
     
     // Setup gameplay controls
     setupGameplayControls();
@@ -972,7 +979,16 @@ function animate() {
     
     // Update ship and wake particles only if game has started
     if (gameStarted && ship) {
+        // Store previous movement state to detect when ship stops
+        const wasMoving = ship.isMoving;
+        
+        // Update ship
         ship.update(delta, elapsedTime);
+        
+        // If ship was moving but has now stopped, sync final position with Firebase
+        if (wasMoving && !ship.isMoving && multiplayerManager) {
+            multiplayerManager.updatePlayerPosition(ship);
+        }
         
         // Update game UI if it exists
         if (gameUI && gameUI.isVisible) {
@@ -1021,7 +1037,6 @@ function animate() {
         controls.update();
     }
     
-    // Render scene
     renderer.render(scene, camera);
 }
 
@@ -1032,26 +1047,65 @@ function initMultiplayer() {
     // Store camera reference in scene for nametag positioning
     scene.userData.camera = camera;
     
-    // Create multiplayer manager
+    console.log('Initializing multiplayer with ship at position:', ship.getPosition());
+    
+    // Create multiplayer manager with callback for when player position is loaded
     multiplayerManager = new MultiplayerManager({
         auth: Auth,
-        scene: scene
+        scene: scene,
+        onPlayerPositionLoaded: (position, rotation) => {
+            // Update the ship's position and rotation when loaded from Firebase
+            if (ship && ship.getObject()) {
+                console.log('Player position loaded from Firebase:', position);
+                console.log('Current ship position before update:', ship.getPosition());
+                
+                // Update ship position
+                ship.getObject().position.set(position.x, position.y, position.z);
+                
+                // Update ship rotation
+                ship.getObject().rotation.y = rotation.y || 0;
+                
+                // Update the ship's internal position property as well
+                ship.position.copy(ship.getObject().position);
+                
+                // Update camera to look at the ship's new position
+                if (controls) {
+                    controls.target.copy(ship.getPosition());
+                    controls.update();
+                }
+                
+                console.log('Updated player ship position from server:', position);
+                console.log('New ship position after update:', ship.getPosition());
+            } else {
+                console.error('Ship object not available for position update');
+            }
+        }
     });
     
     // Initialize multiplayer with player's ship
-    multiplayerManager.init(ship);
-    
-    // Override ship's moveTo method to sync with Firebase
-    const originalMoveTo = ship.moveTo;
-    ship.moveTo = function(targetPos) {
-        // Call original method
-        originalMoveTo.call(this, targetPos);
-        
-        // Sync with Firebase
-        if (multiplayerManager) {
-            multiplayerManager.updatePlayerPosition(ship);
-        }
-    };
+    multiplayerManager.init(ship)
+        .then(success => {
+            if (success) {
+                console.log('Multiplayer initialized successfully');
+                
+                // Override ship's moveTo method to sync with Firebase
+                const originalMoveTo = ship.moveTo;
+                ship.moveTo = function(targetPos) {
+                    // Call original method
+                    originalMoveTo.call(this, targetPos);
+                    
+                    // Sync with Firebase
+                    if (multiplayerManager) {
+                        multiplayerManager.updatePlayerPosition(ship);
+                    }
+                };
+            } else {
+                console.error('Failed to initialize multiplayer');
+            }
+        })
+        .catch(error => {
+            console.error('Error initializing multiplayer:', error);
+        });
 }
 
 // Export functions that need to be accessible from outside

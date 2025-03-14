@@ -29,6 +29,16 @@ class BaseShip {
         // Store wake particle options for later initialization
         this.wakeParticleOptions = options.wakeParticleOptions || {};
         this.wakeParticleSystem = null;
+        
+        // Store initial position if provided in options
+        if (options.position) {
+            this.position.copy(options.position);
+        }
+        
+        // Store initial rotation if provided in options
+        if (options.rotation) {
+            this.rotation.y = options.rotation.y || 0;
+        }
     }
     
     /**
@@ -126,7 +136,22 @@ class BaseShip {
      * @returns {THREE.Vector3} The ship's position
      */
     getPosition() {
-        return this.shipMesh.position;
+        // Make sure internal position matches mesh position
+        if (this.shipMesh) {
+            this.position.copy(this.shipMesh.position);
+        }
+        return this.position;
+    }
+    
+    /**
+     * Set the ship's position
+     * @param {THREE.Vector3} position - The new position
+     */
+    setPosition(position) {
+        this.position.copy(position);
+        if (this.shipMesh) {
+            this.shipMesh.position.copy(position);
+        }
     }
     
     /**
