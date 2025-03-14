@@ -436,13 +436,14 @@ function onMouseClick(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
     
-    // If in build mode, handle building placement
+    // Create a raycaster
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    
+    // If in build mode, handle building placement or water clicks
     if (buildMode && buildPreview) {
-        // Create a raycaster
-        buildRaycaster.setFromCamera(mouse, camera);
-        
         // Check for intersections with islands
-        const islandIntersects = buildRaycaster.intersectObjects(islandGenerator.getIslands());
+        const islandIntersects = raycaster.intersectObjects(islandGenerator.getIslands());
         
         if (islandIntersects.length > 0) {
             const intersection = islandIntersects[0];
@@ -452,20 +453,32 @@ function onMouseClick(event) {
             if (clickedPoint.y > WATER_LEVEL_THRESHOLD) {
                 // Place the building at the clicked point
                 placeBuilding(clickedPoint);
-                
-                // Exit build mode
-                exitBuildMode();
                 return;
             }
         }
         
         // If we get here, the click wasn't on a valid build location
+        // Check if it was on water
+        const waterIntersects = raycaster.intersectObject(world.getWater());
+        
+        if (waterIntersects.length > 0) {
+            // Exit build mode
+            exitBuildMode();
+            
+            // Get the intersection point
+            const intersectionPoint = waterIntersects[0].point;
+            
+            // Move ship to clicked point
+            ship.moveTo(intersectionPoint);
+            
+            // Sync with Firebase if multiplayer is enabled
+            if (multiplayerManager) {
+                multiplayerManager.updatePlayerPosition(ship);
+            }
+        }
+        
         return;
     }
-    
-    // Calculate mouse position in normalized device coordinates (-1 to +1)
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(mouse, camera);
     
     // Get all islands from the island generator
     const islands = islandGenerator.getIslands();
@@ -610,15 +623,17 @@ function findClosestShorelinePoint(island, clickedPoint, shipPosition) {
 
 // Helper function to handle water clicks
 function handleWaterClick(raycaster) {
-    // If in build mode, ignore water clicks
-    if (buildMode) return;
-    
     const waterIntersects = raycaster.intersectObject(world.getWater());
     
     if (waterIntersects.length > 0) {
         // Close island menu if open
         if (islandMenuOpen) {
             hideIslandMenu();
+        }
+        
+        // Exit build mode if active
+        if (buildMode) {
+            exitBuildMode();
         }
         
         // Get the intersection point
@@ -655,6 +670,7 @@ function showIslandMenu(island, clickedPoint) {
     ship.stopMoving();
     islandMenuOpen = true;
     selectedIslandPoint = clickedPoint;
+    selectedIsland = island;
     
     toggleMenu('islandMenu', true, (menu) => {
         // Update menu content with a Build button
@@ -662,7 +678,7 @@ function showIslandMenu(island, clickedPoint) {
             <h2>Island Menu</h2>
             <p>You've discovered ${island.name || 'an island'}!</p>
             <button id="exploreButton">Explore Island</button>
-            <button id="buildButton">Build</button>
+            <button id="buildButton">Building Mode</button>
             <button id="closeMenuButton">Close</button>
         `;
         
@@ -673,9 +689,6 @@ function showIslandMenu(island, clickedPoint) {
         });
         
         document.getElementById('buildButton').addEventListener('click', () => {
-            // Hide the island menu
-            hideIslandMenu();
-            
             // Enter build mode
             enterBuildMode();
         });
@@ -687,30 +700,26 @@ function showIslandMenu(island, clickedPoint) {
 function hideIslandMenu() {
     toggleMenu('islandMenu', false);
     islandMenuOpen = false;
-    selectedIsland = null;
-    selectedIslandPoint = null;
+    // Don't reset selectedIsland and selectedIslandPoint here
+    // so we can return to the island menu after build mode
 }
 
 function enterBuildMode() {
     // Set build mode flag
     buildMode = true;
     
-    // Hide the island menu
-    hideIslandMenu();
+    // Transform the island menu into the building menu
+    const menu = document.getElementById('islandMenu');
     
-    // Create the building menu first if it doesn't exist
-    if (!document.getElementById('buildingMenu')) {
-        const menu = document.createElement('div');
-        menu.id = 'buildingMenu';
-        
-        // Add menu content
+    if (menu) {
+        // Update the menu content to show building options
         menu.innerHTML = `
-            <h3>Available Buildings</h3>
+            <h2>Building Mode</h2>
+            <p>Select a building to place:</p>
             <button id="marketStallButton">Market Stall</button>
             <button id="dockButton">Dock</button>
+            <button id="exitBuildModeButton">Back to Island</button>
         `;
-        
-        document.body.appendChild(menu);
         
         // Add event listeners to buttons
         document.getElementById('marketStallButton').addEventListener('click', () => {
@@ -720,11 +729,13 @@ function enterBuildMode() {
         document.getElementById('dockButton').addEventListener('click', () => {
             selectBuildingType('dock');
         });
+        
+        document.getElementById('exitBuildModeButton').addEventListener('click', () => {
+            exitBuildMode();
+            // Show the island menu again
+            showIslandMenu(selectedIsland, selectedIslandPoint);
+        });
     }
-    
-    // Now show the building menu
-    document.getElementById('buildingMenu').style.display = 'block';
-    buildingMenuOpen = true;
     
     // Update the info display
     const infoElement = document.getElementById('info');
@@ -733,30 +744,6 @@ function enterBuildMode() {
         <p>Select a building type from the menu</p>
         <p>ESC: Exit build mode</p>
     `;
-    
-    // Create a cancel button
-    const cancelButton = document.createElement('button');
-    cancelButton.id = 'cancelBuildButton';
-    cancelButton.textContent = 'Exit Build Mode';
-    cancelButton.style.position = 'absolute';
-    cancelButton.style.top = '10px';
-    cancelButton.style.right = '10px';
-    cancelButton.style.padding = '10px';
-    cancelButton.style.backgroundColor = '#c44';
-    cancelButton.style.color = 'white';
-    cancelButton.style.border = 'none';
-    cancelButton.style.borderRadius = '5px';
-    cancelButton.style.cursor = 'pointer';
-    cancelButton.addEventListener('click', exitBuildMode);
-    document.body.appendChild(cancelButton);
-}
-
-function hideBuildingMenu() {
-    const menu = document.getElementById('buildingMenu');
-    if (menu) {
-        menu.style.display = 'none';
-    }
-    buildingMenuOpen = false;
 }
 
 function selectBuildingType(buildingType) {
@@ -815,8 +802,40 @@ function selectBuildingType(buildingType) {
             <p>ESC: Cancel building</p>
         `;
         
-        // Hide the building menu
-        hideBuildingMenu();
+        // Update the island menu to show building placement instructions
+        const menu = document.getElementById('islandMenu');
+        if (menu) {
+            menu.innerHTML = `
+                <h2>Place ${buildingType === 'marketStall' ? 'Market Stall' : 'Dock'}</h2>
+                <p>Position the building and click to place it</p>
+                <button id="rotateButton">Rotate (R)</button>
+                <button id="cancelPlacementButton">Cancel Placement</button>
+                <button id="exitBuildModeButton">Back to Island</button>
+            `;
+            
+            // Add event listeners
+            document.getElementById('rotateButton').addEventListener('click', () => {
+                // Rotate the preview object by 90 degrees (π/2 radians)
+                if (buildPreview) {
+                    buildPreview.rotation.y += Math.PI / 2;
+                }
+            });
+            
+            document.getElementById('cancelPlacementButton').addEventListener('click', () => {
+                // Remove the preview and go back to building selection
+                if (buildPreview) {
+                    scene.remove(buildPreview);
+                    buildPreview = null;
+                }
+                enterBuildMode();
+            });
+            
+            document.getElementById('exitBuildModeButton').addEventListener('click', () => {
+                exitBuildMode();
+                // Show the island menu again
+                showIslandMenu(selectedIsland, selectedIslandPoint);
+            });
+        }
     }
 }
 
@@ -830,9 +849,6 @@ function exitBuildMode() {
         buildPreview = null;
     }
     
-    // Hide the building menu
-    hideBuildingMenu();
-    
     // Reset the current building type
     currentBuildingType = null;
     
@@ -844,11 +860,8 @@ function exitBuildMode() {
         <p>Right-click drag: Move camera</p>
     `;
     
-    // Remove the cancel button
-    const cancelButton = document.getElementById('cancelBuildButton');
-    if (cancelButton) {
-        cancelButton.remove();
-    }
+    // Hide the island menu
+    hideIslandMenu();
 }
 
 function placeBuilding(position) {
@@ -874,34 +887,8 @@ function placeBuilding(position) {
             scene.add(newBuilding.getObject());
         }
         
-        // After placing, show the building menu again to allow placing more buildings
-        // Create the building menu first if it doesn't exist
-        if (!document.getElementById('buildingMenu')) {
-            const menu = document.createElement('div');
-            menu.id = 'buildingMenu';
-            
-            // Add menu content
-            menu.innerHTML = `
-                <h3>Available Buildings</h3>
-                <button id="marketStallButton">Market Stall</button>
-                <button id="dockButton">Dock</button>
-            `;
-            
-            document.body.appendChild(menu);
-            
-            // Add event listeners to buttons
-            document.getElementById('marketStallButton').addEventListener('click', () => {
-                selectBuildingType('marketStall');
-            });
-            
-            document.getElementById('dockButton').addEventListener('click', () => {
-                selectBuildingType('dock');
-            });
-        }
-        
-        // Now show the building menu
-        document.getElementById('buildingMenu').style.display = 'block';
-        buildingMenuOpen = true;
+        // After placing, go back to building selection
+        enterBuildMode();
         
         // Remove the preview temporarily until a new building type is selected
         if (buildPreview) {
