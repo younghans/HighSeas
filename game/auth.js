@@ -4,6 +4,7 @@
 const firebaseConfig = {
   apiKey: "AIzaSyA00oUbXz1oPqvwkOEEoKN1dG7KiMiY4j0",
   authDomain: "yarr-9d4f2.firebaseapp.com",
+  databaseURL: "https://yarr-9d4f2-default-rtdb.firebaseio.com",
   projectId: "yarr-9d4f2",
   storageBucket: "yarr-9d4f2.firebasestorage.app",
   messagingSenderId: "841714550502",

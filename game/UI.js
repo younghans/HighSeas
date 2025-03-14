@@ -145,9 +145,13 @@ class GameUI {
         inventoryButton.style.userSelect = 'none';
         inventoryButton.style.webkitUserSelect = 'none';
         
-        // Use SVG icon for inventory
-        inventoryButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white">
-            <path d="M20 6h-4V4c0-1.11-.89-2-2-2h-4c-1.11 0-2 .89-2 2v2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zM10 4h4v2h-4V4zm9 14H5V9h14v9z"/>
+        // Use SVG icon for inventory (treasure chest)
+        inventoryButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 8h18v12H3z"></path>
+            <path d="M21 8c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2"></path>
+            <path d="M9 8v2"></path>
+            <path d="M15 8v2"></path>
+            <path d="M3 14h18"></path>
         </svg>`;
         
         inventoryButton.title = 'Inventory';

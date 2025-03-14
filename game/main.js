@@ -11,6 +11,7 @@ import MarketStall from './objects/market-stall.js';
 import Dock from './objects/dock.js';
 import Auth from './auth.js';
 import GameUI from './UI.js';
+import MultiplayerManager from './multiplayer.js';
 
 // Main game variables
 let scene, camera, renderer;
@@ -21,6 +22,7 @@ let world; // World instance that contains sky, water, lighting, etc.
 let ship; // Ship instance
 let windSystem; // Wind system instance
 let gameStarted = false; // Flag to track if the game has started
+let multiplayerManager;
 
 // Island generator
 let islandGenerator;
@@ -207,6 +209,12 @@ function resetGame() {
     if (gameUI) {
         gameUI.hide();
     }
+    
+    // Clean up multiplayer
+    if (multiplayerManager) {
+        multiplayerManager.cleanup();
+        multiplayerManager = null;
+    }
 }
 
 // Setup controls for the main menu (orbiting camera)
@@ -295,7 +303,7 @@ function startGameWithShip() {
     }
     
     // Create ship with custom speed
-    ship = new Sloop(scene, { speed: 100 });
+    ship = new Sloop(scene, { speed: 5 });
     
     // Setup gameplay controls
     setupGameplayControls();
@@ -335,6 +343,11 @@ function startGameWithShip() {
         menu.id = 'islandMenu';
         menu.style.display = 'none';
         document.body.appendChild(menu);
+    }
+    
+    // Initialize multiplayer if user is authenticated
+    if (Auth.isAuthenticated()) {
+        initMultiplayer();
     }
 }
 
@@ -602,14 +615,16 @@ function handleWaterClick(raycaster) {
             hideIslandMenu();
         }
         
-        // Get target position
-        const targetPosition = waterIntersects[0].point;
+        // Get the intersection point
+        const intersectionPoint = waterIntersects[0].point;
         
-        // Ensure Y position doesn't change - use the ship's current Y position
-        targetPosition.y = ship.getPosition().y;
+        // Move ship to clicked point
+        ship.moveTo(intersectionPoint);
         
-        // Tell the ship to move to the target position
-        ship.moveTo(targetPosition);
+        // Sync with Firebase if multiplayer is enabled
+        if (multiplayerManager) {
+            multiplayerManager.updatePlayerPosition(ship);
+        }
     }
 }
 
@@ -950,14 +965,14 @@ function animate() {
     requestAnimationFrame(animate);
     
     const delta = clock.getDelta();
-    const time = performance.now() * 0.001;
+    const elapsedTime = clock.getElapsedTime();
     
     // Update world (sky, water, lighting, etc.)
     world.update(delta);
     
     // Update ship and wake particles only if game has started
     if (gameStarted && ship) {
-        ship.update(delta, time);
+        ship.update(delta, elapsedTime);
         
         // Update game UI if it exists
         if (gameUI && gameUI.isVisible) {
@@ -996,6 +1011,11 @@ function animate() {
     // Update wind system
     windSystem.update(delta);
     
+    // Update multiplayer if initialized
+    if (multiplayerManager) {
+        multiplayerManager.update(delta);
+    }
+    
     // Update controls
     if (controls) {
         controls.update();
@@ -1003,6 +1023,35 @@ function animate() {
     
     // Render scene
     renderer.render(scene, camera);
+}
+
+/**
+ * Initialize multiplayer functionality
+ */
+function initMultiplayer() {
+    // Store camera reference in scene for nametag positioning
+    scene.userData.camera = camera;
+    
+    // Create multiplayer manager
+    multiplayerManager = new MultiplayerManager({
+        auth: Auth,
+        scene: scene
+    });
+    
+    // Initialize multiplayer with player's ship
+    multiplayerManager.init(ship);
+    
+    // Override ship's moveTo method to sync with Firebase
+    const originalMoveTo = ship.moveTo;
+    ship.moveTo = function(targetPos) {
+        // Call original method
+        originalMoveTo.call(this, targetPos);
+        
+        // Sync with Firebase
+        if (multiplayerManager) {
+            multiplayerManager.updatePlayerPosition(ship);
+        }
+    };
 }
 
 // Export functions that need to be accessible from outside
