@@ -604,13 +604,15 @@ class MultiplayerManager {
         otherPlayerShip.userData.nametag.style.minWidth = `${minWidth}px`;
         
         // Hide nametag if ship is behind the camera or too far away
-        if (screenPosition.z > 1 || distanceToCamera > 500) {
+        if (screenPosition.z > 1 || distanceToCamera > 1500) {
             otherPlayerShip.userData.nametag.style.display = 'none';
         } else {
             otherPlayerShip.userData.nametag.style.display = 'block';
             
             // Adjust opacity based on distance for a fade-out effect
-            const opacity = Math.max(0.2, Math.min(1, 1 - (distanceToCamera / 500)));
+            // Using a power of 0.7 creates a more gradual fade-out curve
+            // Since we hide at 1000, we should scale our fade accordingly
+            const opacity = Math.max(0.3, Math.min(1, 1 - Math.pow(distanceToCamera / 1500, 0.7)));
             otherPlayerShip.userData.nametag.style.opacity = opacity;
         }
     }
