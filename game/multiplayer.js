@@ -325,6 +325,7 @@ class MultiplayerManager {
         // Create a Sloop ship for the other player
         const otherPlayerShip = new Sloop(this.scene, {
             // Use the default Sloop speed (10)
+            speed: 10, // Explicitly set speed to match local player
             hullColor: 0x8B4513, // Default brown hull
             deckColor: 0xD2B48C, // Default tan deck
             sailColor: 0xFFFFFF, // Default white sail
@@ -516,61 +517,32 @@ class MultiplayerManager {
             const shipObject = otherPlayerShip.getObject();
             if (!shipObject) return;
             
-            // If the ship has a destination, move towards it
+            // If the ship has a destination, let the ship's update method handle movement
             if (otherPlayerShip.userData.destination) {
-                const destination = otherPlayerShip.userData.destination;
-                const direction = new THREE.Vector3().subVectors(destination, shipObject.position);
-                
-                // If we're close enough to the destination, stop moving
-                if (direction.length() < 0.5) {
-                    this.debug(`Player reached destination: ${playerData.displayName} (${playerId})`);
-                    otherPlayerShip.userData.destination = null;
-                    otherPlayerShip.targetPosition = null;
-                    otherPlayerShip.isMoving = false;
+                // If we don't have a target position set yet, set it
+                if (!otherPlayerShip.targetPosition) {
+                    otherPlayerShip.targetPosition = otherPlayerShip.userData.destination.clone();
+                    otherPlayerShip.isMoving = true;
                     
-                    // Store the last rotation so it doesn't reset
+                    // Update rotation to face direction of travel
+                    const direction = new THREE.Vector3().subVectors(
+                        otherPlayerShip.targetPosition,
+                        shipObject.position
+                    ).normalize();
+                    
+                    shipObject.rotation.y = Math.atan2(direction.x, direction.z);
                     otherPlayerShip.userData.lastRotation = shipObject.rotation.y;
-                    
-                    return;
                 }
                 
-                // Normalize direction and move ship
-                direction.normalize();
-                
-                // Use the ship's speed (Sloop default is 10)
-                const speed = otherPlayerShip.speed;
-                
-                // Move ship
-                const movement = direction.clone().multiplyScalar(speed * delta);
-                shipObject.position.add(movement);
-                
-                // Log movement prediction occasionally (not every frame to avoid console spam)
-                if (Math.random() < 0.05) { // Log roughly 5% of updates
-                    this.debug(`Predicting movement for ${playerData.displayName}:`, {
-                        currentPosition: shipObject.position.clone(),
-                        destination: destination,
-                        distanceRemaining: direction.length(),
-                        speed: speed,
-                        delta: delta
-                    });
-                }
-                
-                // Update rotation to face direction of travel
-                shipObject.rotation.y = Math.atan2(direction.x, direction.z);
-                
-                // Store the current rotation as the last rotation
-                otherPlayerShip.userData.lastRotation = shipObject.rotation.y;
-                
-                // Update the ship's internal state to match
-                otherPlayerShip.position.copy(shipObject.position);
-                otherPlayerShip.rotation.y = shipObject.rotation.y;
+                // Let the ship's own update method handle the movement
+                // This ensures consistent speed with the local player
             } else if (otherPlayerShip.userData.lastRotation !== undefined) {
                 // If the ship has no destination but has a stored last rotation, maintain that rotation
                 shipObject.rotation.y = otherPlayerShip.userData.lastRotation;
                 otherPlayerShip.rotation.y = otherPlayerShip.userData.lastRotation;
             }
             
-            // Update the ship (this will update wake particles)
+            // Update the ship (this will update wake particles and handle movement)
             otherPlayerShip.update(delta, performance.now() * 0.001);
             
             // Update nametag position
