@@ -565,8 +565,8 @@ class MultiplayerManager {
         const position = new THREE.Vector3();
         position.setFromMatrixPosition(shipObject.matrixWorld);
         
-        // Add some height to position the nametag above the ship
-        position.y += 2;
+        // Add more height to position the nametag higher above the ship
+        position.y += 7; // Increased from 2 to 5 for higher positioning
         
         // Project the position to screen space
         const widthHalf = window.innerWidth / 2;
@@ -583,11 +583,35 @@ class MultiplayerManager {
         otherPlayerShip.userData.nametag.style.left = `${screenPosition.x}px`;
         otherPlayerShip.userData.nametag.style.top = `${screenPosition.y}px`;
         
-        // Hide nametag if ship is behind the camera
-        if (screenPosition.z > 1) {
+        // Calculate distance from camera to ship for scaling
+        const camera = this.scene.userData.camera;
+        const cameraPosition = camera.position.clone();
+        const distanceToCamera = cameraPosition.distanceTo(shipObject.position);
+        
+        // Scale the nametag based on distance (the further away, the smaller)
+        // Base size is 12px at distance 10, scaling down as distance increases
+        const baseFontSize = 12;
+        const baseDistance = 10;
+        const scaleFactor = Math.max(0.5, Math.min(1.5, baseDistance / Math.max(1, distanceToCamera * 0.1)));
+        const fontSize = baseFontSize * scaleFactor;
+        
+        // Apply the scaled font size
+        otherPlayerShip.userData.nametag.style.fontSize = `${fontSize}px`;
+        
+        // Also scale the minimum width proportionally
+        const baseMinWidth = 80;
+        const minWidth = baseMinWidth * scaleFactor;
+        otherPlayerShip.userData.nametag.style.minWidth = `${minWidth}px`;
+        
+        // Hide nametag if ship is behind the camera or too far away
+        if (screenPosition.z > 1 || distanceToCamera > 500) {
             otherPlayerShip.userData.nametag.style.display = 'none';
         } else {
             otherPlayerShip.userData.nametag.style.display = 'block';
+            
+            // Adjust opacity based on distance for a fade-out effect
+            const opacity = Math.max(0.2, Math.min(1, 1 - (distanceToCamera / 500)));
+            otherPlayerShip.userData.nametag.style.opacity = opacity;
         }
     }
     
