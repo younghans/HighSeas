@@ -702,6 +702,53 @@ class GameUI {
         // Update any dynamic UI elements here
         // For now, we don't have any elements that need constant updating
     }
+    
+    /**
+     * Show session expired notification
+     */
+    showSessionExpiredNotification() {
+        // Create notification container if it doesn't exist
+        if (!document.getElementById('session-expired-notification')) {
+            const notification = document.createElement('div');
+            notification.id = 'session-expired-notification';
+            notification.style.position = 'fixed';
+            notification.style.top = '50%';
+            notification.style.left = '50%';
+            notification.style.transform = 'translate(-50%, -50%)';
+            notification.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+            notification.style.color = 'white';
+            notification.style.padding = '20px';
+            notification.style.borderRadius = '8px';
+            notification.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+            notification.style.zIndex = '2000';
+            notification.style.textAlign = 'center';
+            notification.style.minWidth = '300px';
+            
+            // Add message
+            const message = document.createElement('p');
+            message.textContent = 'You have been logged out because your account was logged in on another device.';
+            message.style.marginBottom = '15px';
+            notification.appendChild(message);
+            
+            // Add OK button
+            const okButton = document.createElement('button');
+            okButton.textContent = 'OK';
+            okButton.style.padding = '8px 16px';
+            okButton.style.backgroundColor = '#4CAF50';
+            okButton.style.color = 'white';
+            okButton.style.border = 'none';
+            okButton.style.borderRadius = '4px';
+            okButton.style.cursor = 'pointer';
+            
+            okButton.addEventListener('click', () => {
+                notification.remove();
+            });
+            
+            notification.appendChild(okButton);
+            
+            document.body.appendChild(notification);
+        }
+    }
 }
 
 export default GameUI; 

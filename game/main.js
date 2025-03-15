@@ -216,13 +216,25 @@ function resetGame() {
             // Try to set player offline directly if we still have a valid reference
             if (multiplayerManager.playerRef && Auth.isAuthenticated()) {
                 console.log('Setting player offline during game reset');
-                multiplayerManager.playerRef.update({
-                    isOnline: false,
-                    lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                const currentSessionId = multiplayerManager.currentSessionId;
+                
+                // Use a transaction to ensure we only set isOnline to false if this is the last active session
+                multiplayerManager.playerRef.transaction((currentData) => {
+                    // If the current sessionId matches our sessionId, then we're the last active session
+                    // and we should set isOnline to false
+                    if (currentData && currentData.sessionId === currentSessionId) {
+                        return {
+                            ...currentData,
+                            isOnline: false,
+                            lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                        };
+                    }
+                    // Otherwise, another device has taken over, so keep isOnline true
+                    return currentData;
                 }).then(() => {
-                    console.log('Successfully set player as offline during game reset');
+                    console.log('Successfully processed offline status during game reset');
                 }).catch(error => {
-                    console.error('Error setting player offline during game reset:', error);
+                    console.error('Error processing offline status during game reset:', error);
                 });
             }
         } catch (error) {
@@ -348,13 +360,25 @@ function startGameWithShip() {
                         // Use Firebase directly to update the player status
                         // This ensures we're using the authenticated reference that still exists
                         const playerRef = multiplayerManager.playerRef;
-                        playerRef.update({
-                            isOnline: false,
-                            lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                        const currentSessionId = multiplayerManager.currentSessionId;
+                        
+                        // Use a transaction to ensure we only set isOnline to false if this is the last active session
+                        playerRef.transaction((currentData) => {
+                            // If the current sessionId matches our sessionId, then we're the last active session
+                            // and we should set isOnline to false
+                            if (currentData && currentData.sessionId === currentSessionId) {
+                                return {
+                                    ...currentData,
+                                    isOnline: false,
+                                    lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                                };
+                            }
+                            // Otherwise, another device has taken over, so keep isOnline true
+                            return currentData;
                         }).then(() => {
-                            console.log('Successfully set player as offline during logout');
+                            console.log('Successfully processed offline status during logout');
                         }).catch(error => {
-                            console.error('Error setting player offline during logout:', error);
+                            console.error('Error processing offline status during logout:', error);
                         });
                     } catch (error) {
                         console.error('Error in logout process:', error);
@@ -1120,10 +1144,10 @@ function initMultiplayer() {
     
     console.log('Initializing multiplayer with ship at position:', ship.getPosition());
     
-    // Create multiplayer manager with callback for when player position is loaded
+    // Initialize multiplayer
     multiplayerManager = new MultiplayerManager({
-        auth: Auth,
         scene: scene,
+        auth: Auth,
         onPlayerPositionLoaded: (position, rotation) => {
             // Update the ship's position and rotation when loaded from Firebase
             if (ship && ship.getObject()) {
@@ -1144,30 +1168,7 @@ function initMultiplayer() {
                 
                 // Update camera to look at the ship's new position
                 if (controls) {
-                    // If controls already have a target, maintain the camera orientation
-                    if (controls.target) {
-                        // Store the current distance from camera to target (zoom level)
-                        const currentDistance = camera.position.distanceTo(controls.target);
-                        
-                        // Store the current camera orientation relative to the target
-                        const direction = new THREE.Vector3()
-                            .subVectors(camera.position, controls.target)
-                            .normalize();
-                        
-                        // Update the orbit controls target to the ship's position
-                        controls.target.copy(ship.getPosition());
-                        
-                        // Reposition the camera at the same distance and orientation
-                        camera.position.copy(ship.getPosition()).add(
-                            direction.multiplyScalar(currentDistance)
-                        );
-                    } else {
-                        // If no target exists yet, use the default camera offset
-                        controls.target.copy(ship.getPosition());
-                        camera.position.copy(ship.getPosition()).add(cameraOffset);
-                    }
-                    
-                    // Update controls
+                    controls.target.copy(ship.getPosition());
                     controls.update();
                 }
                 
@@ -1176,6 +1177,20 @@ function initMultiplayer() {
             } else {
                 console.error('Ship object not available for position update');
             }
+        },
+        onSessionExpired: () => {
+            console.log('Session expired - logged in on another device');
+            
+            // Show notification
+            if (gameUI) {
+                gameUI.showSessionExpiredNotification();
+            }
+            
+            // Reset game state
+            resetGame();
+            
+            // Show login screen
+            Auth.showLoginMenu();
         }
     });
     

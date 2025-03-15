@@ -17,6 +17,7 @@ class MultiplayerManager {
         this.SYNC_INTERVAL = 5000; // 5 seconds in milliseconds
         this.debugMode = true; // Enable debug mode
         this.onPlayerPositionLoaded = options.onPlayerPositionLoaded || null;
+        this.onSessionExpired = options.onSessionExpired || null;
         
         // Bind methods
         this.updatePlayerPosition = this.updatePlayerPosition.bind(this);
@@ -165,26 +166,73 @@ class MultiplayerManager {
     }
     
     /**
-     * Set up presence system to handle disconnects
+     * Set up presence system with single session enforcement
      */
     setupPresence() {
-        this.debug('Setting up presence system');
+        this.debug('Setting up presence system with single session enforcement');
+        
         // Create a reference to the user's online status
         const connectedRef = firebase.database().ref('.info/connected');
+        
+        // Generate a unique session ID for this login
+        const sessionId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+        this.currentSessionId = sessionId;
+        
+        this.debug(`Generated session ID: ${sessionId}`);
         
         connectedRef.on('value', (snap) => {
             if (snap.val() === true && this.playerRef) {
                 // User is connected
                 this.debug('Connected to Firebase Realtime Database');
                 
-                // When the user disconnects, update the isOnline status
-                this.playerRef.onDisconnect().update({
-                    isOnline: false,
+                // Update the player data with the new session ID and online status
+                this.playerRef.update({
+                    isOnline: true,
+                    sessionId: sessionId,
                     lastUpdated: firebase.database.ServerValue.TIMESTAMP
                 });
-                this.debug('Set up disconnect handler');
+                
+                // When the user disconnects, we need to check if they're still online on another device
+                // We'll use a transaction to ensure we only set isOnline: false if this is the last active session
+                this.playerRef.onDisconnect().transaction((currentData) => {
+                    // If the current sessionId matches our sessionId, then we're the last active session
+                    // and we should set isOnline to false
+                    if (currentData && currentData.sessionId === sessionId) {
+                        return {
+                            ...currentData,
+                            isOnline: false,
+                            lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                        };
+                    }
+                    // Otherwise, another device has taken over, so keep isOnline true
+                    return currentData;
+                });
+                
+                this.debug('Set up disconnect handler and updated session ID');
             }
         });
+        
+        // Listen for session changes
+        if (this.playerRef) {
+            this.playerRef.child('sessionId').on('value', (snapshot) => {
+                const serverSessionId = snapshot.val();
+                
+                // If the server session ID doesn't match our local one and we have a valid local ID,
+                // we've been logged out by another device
+                if (serverSessionId && this.currentSessionId && serverSessionId !== this.currentSessionId) {
+                    this.debug(`Session mismatch detected. Server: ${serverSessionId}, Local: ${this.currentSessionId}`);
+                    this.debug('Another device has logged in with this account. Logging out...');
+                    
+                    // Stop listening for changes to avoid recursive calls
+                    this.playerRef.child('sessionId').off('value');
+                    
+                    // Trigger session expired callback
+                    if (this.onSessionExpired) {
+                        this.onSessionExpired();
+                    }
+                }
+            });
+        }
     }
     
     /**
@@ -626,14 +674,24 @@ class MultiplayerManager {
     setPlayerOffline() {
         if (this.playerRef) {
             this.debug('Setting player as offline due to logout');
-            // Update the player's online status to false
-            this.playerRef.update({
-                isOnline: false,
-                lastUpdated: firebase.database.ServerValue.TIMESTAMP
+            
+            // Use a transaction to ensure we only set isOnline to false if this is the last active session
+            this.playerRef.transaction((currentData) => {
+                // If the current sessionId matches our sessionId, then we're the last active session
+                // and we should set isOnline to false
+                if (currentData && currentData.sessionId === this.currentSessionId) {
+                    return {
+                        ...currentData,
+                        isOnline: false,
+                        lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                    };
+                }
+                // Otherwise, another device has taken over, so keep isOnline true
+                return currentData;
             }).then(() => {
-                this.debug('Successfully set player as offline');
+                this.debug('Successfully processed offline status during logout');
             }).catch(error => {
-                console.error('Error setting player offline:', error);
+                console.error('Error processing offline status during logout:', error);
             });
         }
     }
@@ -650,6 +708,12 @@ class MultiplayerManager {
             this.playersRef.off('child_changed', this.handlePlayerChanged);
             this.playersRef.off('child_removed', this.handlePlayerRemoved);
             this.debug('Removed Firebase event listeners');
+        }
+        
+        // Stop listening for session changes
+        if (this.playerRef) {
+            this.playerRef.child('sessionId').off('value');
+            this.debug('Removed session change listener');
         }
         
         // Stop periodic sync
