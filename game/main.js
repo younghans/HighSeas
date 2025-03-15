@@ -423,11 +423,17 @@ function setupGameplayControls() {
         RIGHT: THREE.MOUSE.ROTATE   // Right click for rotation
     };
     
+    // Set the target of the controls to the ship
+    if (ship) {
+        const shipPos = ship.getPosition();
+        controls.target.copy(shipPos);
+        
+        // Position camera behind and above the ship using the cameraOffset
+        camera.position.copy(shipPos).add(cameraOffset);
+    }
+    
     // Reset the controls' internal state
     controls.update();
-    
-    // Set the target of the controls to the ship
-    controls.target.copy(ship.getPosition());
     
     // Left-click to move ship or interact with islands
     renderer.domElement.addEventListener('click', onMouseClick);
@@ -1061,9 +1067,31 @@ function animate() {
             }
         }
         
-        // Update camera target to follow ship only if game has started
+        // Update camera to follow ship
         if (controls) {
-            controls.target.copy(ship.getPosition());
+            // Get the ship position
+            const shipPos = ship.getPosition();
+            
+            // Store the current distance from camera to target (zoom level)
+            const currentDistance = camera.position.distanceTo(controls.target);
+            
+            // Store the current camera orientation relative to the target
+            const direction = new THREE.Vector3()
+                .subVectors(camera.position, controls.target)
+                .normalize();
+            
+            // Update the orbit controls target to the ship's position
+            controls.target.copy(shipPos);
+            
+            // Reposition the camera at the same distance and orientation
+            camera.position.copy(shipPos).add(
+                direction.multiplyScalar(currentDistance)
+            );
+            
+            // Update controls but don't let it change the camera position
+            const tempPosition = camera.position.clone();
+            controls.update();
+            camera.position.copy(tempPosition);
         }
     }
     
@@ -1116,7 +1144,30 @@ function initMultiplayer() {
                 
                 // Update camera to look at the ship's new position
                 if (controls) {
-                    controls.target.copy(ship.getPosition());
+                    // If controls already have a target, maintain the camera orientation
+                    if (controls.target) {
+                        // Store the current distance from camera to target (zoom level)
+                        const currentDistance = camera.position.distanceTo(controls.target);
+                        
+                        // Store the current camera orientation relative to the target
+                        const direction = new THREE.Vector3()
+                            .subVectors(camera.position, controls.target)
+                            .normalize();
+                        
+                        // Update the orbit controls target to the ship's position
+                        controls.target.copy(ship.getPosition());
+                        
+                        // Reposition the camera at the same distance and orientation
+                        camera.position.copy(ship.getPosition()).add(
+                            direction.multiplyScalar(currentDistance)
+                        );
+                    } else {
+                        // If no target exists yet, use the default camera offset
+                        controls.target.copy(ship.getPosition());
+                        camera.position.copy(ship.getPosition()).add(cameraOffset);
+                    }
+                    
+                    // Update controls
                     controls.update();
                 }
                 
