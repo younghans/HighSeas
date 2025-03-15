@@ -620,6 +620,25 @@ class MultiplayerManager {
     }
     
     /**
+     * Set player's online status to false
+     * This should be called when the user logs out
+     */
+    setPlayerOffline() {
+        if (this.playerRef) {
+            this.debug('Setting player as offline due to logout');
+            // Update the player's online status to false
+            this.playerRef.update({
+                isOnline: false,
+                lastUpdated: firebase.database.ServerValue.TIMESTAMP
+            }).then(() => {
+                this.debug('Successfully set player as offline');
+            }).catch(error => {
+                console.error('Error setting player offline:', error);
+            });
+        }
+    }
+    
+    /**
      * Clean up multiplayer resources
      */
     cleanup() {
@@ -642,12 +661,11 @@ class MultiplayerManager {
             this.removePlayerShip(playerId);
         });
         
+        // Note: We don't try to set player offline here anymore
+        // This is now handled before logout in the UI and resetGame functions
+        
         // Clear player reference
-        if (this.playerRef) {
-            this.debug('Setting player as offline');
-            this.playerRef.update({ isOnline: false });
-            this.playerRef = null;
-        }
+        this.playerRef = null;
         
         // Clear other data
         this.otherPlayers.clear();

@@ -212,6 +212,24 @@ function resetGame() {
     
     // Clean up multiplayer
     if (multiplayerManager) {
+        try {
+            // Try to set player offline directly if we still have a valid reference
+            if (multiplayerManager.playerRef && Auth.isAuthenticated()) {
+                console.log('Setting player offline during game reset');
+                multiplayerManager.playerRef.update({
+                    isOnline: false,
+                    lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                }).then(() => {
+                    console.log('Successfully set player as offline during game reset');
+                }).catch(error => {
+                    console.error('Error setting player offline during game reset:', error);
+                });
+            }
+        } catch (error) {
+            console.error('Error in resetGame process:', error);
+        }
+        
+        // Clean up multiplayer resources
         multiplayerManager.cleanup();
         multiplayerManager = null;
     }
@@ -322,6 +340,27 @@ function startGameWithShip() {
         gameUI = new GameUI({
             auth: Auth,
             onLogout: () => {
+                console.log('Logout callback triggered - setting player offline');
+                
+                // Set player offline before handling logout
+                if (multiplayerManager && multiplayerManager.playerRef) {
+                    try {
+                        // Use Firebase directly to update the player status
+                        // This ensures we're using the authenticated reference that still exists
+                        const playerRef = multiplayerManager.playerRef;
+                        playerRef.update({
+                            isOnline: false,
+                            lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                        }).then(() => {
+                            console.log('Successfully set player as offline during logout');
+                        }).catch(error => {
+                            console.error('Error setting player offline during logout:', error);
+                        });
+                    } catch (error) {
+                        console.error('Error in logout process:', error);
+                    }
+                }
+                
                 // Handle logout by hiding the game UI
                 if (gameUI) {
                     gameUI.hide();
@@ -355,6 +394,14 @@ function startGameWithShip() {
     if (Auth.isAuthenticated()) {
         initMultiplayer();
     }
+    
+    // Add window unload event listener to set player offline when browser/tab is closed
+    window.addEventListener('beforeunload', () => {
+        if (multiplayerManager) {
+            // Set player offline when the window is closed
+            multiplayerManager.setPlayerOffline();
+        }
+    });
 }
 
 // Setup controls for gameplay
