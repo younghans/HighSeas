@@ -1055,6 +1055,9 @@ function initMultiplayer() {
                 console.log('Player position loaded from Firebase:', position);
                 console.log('Current ship position before update:', ship.getPosition());
                 
+                // Force y position to always be 0
+                position.y = 0;
+                
                 // Update ship position
                 ship.getObject().position.set(position.x, position.y, position.z);
                 

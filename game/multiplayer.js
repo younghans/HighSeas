@@ -108,6 +108,8 @@ class MultiplayerManager {
                 if (existingPlayerData && existingPlayerData.position) {
                     // Use position from database
                     initialPosition = existingPlayerData.position;
+                    // Force y position to 0
+                    initialPosition.y = 0;
                     initialRotation = existingPlayerData.rotation || { y: 0 };
                     
                     this.debug('Using saved position from database:', initialPosition);
@@ -120,7 +122,7 @@ class MultiplayerManager {
                     // Use current position if no saved data
                     initialPosition = {
                         x: playerShip.position.x,
-                        y: playerShip.position.y,
+                        y: 0, // Force y position to always be 0
                         z: playerShip.position.z
                     };
                     initialRotation = {
@@ -229,7 +231,7 @@ class MultiplayerManager {
         const updateData = {
             position: {
                 x: currentPosition.x,
-                y: currentPosition.y,
+                y: 0, // Force y position to always be 0
                 z: currentPosition.z
             },
             rotation: {
@@ -237,7 +239,7 @@ class MultiplayerManager {
             },
             destination: playerShip.targetPosition ? {
                 x: playerShip.targetPosition.x,
-                y: playerShip.targetPosition.y,
+                y: 0, // Force destination y to always be 0
                 z: playerShip.targetPosition.z
             } : null,
             lastUpdated: firebase.database.ServerValue.TIMESTAMP
@@ -339,7 +341,7 @@ class MultiplayerManager {
         // Set initial position and rotation
         shipObject.position.set(
             playerData.position.x,
-            playerData.position.y,
+            0, // Force y position to always be 0
             playerData.position.z
         );
         
@@ -371,7 +373,7 @@ class MultiplayerManager {
         otherPlayerShip.userData.playerId = playerData.id;
         otherPlayerShip.userData.lastPosition = new THREE.Vector3(
             playerData.position.x,
-            playerData.position.y,
+            0, // Force y position to always be 0
             playerData.position.z
         );
         otherPlayerShip.userData.lastRotation = rotationY;
@@ -425,7 +427,7 @@ class MultiplayerManager {
         // Update last known position
         otherPlayerShip.userData.lastPosition = new THREE.Vector3(
             playerData.position.x,
-            playerData.position.y,
+            0, // Force y position to always be 0
             playerData.position.z
         );
         
@@ -440,7 +442,7 @@ class MultiplayerManager {
         if (playerData.destination) {
             otherPlayerShip.userData.destination = new THREE.Vector3(
                 playerData.destination.x,
-                playerData.destination.y,
+                0, // Force destination y to always be 0
                 playerData.destination.z
             );
             
