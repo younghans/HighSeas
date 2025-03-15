@@ -878,9 +878,9 @@ function selectBuildingType(buildingType) {
             
             // Add event listeners
             document.getElementById('rotateButton').addEventListener('click', () => {
-                // Rotate the preview object by 90 degrees (π/2 radians)
+                // Rotate the preview object by 45 degrees (π/4 radians)
                 if (buildPreview) {
-                    buildPreview.rotation.y += Math.PI / 2;
+                    buildPreview.rotation.y += Math.PI / 4;
                 }
             });
             
@@ -1005,8 +1005,8 @@ function onKeyDown(event) {
     // Add rotation functionality when 'R' key is pressed in build mode
     if (event.key === 'r' || event.key === 'R') {
         if (buildMode && buildPreview) {
-            // Rotate the preview object by 90 degrees (π/2 radians)
-            buildPreview.rotation.y += Math.PI / 2;
+            // Rotate the preview object by 45 degrees (π/4 radians)
+            buildPreview.rotation.y += Math.PI / 4;
         }
     }
 }
