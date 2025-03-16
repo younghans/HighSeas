@@ -14,6 +14,7 @@ import GameUI from './UI.js';
 import MultiplayerManager from './multiplayer.js';
 import BuildingManager from './BuildingManager.js';
 import IslandInteractionManager from './IslandInteractionManager.js';
+import CreativeMode from './creative.js';
 
 // Main game variables
 let scene, camera, renderer;
@@ -35,6 +36,9 @@ let gameUI;
 // Add manager variables
 let buildingManager;
 let islandManager;
+
+// Creative mode
+let creativeMode;
 
 // Function to completely reset camera controls
 function resetCameraControls() {
@@ -58,14 +62,16 @@ function initWorldOnly() {
     camera.position.set(0, 100, 300); // Higher and further back for a better view of the world
     camera.lookAt(0, 0, 0);
 
-    // Create renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 0.5;
-    renderer.shadowMap.enabled = true;
-    document.body.appendChild(renderer.domElement);
+    // Create renderer if it doesn't exist
+    if (!renderer) {
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 0.5;
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+    }
 
     // Initialize world (sky, water, lighting, etc.)
     world = new World(scene);
@@ -92,7 +98,10 @@ function initWorldOnly() {
     // Setup auth event listeners
     setupAuthListeners();
     
-    animate();
+    // Start animation loop if not already running
+    if (!window.animationFrameId) {
+        animate();
+    }
 }
 
 // Setup auth event listeners
@@ -169,18 +178,25 @@ function resetGame() {
         ship = null;
     }
     
-    // Reset camera position
-    camera.position.set(0, 100, 300);
-    camera.lookAt(0, 0, 0);
+    // Reset camera position if camera exists
+    if (camera) {
+        camera.position.set(0, 100, 300);
+        camera.lookAt(0, 0, 0);
+    }
     
-    // Setup menu controls again
-    setupMenuControls();
+    // Setup menu controls again if controls and camera exist
+    if (controls && camera) {
+        setupMenuControls();
+    }
     
     // Show main menu
     document.getElementById('mainMenu').style.display = 'flex';
     
-    // Update UI for main menu
-    createMinimalUI();
+    // Only update UI if we're not going to recreate it later
+    // This check prevents duplicate UI elements
+    if (scene && !scene._markedForDisposal) {
+        createMinimalUI();
+    }
     
     // Hide game UI if it exists
     if (gameUI) {
@@ -267,12 +283,28 @@ function createMinimalUI() {
         <p>Click Play to start your adventure!</p>
     `;
     document.body.appendChild(infoElement);
+    
+    // Add event listeners for main menu buttons
+    document.getElementById('playButton').addEventListener('click', startGame);
+    document.getElementById('creativeButton').addEventListener('click', enterCreativeMode);
 }
 
 // Start the full game with ship and controls
 function startGame() {
     // Set game started flag
     gameStarted = true;
+    
+    // Hide the main menu
+    const mainMenu = document.getElementById('mainMenu');
+    if (mainMenu) {
+        mainMenu.style.display = 'none';
+    }
+    
+    // Clean up creative mode if it exists
+    if (creativeMode) {
+        creativeMode.cleanup();
+        creativeMode = null;
+    }
     
     // Check if user is authenticated
     if (Auth.isAuthenticated()) {
@@ -525,13 +557,15 @@ function onWindowResize() {
 }
 
 function animate() {
-    requestAnimationFrame(animate);
+    window.animationFrameId = requestAnimationFrame(animate);
     
     const delta = clock.getDelta();
     const elapsedTime = clock.getElapsedTime();
     
     // Update world (sky, water, lighting, etc.)
-    world.update(delta);
+    if (world) {
+        world.update(delta);
+    }
     
     // Update ship and wake particles only if game has started
     if (gameStarted && ship) {
@@ -694,43 +728,103 @@ function initMultiplayer() {
         });
 }
 
-// Example of how to use BuildingManager in creative mode
+// Update the enterCreativeMode function
 function enterCreativeMode() {
+    // Hide the main menu
+    const mainMenu = document.getElementById('mainMenu');
+    if (mainMenu) {
+        mainMenu.style.display = 'none';
+    }
+    
     // Hide normal game UI
     if (gameUI) {
         gameUI.hide();
     }
     
-    // Create a creative mode UI container if it doesn't exist
-    if (!document.getElementById('creativeUI')) {
-        const creativeUI = document.createElement('div');
-        creativeUI.id = 'creativeUI';
-        creativeUI.style.display = 'none';
-        document.body.appendChild(creativeUI);
-        
-        // Create a toolbox container
-        const toolbox = document.createElement('div');
-        toolbox.id = 'creativeToolbox';
-        toolbox.style.display = 'none';
-        creativeUI.appendChild(toolbox);
+    // Check if user is authenticated
+    if (Auth.isAuthenticated()) {
+        // Initialize creative mode if it doesn't exist
+        if (!creativeMode) {
+            creativeMode = new CreativeMode();
+            creativeMode.init(renderer);
+            
+            // Add event listener for exiting creative mode
+            document.addEventListener('exitCreativeMode', exitCreativeMode);
+        }
+    } else {
+        // User is not logged in, show login menu
+        Auth.showLoginMenu();
+    }
+}
+
+// Add function to exit creative mode
+function exitCreativeMode() {
+    // Clean up creative mode
+    if (creativeMode) {
+        creativeMode.cleanup();
+        creativeMode = null;
     }
     
-    // Show creative mode UI
-    document.getElementById('creativeUI').style.display = 'block';
+    // Remove event listener
+    document.removeEventListener('exitCreativeMode', exitCreativeMode);
     
-    // Set up building manager with creative mode UI container
-    if (buildingManager) {
-        buildingManager.uiContainer = document.getElementById('creativeToolbox');
+    // Cancel animation frame if it exists
+    if (window.animationFrameId) {
+        cancelAnimationFrame(window.animationFrameId);
+        window.animationFrameId = null;
+    }
+    
+    // Clean up the entire scene
+    if (scene) {
+        // Mark scene for disposal to prevent UI recreation in resetGame
+        scene._markedForDisposal = true;
         
-        // Enter build mode with creative context
-        buildingManager.enterBuildMode({
-            context: {
-                type: 'creative'
+        // Remove all objects from the scene
+        while(scene.children.length > 0) { 
+            const object = scene.children[0];
+            scene.remove(object);
+            
+            // Dispose of geometries and materials to free memory
+            if (object.geometry) object.geometry.dispose();
+            if (object.material) {
+                if (Array.isArray(object.material)) {
+                    object.material.forEach(material => material.dispose());
+                } else {
+                    object.material.dispose();
+                }
             }
-        });
-        
-        // Show building selection UI
-        buildingManager.showBuildingSelectionUI();
+        }
+    }
+    
+    // Reset game state
+    resetGame();
+    
+    // Remove the renderer's DOM element if it exists
+    if (renderer && renderer.domElement && renderer.domElement.parentNode) {
+        renderer.domElement.parentNode.removeChild(renderer.domElement);
+    }
+    
+    // Dispose of the renderer
+    if (renderer) {
+        renderer.dispose();
+        renderer = null;
+    }
+    
+    // Reset all game variables
+    scene = null;
+    camera = null;
+    controls = null;
+    world = null;
+    islandGenerator = null;
+    windSystem = null;
+    
+    // Initialize the world from scratch
+    initWorldOnly();
+    
+    // Show the main menu
+    const mainMenu = document.getElementById('mainMenu');
+    if (mainMenu) {
+        mainMenu.style.display = 'flex';
     }
 }
 

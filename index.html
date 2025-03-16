@@ -27,6 +27,28 @@
             border-radius: 5px;
             pointer-events: none;
         }
+        #info button {
+            pointer-events: auto;
+            cursor: pointer;
+        }
+        #creativeUI {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            width: 300px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: Arial, sans-serif;
+            z-index: 1000;
+        }
+        #creativeUI input[type="range"] {
+            width: 100%;
+        }
+        #creativeUI button {
+            cursor: pointer;
+        }
         #islandMenu {
             display: none;
             position: absolute;
@@ -154,6 +176,68 @@
         #loginMenu .close-button:hover {
             background-color: #888;
         }
+
+        #creativeButton:hover {
+            background-color: #39a1f4;
+            transform: scale(1.05);
+        }
+
+        #buildingUI {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 10px;
+            z-index: 1000;
+        }
+        
+        #buildingUI button {
+            padding: 10px 15px;
+            background-color: #4a6d8c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        #buildingUI button:hover {
+            background-color: #5a8dac;
+        }
+
+        #buildingManagerUI {
+            position: absolute;
+            left: 20px;
+            bottom: 20px;
+            width: 300px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 1000;
+            display: none;
+        }
+        
+        #buildingManagerUI button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            background-color: #4a6d8c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        #buildingManagerUI button:hover {
+            background-color: #5a8dac;
+        }
     </style>
 </head>
 <body>
@@ -161,6 +245,7 @@
     <div id="mainMenu">
         <h1>High Seas</h1>
         <button id="playButton">Play</button>
+        <button id="creativeButton" style="margin-top: 15px; padding: 15px 50px; font-size: 1.5rem; background-color: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);">Creative</button>
     </div>
 
     <!-- Login Menu Overlay -->
@@ -188,15 +273,6 @@
         document.addEventListener('DOMContentLoaded', () => {
             // Initialize the game world without the ship
             Game.initWorldOnly();
-            
-            // Add event listener to the play button
-            document.getElementById('playButton').addEventListener('click', () => {
-                // Hide the main menu
-                document.getElementById('mainMenu').style.display = 'none';
-                
-                // Start the game (this will check authentication)
-                Game.startGame();
-            });
         });
     </script>
 </body>
