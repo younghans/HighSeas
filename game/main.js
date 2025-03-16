@@ -12,6 +12,8 @@ import Dock from './objects/dock.js';
 import Auth from './auth.js';
 import GameUI from './UI.js';
 import MultiplayerManager from './multiplayer.js';
+import BuildingManager from './BuildingManager.js';
+import IslandInteractionManager from './IslandInteractionManager.js';
 
 // Main game variables
 let scene, camera, renderer;
@@ -27,30 +29,12 @@ let multiplayerManager;
 // Island generator
 let islandGenerator;
 
-// Add this variable to track the currently selected island
-let selectedIsland = null;
-let islandMenuOpen = false;
-const ISLAND_INTERACTION_DISTANCE = 50; // Distance at which ship can interact with island
-
-// Add a variable to track the clicked point on the island
-let selectedIslandPoint = null;
-
-// Build mode variables
-let buildMode = false;
-let buildObject = null;
-let buildPreview = null;
-const WATER_LEVEL_THRESHOLD = 0; // Y-value above which we consider the island to be "above water"
-
-// Raycaster for build mode
-const buildRaycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
-
-// Add these variables with the other game variables
-let buildingMenuOpen = false;
-let currentBuildingType = null;
-
 // Add gameUI variable
 let gameUI;
+
+// Add manager variables
+let buildingManager;
+let islandManager;
 
 // Function to completely reset camera controls
 function resetCameraControls() {
@@ -150,9 +134,16 @@ function resetGame() {
     // Reset game started flag
     gameStarted = false;
     
-    // Remove event listeners that are only needed during gameplay
-    renderer.domElement.removeEventListener('mousemove', onMouseMove);
-    document.removeEventListener('keydown', onKeyDown);
+    // Clean up managers if they exist
+    if (buildingManager) {
+        buildingManager.cleanup();
+        buildingManager = null;
+    }
+    
+    if (islandManager) {
+        // No cleanup method needed for IslandInteractionManager currently
+        islandManager = null;
+    }
     
     // Reset camera controls completely
     resetCameraControls();
@@ -187,20 +178,6 @@ function resetGame() {
     
     // Show main menu
     document.getElementById('mainMenu').style.display = 'flex';
-    
-    // Hide any open menus
-    if (islandMenuOpen) {
-        hideIslandMenu();
-    }
-    
-    if (buildingMenuOpen) {
-        hideBuildingMenu();
-    }
-    
-    // Exit build mode if active
-    if (buildMode) {
-        exitBuildMode();
-    }
     
     // Update UI for main menu
     createMinimalUI();
@@ -372,16 +349,6 @@ function startGameWithShip() {
     // Show the game UI
     gameUI.show();
     
-    // Remove any existing event listeners to prevent duplicates
-    renderer.domElement.removeEventListener('mousemove', onMouseMove);
-    document.removeEventListener('keydown', onKeyDown);
-    
-    // Add event listener for mouse movement (for build mode)
-    renderer.domElement.addEventListener('mousemove', onMouseMove);
-    
-    // Add event listener for keyboard (for exiting build mode)
-    document.addEventListener('keydown', onKeyDown);
-    
     // Create an empty island menu container if it doesn't exist
     if (!document.getElementById('islandMenu')) {
         const menu = document.createElement('div');
@@ -394,6 +361,36 @@ function startGameWithShip() {
     if (Auth.isAuthenticated()) {
         initMultiplayer();
     }
+    
+    // Initialize BuildingManager
+    buildingManager = new BuildingManager({
+        scene: scene,
+        camera: camera,
+        islandGenerator: islandGenerator,
+        world: world,
+        onInfoUpdate: (info) => {
+            // Update the info panel with the provided information
+            const infoElement = document.getElementById('info');
+            if (infoElement) {
+                infoElement.innerHTML = `
+                    <h2>${info.title}</h2>
+                    <p>${info.message.replace(/\n/g, '</p><p>')}</p>
+                `;
+            }
+        }
+    }).init();
+    
+    // Initialize IslandInteractionManager after multiplayer is initialized
+    islandManager = new IslandInteractionManager({
+        scene: scene,
+        camera: camera,
+        ship: ship,
+        islandGenerator: islandGenerator,
+        world: world,
+        buildingManager: buildingManager,
+        gameUI: gameUI,
+        multiplayerManager: multiplayerManager
+    });
     
     // Add window unload event listener to set player offline when browser/tab is closed
     window.addEventListener('beforeunload', () => {
@@ -486,6 +483,7 @@ function onMouseClick(event) {
     if (!gameStarted) return;
     
     // Update mouse position
+    const mouse = new THREE.Vector2();
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
     
@@ -493,44 +491,9 @@ function onMouseClick(event) {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, camera);
     
-    // If in build mode, handle building placement or water clicks
-    if (buildMode && buildPreview) {
-        // Check for intersections with islands
-        const islandIntersects = raycaster.intersectObjects(islandGenerator.getIslands());
-        
-        if (islandIntersects.length > 0) {
-            const intersection = islandIntersects[0];
-            const clickedPoint = intersection.point;
-            
-            // Check if the clicked point is above water
-            if (clickedPoint.y > WATER_LEVEL_THRESHOLD) {
-                // Place the building at the clicked point
-                placeBuilding(clickedPoint);
-                return;
-            }
-        }
-        
-        // If we get here, the click wasn't on a valid build location
-        // Check if it was on water
-        const waterIntersects = raycaster.intersectObject(world.getWater());
-        
-        if (waterIntersects.length > 0) {
-            // Exit build mode
-            exitBuildMode();
-            
-            // Get the intersection point
-            const intersectionPoint = waterIntersects[0].point;
-            
-            // Move ship to clicked point
-            ship.moveTo(intersectionPoint);
-            
-            // Sync with Firebase if multiplayer is enabled
-            if (multiplayerManager) {
-                multiplayerManager.updatePlayerPosition(ship);
-            }
-        }
-        
-        return;
+    // First check if the click should be handled by build mode
+    if (buildingManager && buildingManager.handleClick(raycaster)) {
+        return; // Click was handled by build mode
     }
     
     // Get all islands from the island generator
@@ -547,467 +510,11 @@ function onMouseClick(event) {
         // Get the exact point of intersection in world coordinates
         const intersectionPoint = intersection.point;
         
-        // Check if the clicked point is above water
-        if (intersectionPoint.y > WATER_LEVEL_THRESHOLD) {
-            // Clicked on a part of the island that's above water
-            selectedIsland = clickedIsland;
-            
-            // Get ship position
-            const shipPos = ship.getPosition().clone();
-            
-            // Calculate the closest shoreline point for the ship to navigate to
-            const shorelinePoint = findClosestShorelinePoint(clickedIsland, intersectionPoint, shipPos);
-            
-            // Calculate distance between ship and shoreline point (ignoring Y axis)
-            const shipPosFlat = new THREE.Vector3(shipPos.x, 0, shipPos.z);
-            const shorelinePointFlat = new THREE.Vector3(shorelinePoint.x, 0, shorelinePoint.z);
-            const distance = shipPosFlat.distanceTo(shorelinePointFlat);
-            
-            if (distance <= ISLAND_INTERACTION_DISTANCE) {
-                // Ship is close enough to the shoreline point, stop the ship and show menu
-                ship.stopMoving();
-                showIslandMenu(clickedIsland, shorelinePoint);
-            } else {
-                // Ship is too far, move it closer to the shoreline point
-                // Calculate a position near the shoreline point for the ship to move to
-                const direction = new THREE.Vector3().subVectors(shorelinePointFlat, shipPosFlat).normalize();
-                
-                // Calculate a position that's just within interaction distance of the shoreline point
-                const targetPosition = new THREE.Vector3().addVectors(
-                    shorelinePointFlat,
-                    direction.multiplyScalar(-ISLAND_INTERACTION_DISTANCE * 0.8) // Move slightly closer than the minimum distance
-                );
-                
-                // Ensure Y position is the same as the ship's current Y position
-                targetPosition.y = ship.getPosition().y;
-                
-                // Store the shoreline point for later use when the ship arrives
-                ship.targetIslandPoint = shorelinePoint;
-                
-                // Move ship to the target position
-                ship.moveTo(targetPosition);
-            }
-        } else {
-            // Clicked on a part of the island that's underwater - treat as water click
-            handleWaterClick(raycaster);
-        }
+        // Handle island click
+        islandManager.handleIslandClick(clickedIsland, intersectionPoint, raycaster);
     } else {
         // No island was clicked, check for water intersection
-        handleWaterClick(raycaster);
-    }
-}
-
-// Function to find the closest point on the shoreline of an island
-function findClosestShorelinePoint(island, clickedPoint, shipPosition) {
-    // We'll use a simplified approach to find a point on the shoreline
-    // by casting a ray from the ship position towards the clicked point
-    
-    // Direction from ship to clicked point
-    const direction = new THREE.Vector3()
-        .subVectors(clickedPoint, shipPosition)
-        .normalize();
-    
-    // Create a raycaster from the ship position towards the clicked point
-    const raycaster = new THREE.Raycaster(shipPosition, direction);
-    
-    // Intersect with the island
-    const intersects = raycaster.intersectObject(island);
-    
-    if (intersects.length > 0) {
-        // We found an intersection point on the island
-        const intersectionPoint = intersects[0].point;
-        
-        // If this point is at or near the water level, it's a good shoreline point
-        if (Math.abs(intersectionPoint.y - WATER_LEVEL_THRESHOLD) < 1.0) {
-            return intersectionPoint;
-        }
-    }
-    
-    // If the direct ray approach didn't work, we'll use a different method
-    // We'll sample points around the perimeter of the island to find a good shoreline point
-    
-    // Get the island's geometry
-    const geometry = island.geometry;
-    const positions = geometry.attributes.position;
-    
-    // Variables to track the closest shoreline point
-    let closestPoint = null;
-    let closestDistance = Infinity;
-    
-    // Sample points from the geometry
-    for (let i = 0; i < positions.count; i++) {
-        const x = positions.getX(i);
-        const y = positions.getY(i);
-        const z = positions.getZ(i);
-        
-        // Convert to world coordinates
-        const worldPoint = new THREE.Vector3(x, y, z).applyMatrix4(island.matrixWorld);
-        
-        // Check if this point is near the water level (potential shoreline)
-        if (Math.abs(worldPoint.y - WATER_LEVEL_THRESHOLD) < 1.0) {
-            // Calculate distance from ship to this point (ignoring Y)
-            const shipPosFlat = new THREE.Vector3(shipPosition.x, 0, shipPosition.z);
-            const worldPointFlat = new THREE.Vector3(worldPoint.x, 0, worldPoint.z);
-            const distance = shipPosFlat.distanceTo(worldPointFlat);
-            
-            // If this is closer than our current closest point, update
-            if (distance < closestDistance) {
-                closestDistance = distance;
-                closestPoint = worldPoint.clone();
-            }
-        }
-    }
-    
-    // If we found a shoreline point, return it
-    if (closestPoint) {
-        // Ensure Y position is at water level
-        closestPoint.y = WATER_LEVEL_THRESHOLD;
-        return closestPoint;
-    }
-    
-    // Fallback: If we couldn't find a good shoreline point,
-    // use the clicked point but adjust its Y to the ship's Y
-    return new THREE.Vector3(
-        clickedPoint.x,
-        ship.getPosition().y,
-        clickedPoint.z
-    );
-}
-
-// Helper function to handle water clicks
-function handleWaterClick(raycaster) {
-    const waterIntersects = raycaster.intersectObject(world.getWater());
-    
-    if (waterIntersects.length > 0) {
-        // Close island menu if open
-        if (islandMenuOpen) {
-            hideIslandMenu();
-        }
-        
-        // Exit build mode if active
-        if (buildMode) {
-            exitBuildMode();
-        }
-        
-        // Close top UI menus if game UI exists
-        if (gameUI) {
-            gameUI.closeTopMenu();
-        }
-        
-        // Get the intersection point
-        const intersectionPoint = waterIntersects[0].point;
-        
-        // Move ship to clicked point
-        ship.moveTo(intersectionPoint);
-        
-        // Sync with Firebase if multiplayer is enabled
-        if (multiplayerManager) {
-            multiplayerManager.updatePlayerPosition(ship);
-        }
-    }
-}
-
-function toggleMenu(menuId, show, setupFn = null) {
-    const menu = document.getElementById(menuId);
-    
-    if (!menu) {
-        console.error(`Menu with ID ${menuId} not found!`);
-        return;
-    }
-    
-    // Show or hide the menu
-    menu.style.display = show ? 'block' : 'none';
-    
-    // Run any additional setup if provided
-    if (show && setupFn) {
-        setupFn(menu);
-    }
-}
-
-function showIslandMenu(island, clickedPoint) {
-    ship.stopMoving();
-    islandMenuOpen = true;
-    selectedIslandPoint = clickedPoint;
-    selectedIsland = island;
-    
-    // Close top UI menus if game UI exists
-    if (gameUI) {
-        gameUI.closeTopMenu();
-    }
-    
-    toggleMenu('islandMenu', true, (menu) => {
-        // Update menu content with a Build button
-        menu.innerHTML = `
-            <h2>Island Menu</h2>
-            <p>You've discovered ${island.name || 'an island'}!</p>
-            <button id="exploreButton">Explore Island</button>
-            <button id="buildButton">Building Mode</button>
-            <button id="closeMenuButton">Close</button>
-        `;
-        
-        // Add event listeners to buttons
-        document.getElementById('exploreButton').addEventListener('click', () => {
-            console.log('Exploring island...');
-            // Add exploration functionality here
-        });
-        
-        document.getElementById('buildButton').addEventListener('click', () => {
-            // Enter build mode
-            enterBuildMode();
-        });
-        
-        document.getElementById('closeMenuButton').addEventListener('click', hideIslandMenu);
-    });
-}
-
-function hideIslandMenu() {
-    toggleMenu('islandMenu', false);
-    islandMenuOpen = false;
-    // Don't reset selectedIsland and selectedIslandPoint here
-    // so we can return to the island menu after build mode
-}
-
-function enterBuildMode() {
-    // Set build mode flag
-    buildMode = true;
-    
-    // Transform the island menu into the building menu
-    const menu = document.getElementById('islandMenu');
-    
-    if (menu) {
-        // Update the menu content to show building options
-        menu.innerHTML = `
-            <h2>Building Mode</h2>
-            <p>Select a building to place:</p>
-            <button id="marketStallButton">Market Stall</button>
-            <button id="dockButton">Dock</button>
-            <button id="exitBuildModeButton">Back to Island</button>
-        `;
-        
-        // Add event listeners to buttons
-        document.getElementById('marketStallButton').addEventListener('click', () => {
-            selectBuildingType('marketStall');
-        });
-        
-        document.getElementById('dockButton').addEventListener('click', () => {
-            selectBuildingType('dock');
-        });
-        
-        document.getElementById('exitBuildModeButton').addEventListener('click', () => {
-            exitBuildMode();
-            // Show the island menu again
-            showIslandMenu(selectedIsland, selectedIslandPoint);
-        });
-    }
-    
-    // Update the info display
-    const infoElement = document.getElementById('info');
-    infoElement.innerHTML = `
-        <h2>Build Mode</h2>
-        <p>Select a building type from the menu</p>
-        <p>Click anywhere to exit build mode</p>
-    `;
-}
-
-function selectBuildingType(buildingType) {
-    // Store the selected building type
-    currentBuildingType = buildingType;
-    
-    // Remove any existing preview
-    if (buildPreview) {
-        scene.remove(buildPreview);
-        buildPreview = null;
-    }
-    
-    // Create the build preview based on the building type
-    if (buildingType === 'marketStall') {
-        // Create a market stall with 50% opacity
-        buildObject = new MarketStall({
-            position: new THREE.Vector3(0, 0, 0),
-            detailLevel: 0.8
-        });
-        
-        buildPreview = buildObject.getObject();
-    } else if (buildingType === 'dock') {
-        // Create a dock with 50% opacity
-        buildObject = new Dock({
-            position: new THREE.Vector3(0, 0, 0)
-        });
-        
-        buildPreview = buildObject.getObject();
-    }
-    
-    // Make the preview semi-transparent
-    if (buildPreview) {
-        buildPreview.traverse(child => {
-            if (child.isMesh && child.material) {
-                if (Array.isArray(child.material)) {
-                    child.material.forEach(mat => {
-                        mat.transparent = true;
-                        mat.opacity = 0.5;
-                    });
-                } else {
-                    child.material.transparent = true;
-                    child.material.opacity = 0.5;
-                }
-            }
-        });
-        
-        // Add the preview to the scene
-        scene.add(buildPreview);
-        
-        // Update the info display
-        const infoElement = document.getElementById('info');
-        infoElement.innerHTML = `
-            <h2>Build Mode: ${buildingType === 'marketStall' ? 'Market Stall' : 'Dock'}</h2>
-            <p>Left-click: Place building</p>
-            <p>R: Rotate building</p>
-            <p>Click away to cancel</p>
-        `;
-        
-        // Update the island menu to show building placement instructions
-        const menu = document.getElementById('islandMenu');
-        if (menu) {
-            menu.innerHTML = `
-                <h2>Place ${buildingType === 'marketStall' ? 'Market Stall' : 'Dock'}</h2>
-                <p>Position the building and click to place it</p>
-                <button id="rotateButton">Rotate (R)</button>
-                <button id="cancelPlacementButton">Cancel Placement</button>
-                <button id="exitBuildModeButton">Back to Island</button>
-            `;
-            
-            // Add event listeners
-            document.getElementById('rotateButton').addEventListener('click', () => {
-                // Rotate the preview object by 45 degrees (π/4 radians)
-                if (buildPreview) {
-                    buildPreview.rotation.y += Math.PI / 4;
-                }
-            });
-            
-            document.getElementById('cancelPlacementButton').addEventListener('click', () => {
-                // Remove the preview and go back to building selection
-                if (buildPreview) {
-                    scene.remove(buildPreview);
-                    buildPreview = null;
-                }
-                enterBuildMode();
-            });
-            
-            document.getElementById('exitBuildModeButton').addEventListener('click', () => {
-                exitBuildMode();
-                // Show the island menu again
-                showIslandMenu(selectedIsland, selectedIslandPoint);
-            });
-        }
-    }
-}
-
-function exitBuildMode() {
-    // Reset build mode flag
-    buildMode = false;
-    
-    // Remove the build preview from the scene
-    if (buildPreview) {
-        scene.remove(buildPreview);
-        buildPreview = null;
-    }
-    
-    // Reset the current building type
-    currentBuildingType = null;
-    
-    // Reset the info display
-    const infoElement = document.getElementById('info');
-    infoElement.innerHTML = `
-        <h2>Yarr!</h2>
-        <p>Left-click: Move ship to location</p>
-        <p>Right-click drag: Move camera</p>
-    `;
-    
-    // Hide the island menu
-    hideIslandMenu();
-}
-
-function placeBuilding(position) {
-    // Create a new building at the specified position
-    if (buildObject && currentBuildingType) {
-        let newBuilding;
-        
-        if (currentBuildingType === 'marketStall') {
-            newBuilding = new MarketStall({
-                position: position.clone(),
-                detailLevel: 0.8,
-                rotation: buildPreview.rotation.y
-            });
-        } else if (currentBuildingType === 'dock') {
-            newBuilding = new Dock({
-                position: position.clone(),
-                rotation: buildPreview.rotation.y
-            });
-        }
-        
-        if (newBuilding) {
-            // Add the building to the scene
-            scene.add(newBuilding.getObject());
-        }
-        
-        // After placing, go back to building selection
-        enterBuildMode();
-        
-        // Remove the preview temporarily until a new building type is selected
-        if (buildPreview) {
-            scene.remove(buildPreview);
-            buildPreview = null;
-        }
-    }
-}
-
-function onMouseMove(event) {
-    // Update mouse position
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    
-    // If in build mode, update the preview position
-    if (buildMode && buildPreview) {
-        // Create a raycaster
-        buildRaycaster.setFromCamera(mouse, camera);
-        
-        // Check for intersections with islands
-        const islandIntersects = buildRaycaster.intersectObjects(islandGenerator.getIslands());
-        
-        if (islandIntersects.length > 0) {
-            const intersection = islandIntersects[0];
-            const point = intersection.point;
-            
-            // Check if the point is above water
-            if (point.y > WATER_LEVEL_THRESHOLD) {
-                // Update the preview position
-                buildPreview.position.copy(point);
-                
-                // Make the preview visible
-                buildPreview.visible = true;
-            } else {
-                // Hide the preview if below water level
-                buildPreview.visible = false;
-            }
-        } else {
-            // Hide the preview if not over an island
-            buildPreview.visible = false;
-        }
-    }
-}
-
-function onKeyDown(event) {
-    // Remove ESC key functionality for exiting build mode
-    // if (event.key === 'Escape' && buildMode) {
-    //     exitBuildMode();
-    // }
-    
-    // Add rotation functionality when 'R' key is pressed in build mode
-    if (event.key === 'r' || event.key === 'R') {
-        if (buildMode && buildPreview) {
-            // Rotate the preview object by 45 degrees (π/4 radians)
-            buildPreview.rotation.y += Math.PI / 4;
-        }
+        islandManager.handleWaterClick(raycaster);
     }
 }
 
@@ -1044,27 +551,9 @@ function animate() {
             gameUI.update();
         }
         
-        // Check if ship has reached the selected island point
-        if (selectedIsland && !islandMenuOpen && ship.targetIslandPoint) {
-            const shipPos = ship.getPosition().clone();
-            
-            // Calculate distance between ship and clicked point (ignoring Y axis)
-            const shipPosFlat = new THREE.Vector3(shipPos.x, 0, shipPos.z);
-            const targetPointFlat = new THREE.Vector3(
-                ship.targetIslandPoint.x, 
-                0, 
-                ship.targetIslandPoint.z
-            );
-            
-            const distance = shipPosFlat.distanceTo(targetPointFlat);
-            
-            // If ship has reached the clicked point and is not moving, show menu
-            if (distance <= ISLAND_INTERACTION_DISTANCE && !ship.isMoving) {
-                // Stop the ship explicitly (although it should already be stopped)
-                ship.stopMoving();
-                showIslandMenu(selectedIsland, ship.targetIslandPoint);
-                ship.targetIslandPoint = null; // Clear the target point
-            }
+        // Update island manager if it exists
+        if (islandManager) {
+            islandManager.update(delta);
         }
         
         // Update camera to follow ship
@@ -1205,11 +694,52 @@ function initMultiplayer() {
         });
 }
 
+// Example of how to use BuildingManager in creative mode
+function enterCreativeMode() {
+    // Hide normal game UI
+    if (gameUI) {
+        gameUI.hide();
+    }
+    
+    // Create a creative mode UI container if it doesn't exist
+    if (!document.getElementById('creativeUI')) {
+        const creativeUI = document.createElement('div');
+        creativeUI.id = 'creativeUI';
+        creativeUI.style.display = 'none';
+        document.body.appendChild(creativeUI);
+        
+        // Create a toolbox container
+        const toolbox = document.createElement('div');
+        toolbox.id = 'creativeToolbox';
+        toolbox.style.display = 'none';
+        creativeUI.appendChild(toolbox);
+    }
+    
+    // Show creative mode UI
+    document.getElementById('creativeUI').style.display = 'block';
+    
+    // Set up building manager with creative mode UI container
+    if (buildingManager) {
+        buildingManager.uiContainer = document.getElementById('creativeToolbox');
+        
+        // Enter build mode with creative context
+        buildingManager.enterBuildMode({
+            context: {
+                type: 'creative'
+            }
+        });
+        
+        // Show building selection UI
+        buildingManager.showBuildingSelectionUI();
+    }
+}
+
 // Export functions that need to be accessible from outside
 export default {
     init,
     initWorldOnly,
     startGame,
+    enterCreativeMode,
     scene,
     camera,
     renderer
