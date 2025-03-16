@@ -14,7 +14,6 @@ import GameUI from './UI.js';
 import MultiplayerManager from './multiplayer.js';
 import BuildingManager from './BuildingManager.js';
 import IslandInteractionManager from './IslandInteractionManager.js';
-import CreativeMode from './creative.js';
 
 // Main game variables
 let scene, camera, renderer;
@@ -36,9 +35,6 @@ let gameUI;
 // Add manager variables
 let buildingManager;
 let islandManager;
-
-// Creative mode
-let creativeMode;
 
 // Function to completely reset camera controls
 function resetCameraControls() {
@@ -286,7 +282,6 @@ function createMinimalUI() {
     
     // Add event listeners for main menu buttons
     document.getElementById('playButton').addEventListener('click', startGame);
-    document.getElementById('creativeButton').addEventListener('click', enterCreativeMode);
 }
 
 // Start the full game with ship and controls
@@ -298,12 +293,6 @@ function startGame() {
     const mainMenu = document.getElementById('mainMenu');
     if (mainMenu) {
         mainMenu.style.display = 'none';
-    }
-    
-    // Clean up creative mode if it exists
-    if (creativeMode) {
-        creativeMode.cleanup();
-        creativeMode = null;
     }
     
     // Check if user is authenticated
@@ -728,112 +717,11 @@ function initMultiplayer() {
         });
 }
 
-// Update the enterCreativeMode function
-function enterCreativeMode() {
-    // Hide the main menu
-    const mainMenu = document.getElementById('mainMenu');
-    if (mainMenu) {
-        mainMenu.style.display = 'none';
-    }
-    
-    // Hide normal game UI
-    if (gameUI) {
-        gameUI.hide();
-    }
-    
-    // Check if user is authenticated
-    if (Auth.isAuthenticated()) {
-        // Initialize creative mode if it doesn't exist
-        if (!creativeMode) {
-            creativeMode = new CreativeMode();
-            creativeMode.init(renderer);
-            
-            // Add event listener for exiting creative mode
-            document.addEventListener('exitCreativeMode', exitCreativeMode);
-        }
-    } else {
-        // User is not logged in, show login menu
-        Auth.showLoginMenu();
-    }
-}
-
-// Add function to exit creative mode
-function exitCreativeMode() {
-    // Clean up creative mode
-    if (creativeMode) {
-        creativeMode.cleanup();
-        creativeMode = null;
-    }
-    
-    // Remove event listener
-    document.removeEventListener('exitCreativeMode', exitCreativeMode);
-    
-    // Cancel animation frame if it exists
-    if (window.animationFrameId) {
-        cancelAnimationFrame(window.animationFrameId);
-        window.animationFrameId = null;
-    }
-    
-    // Clean up the entire scene
-    if (scene) {
-        // Mark scene for disposal to prevent UI recreation in resetGame
-        scene._markedForDisposal = true;
-        
-        // Remove all objects from the scene
-        while(scene.children.length > 0) { 
-            const object = scene.children[0];
-            scene.remove(object);
-            
-            // Dispose of geometries and materials to free memory
-            if (object.geometry) object.geometry.dispose();
-            if (object.material) {
-                if (Array.isArray(object.material)) {
-                    object.material.forEach(material => material.dispose());
-                } else {
-                    object.material.dispose();
-                }
-            }
-        }
-    }
-    
-    // Reset game state
-    resetGame();
-    
-    // Remove the renderer's DOM element if it exists
-    if (renderer && renderer.domElement && renderer.domElement.parentNode) {
-        renderer.domElement.parentNode.removeChild(renderer.domElement);
-    }
-    
-    // Dispose of the renderer
-    if (renderer) {
-        renderer.dispose();
-        renderer = null;
-    }
-    
-    // Reset all game variables
-    scene = null;
-    camera = null;
-    controls = null;
-    world = null;
-    islandGenerator = null;
-    windSystem = null;
-    
-    // Initialize the world from scratch
-    initWorldOnly();
-    
-    // Show the main menu
-    const mainMenu = document.getElementById('mainMenu');
-    if (mainMenu) {
-        mainMenu.style.display = 'flex';
-    }
-}
-
 // Export functions that need to be accessible from outside
 export default {
     init,
     initWorldOnly,
     startGame,
-    enterCreativeMode,
     scene,
     camera,
     renderer
