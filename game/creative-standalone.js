@@ -808,7 +808,7 @@ class CreativeStandalone {
         this.cleanup();
         
         // Redirect to main page or reload
-        window.location.href = '../index.html';
+        window.location.href = '../';
     }
     
     cleanup() {

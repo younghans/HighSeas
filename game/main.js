@@ -413,6 +413,9 @@ function startGameWithShip() {
         multiplayerManager: multiplayerManager
     });
     
+    // Add event listener for the resetToMainMenu custom event
+    document.addEventListener('resetToMainMenu', handleResetToMainMenu);
+    
     // Add window unload event listener to set player offline when browser/tab is closed
     window.addEventListener('beforeunload', () => {
         if (multiplayerManager) {
@@ -420,6 +423,75 @@ function startGameWithShip() {
             multiplayerManager.setPlayerOffline();
         }
     });
+}
+
+/**
+ * Handle reset to main menu event
+ * This function resets the game state but keeps the user authenticated
+ */
+function handleResetToMainMenu(event) {
+    console.log('Resetting to main menu, keeping authentication:', event.detail.keepAuthenticated);
+    
+    // Set player offline in multiplayer
+    if (multiplayerManager && multiplayerManager.playerRef) {
+        multiplayerManager.setPlayerOffline();
+    }
+    
+    // Reset game started flag
+    gameStarted = false;
+    
+    // Clean up managers if they exist
+    if (buildingManager) {
+        buildingManager.cleanup();
+        buildingManager = null;
+    }
+    
+    if (islandManager) {
+        islandManager = null;
+    }
+    
+    // Reset camera controls completely
+    resetCameraControls();
+    
+    // Remove ship if it exists
+    if (ship) {
+        try {
+            // Check if ship has getObject method before calling it
+            if (typeof ship.getObject === 'function') {
+                const shipObject = ship.getObject();
+                if (shipObject) {
+                    scene.remove(shipObject);
+                }
+            } else {
+                // If ship doesn't have getObject method, try to remove it directly
+                scene.remove(ship);
+            }
+        } catch (error) {
+            console.warn('Error removing ship:', error);
+        }
+        
+        // Set ship to null regardless of removal success
+        ship = null;
+    }
+    
+    // Reset camera position
+    camera.position.set(0, 100, 300);
+    camera.lookAt(0, 0, 0);
+    
+    // Setup menu controls again
+    setupMenuControls();
+    
+    // Show main menu
+    document.getElementById('mainMenu').style.display = 'flex';
+    
+    // Create minimal UI for main menu
+    createMinimalUI();
+    
+    // Clean up multiplayer but don't sign out
+    if (multiplayerManager) {
+        multiplayerManager.cleanup();
+        multiplayerManager = null;
+    }
 }
 
 // Setup controls for gameplay
