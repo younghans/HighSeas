@@ -535,6 +535,38 @@ class CreativeStandalone {
             buildingUIContainer.appendChild(button);
         });
         
+        // Add a separator
+        const separator = document.createElement('div');
+        separator.style.width = '1px';
+        separator.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+        separator.style.margin = '0 5px';
+        buildingUIContainer.appendChild(separator);
+        
+        // Add Clear button
+        const clearButton = document.createElement('button');
+        clearButton.textContent = 'Clear All';
+        clearButton.style.padding = '10px 15px';
+        clearButton.style.backgroundColor = '#d9534f';
+        clearButton.style.color = 'white';
+        clearButton.style.border = 'none';
+        clearButton.style.borderRadius = '5px';
+        clearButton.style.cursor = 'pointer';
+        clearButton.style.transition = 'background-color 0.3s';
+        
+        clearButton.addEventListener('mouseover', () => {
+            clearButton.style.backgroundColor = '#c9302c';
+        });
+        
+        clearButton.addEventListener('mouseout', () => {
+            clearButton.style.backgroundColor = '#d9534f';
+        });
+        
+        clearButton.addEventListener('click', () => {
+            this.removeAllPlacedObjects();
+        });
+        
+        buildingUIContainer.appendChild(clearButton);
+        
         document.body.appendChild(buildingUIContainer);
     }
     
