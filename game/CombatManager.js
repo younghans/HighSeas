@@ -26,6 +26,7 @@ class CombatManager {
         this.isSpacePressed = false;
         this.autoFireInterval = null;
         this.isResetting = false;
+        this.debugArrows = [];
         
         // Bind methods
         this.handleMouseClick = this.handleMouseClick.bind(this);
@@ -148,9 +149,30 @@ class CombatManager {
     setTarget(ship) {
         this.currentTarget = ship;
         
+        // Clean up debug arrows if target is cleared
+        if (!ship && this.debugArrows && this.debugArrows.length > 0) {
+            this.cleanupDebugArrows();
+        }
+        
         // Update UI if available
         if (this.ui) {
             this.ui.setTarget(ship);
+        }
+    }
+    
+    /**
+     * Clean up debug arrows
+     */
+    cleanupDebugArrows() {
+        if (this.scene && this.debugArrows) {
+            this.debugArrows.forEach(arrow => {
+                if (arrow) {
+                    this.scene.remove(arrow);
+                    if (arrow.geometry) arrow.geometry.dispose();
+                    if (arrow.material) arrow.material.dispose();
+                }
+            });
+            this.debugArrows = [];
         }
     }
     
@@ -439,6 +461,11 @@ class CombatManager {
         // Skip if no scene
         if (!this.scene) return;
         
+        // Update debug arrows if we have a player ship and target
+        if (this.playerShip && this.currentTarget && !this.playerShip.isSunk && !this.currentTarget.isSunk) {
+            this.updateDebugArrows();
+        }
+        
         // Update cannonballs
         const now = Date.now();
         const cannonballsToRemove = [];
@@ -549,6 +576,8 @@ class CombatManager {
         if (this.currentTarget) {
             // If target is sunk, clear target
             if (this.currentTarget.isSunk) {
+                // Clean up debug arrows before clearing target
+                this.cleanupDebugArrows();
                 this.setTarget(null);
             }
         }
@@ -566,8 +595,11 @@ class CombatManager {
                     // Check if player is in range
                     const distance = enemyShip.getPosition().distanceTo(this.playerShip.getPosition());
                     if (distance <= enemyShip.cannonRange) {
-                        // Determine if shot is a hit or miss (70% hit chance)
-                        const isHit = Math.random() >= 0.3;
+                        // Calculate miss chance based on orientation and distance
+                        const missChance = this.calculateMissChance(enemyShip, this.playerShip);
+                        
+                        // Determine if shot is a hit or miss
+                        const isHit = Math.random() >= missChance;
                         
                         // Calculate damage (0 for misses)
                         const damage = isHit ? Math.floor(
@@ -589,6 +621,62 @@ class CombatManager {
                 }
             }
         }
+    }
+    
+    /**
+     * Calculate miss chance based on ship orientation and distance
+     * @param {BaseShip} source - Source ship
+     * @param {BaseShip} target - Target ship
+     * @returns {number} Miss chance between 0.0 and 0.8
+     */
+    calculateMissChance(source, target) {
+        // Get positions and calculate distance
+        const sourcePos = source.getPosition();
+        const targetPos = target.getPosition();
+        const distance = sourcePos.distanceTo(targetPos);
+        
+        // Calculate distance factor (0 when close, 1 when at max range)
+        const distanceFactor = Math.min(1, distance / source.cannonRange);
+        
+        // Calculate orientation factor
+        let orientationFactor = 0.0; // Default to worst case (0 = worst, 1 = best)
+        
+        // Only calculate if both ships have forward vectors
+        if (source.getForwardVector && target.getForwardVector) {
+            // Get forward vector of source ship - ensure we get the latest
+            const sourceForward = source.getForwardVector().clone().normalize();
+            
+            // Calculate vector from source to target
+            const toTargetVector = new THREE.Vector3()
+                .subVectors(targetPos, sourcePos)
+                .normalize();
+            
+            // Calculate dot product to determine the angle
+            const dot = Math.abs(sourceForward.dot(toTargetVector));
+            
+            // When dot is 0, ships are perfectly perpendicular (90 degrees)
+            // When dot is 1, ships are parallel (0 or 180 degrees)
+            orientationFactor = 1 - dot; // 1 when perpendicular, 0 when parallel
+        }
+        
+        // Combine factors - make orientation have twice the impact of distance
+        // Distance factor contributes up to 0.27 miss chance (1/3 of 0.8)
+        // Orientation factor contributes up to 0.53 miss chance (2/3 of 0.8)
+        const missChance = (distanceFactor * 0.27) + ((1 - orientationFactor) * 0.53);
+        
+        // Clamp between 0 and 0.8
+        const finalMissChance = Math.max(0, Math.min(0.8, missChance));
+        
+        // Debug information - only log when player is firing
+        if (source === this.playerShip) {
+            console.log(`Miss chance calculation:
+                Distance: ${distance.toFixed(1)} / ${source.cannonRange} = ${distanceFactor.toFixed(2)} factor (${(distanceFactor * 0.27 * 100).toFixed(0)}% miss chance)
+                Orientation: ${orientationFactor.toFixed(2)} factor (${((1 - orientationFactor) * 0.53 * 100).toFixed(0)}% miss chance)
+                Combined miss chance: ${finalMissChance.toFixed(2)} (${(finalMissChance * 100).toFixed(0)}%)
+            `);
+        }
+        
+        return finalMissChance;
     }
     
     /**
@@ -616,8 +704,11 @@ class CombatManager {
             return;
         }
         
-        // Determine if shot is a hit or miss (70% hit chance)
-        const isHit = Math.random() >= 0.3;
+        // Calculate miss chance based on orientation and distance
+        const missChance = this.calculateMissChance(this.playerShip, this.currentTarget);
+        
+        // Determine if shot is a hit or miss
+        const isHit = Math.random() >= missChance;
         
         // Calculate damage (0 for misses)
         const damage = isHit ? Math.floor(
@@ -799,9 +890,69 @@ class CombatManager {
             for (const cannonball of this.cannonballs) {
                 this.scene.remove(cannonball);
             }
+            
+            // Clean up debug arrows
+            this.cleanupDebugArrows();
         }
         
         this.cannonballs = [];
+    }
+    
+    /**
+     * Update debug arrows to show current ship orientation
+     */
+    updateDebugArrows() {
+        // Skip if no player ship, target, or scene
+        if (!this.playerShip || !this.currentTarget || !this.scene) return;
+        
+        // Skip if player ship or target is sunk
+        if (this.playerShip.isSunk || this.currentTarget.isSunk) {
+            // Clean up any existing arrows
+            this.cleanupDebugArrows();
+            return;
+        }
+        
+        // Get positions - clone to ensure we get fresh copies
+        const sourcePos = this.playerShip.getPosition().clone();
+        const targetPos = this.currentTarget.getPosition().clone();
+        
+        // Always remove old debug arrows first
+        this.cleanupDebugArrows();
+        
+        // Force a fresh calculation of the forward vector
+        // This is critical to ensure we get the current orientation
+        const sourceForward = this.playerShip.getForwardVector().clone().normalize();
+        
+        // Calculate vector from source to target
+        const toTargetVector = new THREE.Vector3()
+            .subVectors(targetPos, sourcePos)
+            .normalize();
+        
+        // Create new debug arrows
+        
+        // Create arrow for ship forward direction (blue)
+        const forwardArrow = new THREE.ArrowHelper(
+            sourceForward,
+            sourcePos,
+            10, // length
+            0x0000FF, // blue
+            2, // head length
+            1  // head width
+        );
+        this.scene.add(forwardArrow);
+        this.debugArrows.push(forwardArrow);
+        
+        // Create arrow for direction to target (red)
+        const targetArrow = new THREE.ArrowHelper(
+            toTargetVector,
+            sourcePos,
+            10, // length
+            0xFF0000, // red
+            2, // head length
+            1  // head width
+        );
+        this.scene.add(targetArrow);
+        this.debugArrows.push(targetArrow);
     }
 }
 

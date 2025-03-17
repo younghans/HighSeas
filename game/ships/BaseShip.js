@@ -75,7 +75,8 @@ class BaseShip {
      * @param {THREE.Vector3} targetPos - The target position
      */
     moveTo(targetPos) {
-        if (this.isSunk) return; // Sunk ships can't move
+        // Skip if no ship mesh
+        if (!this.shipMesh) return;
         
         // Clone the target position and ensure Y is at water level
         this.targetPosition = targetPos.clone();
@@ -87,7 +88,11 @@ class BaseShip {
             .normalize();
         
         // Set ship rotation to face the target
-        this.shipMesh.rotation.y = Math.atan2(direction.x, direction.z);
+        const newRotationY = Math.atan2(direction.x, direction.z);
+        this.shipMesh.rotation.y = newRotationY;
+        
+        // Sync internal rotation with mesh rotation
+        this.rotation.y = newRotationY;
         
         this.isMoving = true;
     }
@@ -114,6 +119,9 @@ class BaseShip {
                 if (this.shipMesh.position.y > -2.5) {
                     this.shipMesh.position.y -= 0.2 * delta;
                     this.shipMesh.rotation.z += 0.1 * delta;
+                    
+                    // Sync internal rotation with mesh rotation
+                    this.rotation.z = this.shipMesh.rotation.z;
                 }
             }
             return;
@@ -141,9 +149,16 @@ class BaseShip {
                 // Apply new position
                 this.shipMesh.position.copy(newPosition);
                 
+                // Update internal position to match mesh position
+                this.position.copy(this.shipMesh.position);
+                
                 // Add slight bobbing motion
                 this.shipMesh.rotation.x = Math.sin(time * 2) * 0.05;
                 this.shipMesh.rotation.z = Math.sin(time * 1.5) * 0.05;
+                
+                // Sync internal rotation with mesh rotation
+                this.rotation.x = this.shipMesh.rotation.x;
+                this.rotation.z = this.shipMesh.rotation.z;
                 
                 // Emit wake particles when moving
                 if (this.wakeParticleSystem) {
@@ -155,6 +170,7 @@ class BaseShip {
                 // Ensure final position has correct Y value
                 if (this.shipMesh.position.y !== 0) {
                     this.shipMesh.position.y = 0;
+                    this.position.y = 0;
                 }
             }
         }
@@ -289,9 +305,10 @@ class BaseShip {
     /**
      * Fire cannons at a target
      * @param {BaseShip} target - The target ship
+     * @param {Object} combatManager - Optional combat manager for miss chance calculation
      * @returns {number} Amount of damage dealt, or 0 if couldn't fire or missed
      */
-    fireCannons(target) {
+    fireCannons(target, combatManager = null) {
         if (this.isSunk || !this.canFire()) return 0;
         
         // Check if target is in range
@@ -301,8 +318,17 @@ class BaseShip {
         // Set last fired time
         this.lastFiredTime = Date.now();
         
-        // Determine if shot is a hit or miss (70% hit chance)
-        const isHit = Math.random() >= 0.3;
+        // Determine if shot is a hit or miss
+        let isHit = false;
+        
+        // Use combat manager's miss chance calculation if available
+        if (combatManager && combatManager.calculateMissChance) {
+            const missChance = combatManager.calculateMissChance(this, target);
+            isHit = Math.random() >= missChance;
+        } else {
+            // Fallback to simple 70% hit chance
+            isHit = Math.random() >= 0.3;
+        }
         
         // If it's a miss, return 0 damage
         if (!isHit) return 0;
@@ -345,8 +371,14 @@ class BaseShip {
             // Rotate the ship to make it look capsized
             this.shipMesh.rotation.z = Math.PI * 0.4; // More pronounced tilt
             
+            // Sync internal rotation with mesh rotation
+            this.rotation.z = this.shipMesh.rotation.z;
+            
             // Adjust position to keep more of the ship visible above water
             this.shipMesh.position.y -= 0.2; // Less submerged than before
+            
+            // Sync internal position with mesh position
+            this.position.y = this.shipMesh.position.y;
             
             // If the ship has materials, modify them to look damaged but still visible
             if (this.shipMesh.material) {
@@ -497,6 +529,39 @@ class BaseShip {
         
         // Add to animation list
         this.scene.userData.treasureIndicators.push(treasureChest);
+    }
+    
+    /**
+     * Get the forward vector of the ship based on its rotation
+     * @returns {THREE.Vector3} The normalized forward vector
+     */
+    getForwardVector() {
+        // If we have a ship mesh, use its rotation (visual rotation)
+        if (this.shipMesh) {
+            // Create a forward vector (0, 0, 1) and apply the ship's visual rotation
+            const forward = new THREE.Vector3(0, 0, 1);
+            
+            // Create a rotation matrix from the ship mesh's rotation
+            const rotationMatrix = new THREE.Matrix4();
+            rotationMatrix.makeRotationY(this.shipMesh.rotation.y);
+            
+            // Apply rotation to the forward vector
+            forward.applyMatrix4(rotationMatrix);
+            
+            return forward.normalize();
+        } else {
+            // Fallback to internal rotation if no mesh exists
+            const forward = new THREE.Vector3(0, 0, 1);
+            
+            // Create a rotation matrix from the ship's rotation
+            const rotationMatrix = new THREE.Matrix4();
+            rotationMatrix.makeRotationY(this.rotation.y);
+            
+            // Apply rotation to the forward vector
+            forward.applyMatrix4(rotationMatrix);
+            
+            return forward.normalize();
+        }
     }
 }
 
