@@ -408,23 +408,28 @@ class EnemyShipManager {
                     enemyShip.moveTo(circlePos);
                 }
                 
-                // Fire at player if in range
-                if (enemyShip.canFire() && distanceToPlayer <= enemyShip.cannonRange) {
-                    // Calculate damage
-                    const damage = Math.floor(
+                // Check if player is in range and enemy can fire
+                if (distanceToPlayer <= enemyShip.cannonRange && enemyShip.canFire()) {
+                    // Determine if shot is a hit or miss (70% hit chance)
+                    const isHit = Math.random() >= 0.3;
+                    
+                    // Calculate damage (0 for misses)
+                    const damage = isHit ? Math.floor(
                         enemyShip.cannonDamage.min + 
                         Math.random() * (enemyShip.cannonDamage.max - enemyShip.cannonDamage.min)
-                    );
+                    ) : 0;
                     
-                    // Apply damage to player
-                    this.playerShip.takeDamage(damage);
+                    // Apply damage to player only if it's a hit
+                    if (isHit) {
+                        this.playerShip.takeDamage(damage);
+                    }
                     
                     // Update last fired time
                     enemyShip.lastFiredTime = Date.now();
                     
                     // Use combat manager to visualize cannonball if available
                     if (this.combatManager) {
-                        this.combatManager.fireCannonball(enemyShip, this.playerShip, damage);
+                        this.combatManager.fireCannonball(enemyShip, this.playerShip, damage, !isHit);
                     }
                 }
                 break;
@@ -499,8 +504,8 @@ class EnemyShipManager {
         shipwreck.sinking = true;
         shipwreck.sinkStartTime = Date.now();
         shipwreck.originalY = shipwreck.ship.shipMesh.position.y;
-        shipwreck.sinkDuration = 30000; // 30 seconds to sink
-        shipwreck.targetY = -5; // Sink 10 units below water
+        shipwreck.sinkDuration = 10000; // 30 seconds to sink
+        shipwreck.targetY = -2; // Sink 10 units below water
         
         // Create bubble effect
         shipwreck.bubbles = this.createBubbleEffect(shipwreck.ship.shipMesh.position);

@@ -289,7 +289,7 @@ class BaseShip {
     /**
      * Fire cannons at a target
      * @param {BaseShip} target - The target ship
-     * @returns {number} Amount of damage dealt, or 0 if couldn't fire
+     * @returns {number} Amount of damage dealt, or 0 if couldn't fire or missed
      */
     fireCannons(target) {
         if (this.isSunk || !this.canFire()) return 0;
@@ -301,7 +301,13 @@ class BaseShip {
         // Set last fired time
         this.lastFiredTime = Date.now();
         
-        // Calculate random damage
+        // Determine if shot is a hit or miss (70% hit chance)
+        const isHit = Math.random() >= 0.3;
+        
+        // If it's a miss, return 0 damage
+        if (!isHit) return 0;
+        
+        // Calculate random damage for hits
         const damage = Math.floor(
             this.cannonDamage.min + 
             Math.random() * (this.cannonDamage.max - this.cannonDamage.min)
