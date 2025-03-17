@@ -20,6 +20,7 @@ class WakeParticleSystem {
         this.MAX_PARTICLES = options.maxParticles || 100;
         this.PARTICLE_LIFETIME = options.particleLifetime || 2; // seconds
         this.emitRate = options.emitRate || 0.3; // Chance to emit per frame per emitter
+        this.active = true; // Flag to control emission
         
         // Create wake emitters
         this.createEmitters();
@@ -102,8 +103,8 @@ class WakeParticleSystem {
      * @param {number} delta - Time delta since last frame
      */
     emitParticles(delta) {
-        // Check if ship is moving and emitters are set up
-        if (!this.ship.isMoving || this.emitters.length === 0) return;
+        // Check if system is active, ship is moving and emitters are set up
+        if (!this.active || !this.ship.isMoving || this.emitters.length === 0) return;
         
         // Try to emit from each emitter
         this.emitters.forEach(emitter => {
@@ -193,6 +194,55 @@ class WakeParticleSystem {
         // Clear arrays
         this.particles = [];
         this.emitters = [];
+    }
+    
+    /**
+     * Stop the particle system from emitting new particles
+     * Existing particles will continue to animate until they expire
+     */
+    stop() {
+        this.active = false;
+        
+        // Optionally, immediately deactivate all particles
+        // Uncomment if you want particles to disappear immediately
+        /*
+        this.particles.forEach(particle => {
+            particle.active = false;
+            particle.mesh.visible = false;
+        });
+        */
+    }
+    
+    /**
+     * Cleanup all particles immediately
+     * This will deactivate and hide all particles
+     */
+    cleanup() {
+        // Stop emitting new particles
+        this.active = false;
+        
+        // Immediately deactivate all particles
+        this.particles.forEach(particle => {
+            particle.active = false;
+            particle.mesh.visible = false;
+        });
+        
+        // Remove emitters from ship
+        if (this.ship && this.ship.getObject()) {
+            const shipObject = this.ship.getObject();
+            this.emitters.forEach(emitter => {
+                if (emitter.parent === shipObject) {
+                    shipObject.remove(emitter);
+                }
+            });
+        }
+    }
+    
+    /**
+     * Restart the particle system
+     */
+    start() {
+        this.active = true;
     }
 }
 

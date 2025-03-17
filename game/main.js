@@ -14,6 +14,9 @@ import GameUI from './UI.js';
 import MultiplayerManager from './multiplayer.js';
 import BuildingManager from './BuildingManager.js';
 import IslandInteractionManager from './IslandInteractionManager.js';
+import EnemyShipManager from './ships/EnemyShipManager.js';
+import CombatManager from './CombatManager.js';
+import CombatService from './CombatService.js';
 
 // Main game variables
 let scene, camera, renderer;
@@ -35,6 +38,11 @@ let gameUI;
 // Add manager variables
 let buildingManager;
 let islandManager;
+
+// Add combat system variables
+let enemyShipManager;
+let combatManager;
+let combatService;
 
 // Function to completely reset camera controls
 function resetCameraControls() {
@@ -148,6 +156,17 @@ function resetGame() {
     if (islandManager) {
         // No cleanup method needed for IslandInteractionManager currently
         islandManager = null;
+    }
+    
+    // Clean up combat managers if they exist
+    if (combatManager) {
+        combatManager.cleanup();
+        combatManager = null;
+    }
+    
+    if (enemyShipManager) {
+        enemyShipManager.reset();
+        enemyShipManager = null;
     }
     
     // Reset camera controls completely
@@ -321,8 +340,14 @@ function startGameWithShip() {
     // Create ship with custom speed but don't position it yet
     // The position will be set by the multiplayer system
     ship = new Sloop(scene, { 
+        speed: 50,
         // Set a default position that will be overridden by multiplayer
-        position: new THREE.Vector3(0, 0.5, 0)
+        position: new THREE.Vector3(0, 0, 0),
+        // Add combat properties
+        maxHealth: 300,
+        cannonRange: 50,
+        cannonDamage: { min: 8, max: 20 },
+        cannonCooldown: 1500 // 1.5 seconds between shots
     });
     
     console.log('Ship created with initial position:', ship.getPosition());
@@ -337,6 +362,7 @@ function startGameWithShip() {
     if (!gameUI) {
         gameUI = new GameUI({
             auth: Auth,
+            playerShip: ship, // Pass player ship to UI for health display
             onLogout: () => {
                 console.log('Logout callback triggered - setting player offline');
                 
@@ -365,6 +391,9 @@ function startGameWithShip() {
                 }
             }
         });
+    } else {
+        // Update player ship reference in UI
+        gameUI.setPlayerShip(ship);
     }
     
     // Show the game UI
@@ -413,6 +442,59 @@ function startGameWithShip() {
         multiplayerManager: multiplayerManager
     });
     
+    // Initialize EnemyShipManager
+    enemyShipManager = new EnemyShipManager(scene, {
+        playerShip: ship,
+        maxEnemyShips: 5,
+        worldSize: 2000,
+        aggroRange: 150
+    });
+    
+    // Initialize CombatManager
+    combatManager = new CombatManager({
+        playerShip: ship,
+        enemyShipManager: enemyShipManager,
+        ui: gameUI,
+        scene: scene,
+        camera: camera
+    });
+    
+    // Connect EnemyShipManager to CombatManager
+    enemyShipManager.setCombatManager(combatManager);
+    
+    // Initialize CombatService if Firebase is available
+    if (typeof firebase !== 'undefined') {
+        try {
+            console.log('Initializing CombatService with Firebase');
+            combatService = new CombatService({
+                firebase: firebase,
+                auth: Auth
+            });
+            
+            // Connect combat service to combat manager
+            if (combatManager) {
+                console.log('Connecting CombatService to CombatManager');
+                combatManager.setCombatService(combatService);
+            }
+        } catch (error) {
+            console.error('Error initializing CombatService:', error);
+        }
+    } else {
+        console.warn('Firebase is not available, combat server validation will be disabled');
+    }
+    
+    // Update info panel with combat instructions
+    const infoElement = document.getElementById('info');
+    if (infoElement) {
+        infoElement.innerHTML = `
+            <h2>Yarr!</h2>
+            <p>Left-click: Move ship to location</p>
+            <p>Right-click drag: Move camera</p>
+            <p>Click on enemy ship: Target for combat</p>
+            <p>Spacebar: Fire cannons at targeted ship</p>
+        `;
+    }
+    
     // Add event listener for the resetToMainMenu custom event
     document.addEventListener('resetToMainMenu', handleResetToMainMenu);
     
@@ -448,6 +530,17 @@ function handleResetToMainMenu(event) {
     
     if (islandManager) {
         islandManager = null;
+    }
+    
+    // Clean up combat managers if they exist
+    if (combatManager) {
+        combatManager.cleanup();
+        combatManager = null;
+    }
+    
+    if (enemyShipManager) {
+        enemyShipManager.reset();
+        enemyShipManager = null;
     }
     
     // Reset camera controls completely
@@ -537,6 +630,8 @@ function updateUIForGameplay() {
         <h2>Yarr!</h2>
         <p>Left-click: Move ship to location</p>
         <p>Right-click drag: Move camera</p>
+        <p>Click on enemy ship: Target for combat</p>
+        <p>Spacebar: Fire cannons at targeted ship</p>
     `;
 }
 
@@ -584,7 +679,95 @@ function onMouseClick(event) {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, camera);
     
-    // First check if the click should be handled by build mode
+    // First check if the click should be handled by combat manager
+    // Note: We don't call handleMouseClick directly as it's already bound to the click event
+    // Instead, we'll check for enemy ship intersections ourselves
+    
+    // Get all enemy ships if enemy manager exists
+    if (enemyShipManager && combatManager) {
+        const enemyShips = enemyShipManager.getEnemyShips();
+        const shipObjects = enemyShips.map(ship => ship.getObject()).filter(obj => obj !== null);
+        
+        // Check for intersections with enemy ships
+        const shipIntersects = raycaster.intersectObjects(shipObjects, true);
+        
+        if (shipIntersects.length > 0) {
+            // An enemy ship was clicked, let combat manager handle it
+            return; // Combat manager will handle this via its own click handler
+        }
+        
+        // Check for shipwreck interactions
+        if (ship) {
+            const playerPosition = ship.getPosition();
+            
+            // Get all shipwrecks
+            const shipwrecks = enemyShipManager.getShipwrecks();
+            const shipwreckObjects = shipwrecks
+                .filter(wreck => !wreck.looted && wreck.ship)
+                .map(wreck => wreck.ship.getObject())
+                .filter(obj => obj !== null);
+            
+            // Check for intersections with shipwrecks
+            const shipwreckIntersects = raycaster.intersectObjects(shipwreckObjects, true);
+            
+            if (shipwreckIntersects.length > 0) {
+                // A shipwreck was clicked, find which one
+                const clickedMesh = shipwreckIntersects[0].object;
+                let clickedShipwreck = null;
+                
+                // Find the shipwreck that was clicked
+                for (const wreck of shipwrecks) {
+                    if (!wreck.ship || wreck.looted) continue;
+                    
+                    const shipObj = wreck.ship.getObject();
+                    if (!shipObj) continue;
+                    
+                    // Check if the clicked mesh is part of this shipwreck
+                    if (shipObj === clickedMesh || 
+                        (shipObj.children && shipObj.children.includes(clickedMesh))) {
+                        clickedShipwreck = wreck;
+                        break;
+                    }
+                }
+                
+                // If we found a shipwreck, check if it's in range
+                if (clickedShipwreck) {
+                    // Check distance to shipwreck
+                    const distance = playerPosition.distanceTo(clickedShipwreck.position);
+                    
+                    if (distance <= enemyShipManager.lootableRange) {
+                        // Shipwreck is in range, loot it
+                        const loot = enemyShipManager.lootShipwreck(clickedShipwreck);
+                        
+                        // Show loot notification
+                        if (gameUI) {
+                            // Show a more prominent notification with gold amount
+                            gameUI.showNotification(`TREASURE FOUND! +${loot.gold} gold`, 5000, 'success');
+                            console.log('Looted shipwreck:', loot);
+                        }
+                        
+                        // Update player inventory if multiplayer is enabled
+                        if (multiplayerManager) {
+                            multiplayerManager.updatePlayerInventory(loot);
+                        }
+                        
+                        return; // Click was handled
+                    } else {
+                        // Shipwreck is out of range, show notification
+                        if (gameUI) {
+                            // Show a more prominent notification for out of range
+                            gameUI.showNotification("Get closer to loot this shipwreck!", 3000, 'warning');
+                            console.log('Shipwreck too far to loot. Distance:', distance, 'Range:', enemyShipManager.lootableRange);
+                        }
+                        
+                        return; // Click was handled but no action taken
+                    }
+                }
+            }
+        }
+    }
+    
+    // Then check if the click should be handled by build mode
     if (buildingManager && buildingManager.handleClick(raycaster)) {
         return; // Click was handled by build mode
     }
@@ -649,6 +832,16 @@ function animate() {
         // Update island manager if it exists
         if (islandManager) {
             islandManager.update(delta);
+        }
+        
+        // Update enemy ship manager if it exists
+        if (enemyShipManager) {
+            enemyShipManager.update(delta, elapsedTime);
+        }
+        
+        // Update combat manager if it exists
+        if (combatManager) {
+            combatManager.update(delta);
         }
         
         // Update camera to follow ship
@@ -757,6 +950,11 @@ function initMultiplayer() {
                 
                 console.log('Updated player ship position from server:', position);
                 console.log('New ship position after update:', ship.getPosition());
+                
+                // Update player ship reference in enemy ship manager
+                if (enemyShipManager) {
+                    enemyShipManager.setPlayerShip(ship);
+                }
             } else {
                 console.error('Ship object not available for position update');
             }
@@ -779,6 +977,20 @@ function initMultiplayer() {
                     if (multiplayerManager) {
                         multiplayerManager.updatePlayerPosition(ship);
                     }
+                };
+                
+                // Override ship's takeDamage method to sync with Firebase
+                const originalTakeDamage = ship.takeDamage;
+                ship.takeDamage = function(amount) {
+                    // Call original method and get result
+                    const wasSunk = originalTakeDamage.call(this, amount);
+                    
+                    // Sync with Firebase
+                    if (multiplayerManager) {
+                        multiplayerManager.updatePlayerHealth(ship);
+                    }
+                    
+                    return wasSunk;
                 };
             } else {
                 console.error('Failed to initialize multiplayer');

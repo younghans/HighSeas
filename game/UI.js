@@ -11,6 +11,7 @@ class GameUI {
         this.isVisible = false;
         this.activeMenuBottom = null;
         this.activeMenuTop = null;
+        this.playerShip = options.playerShip || null;
         
         // UI elements
         this.bottomUIContainer = null;
@@ -29,6 +30,15 @@ class GameUI {
         this.profileMenu = null;
         this.inventoryMenu = null;
         this.mapMenu = null;
+        
+        // Combat UI elements
+        this.healthBarContainer = null;
+        this.healthBarFill = null;
+        this.healthText = null;
+        this.targetInfoContainer = null;
+        this.targetHealthBar = null;
+        this.targetHealthText = null;
+        this.currentTarget = null;
         
         // Initialize UI
         this.init();
@@ -102,6 +112,12 @@ class GameUI {
         this.topMenuContainer.style.boxSizing = 'border-box';
         this.topUIContainer.appendChild(this.topMenuContainer);
         
+        // Create health bar container (positioned at the bottom left)
+        this.createHealthBar();
+        
+        // Create target info container (positioned at the top center)
+        this.createTargetInfo();
+        
         // Create profile button in top container
         this.createProfileButton();
         
@@ -121,6 +137,195 @@ class GameUI {
         
         // Hide UI initially
         this.hide();
+    }
+    
+    /**
+     * Create health bar for player ship
+     */
+    createHealthBar() {
+        // Create health bar container
+        this.healthBarContainer = document.createElement('div');
+        this.healthBarContainer.id = 'health-bar-container';
+        this.healthBarContainer.style.position = 'absolute';
+        this.healthBarContainer.style.bottom = '20px';
+        this.healthBarContainer.style.left = '20px';
+        this.healthBarContainer.style.width = '200px';
+        this.healthBarContainer.style.height = '30px';
+        this.healthBarContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        this.healthBarContainer.style.borderRadius = '5px';
+        this.healthBarContainer.style.padding = '5px';
+        this.healthBarContainer.style.boxSizing = 'border-box';
+        this.healthBarContainer.style.zIndex = '1000';
+        document.body.appendChild(this.healthBarContainer);
+        
+        // Create health bar label
+        const healthLabel = document.createElement('div');
+        healthLabel.textContent = 'SHIP HEALTH';
+        healthLabel.style.color = 'white';
+        healthLabel.style.fontSize = '10px';
+        healthLabel.style.fontWeight = 'bold';
+        healthLabel.style.marginBottom = '2px';
+        healthLabel.style.textAlign = 'center';
+        this.healthBarContainer.appendChild(healthLabel);
+        
+        // Create health bar background
+        const healthBarBg = document.createElement('div');
+        healthBarBg.style.width = '100%';
+        healthBarBg.style.height = '12px';
+        healthBarBg.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+        healthBarBg.style.borderRadius = '3px';
+        healthBarBg.style.overflow = 'hidden';
+        this.healthBarContainer.appendChild(healthBarBg);
+        
+        // Create health bar fill
+        this.healthBarFill = document.createElement('div');
+        this.healthBarFill.style.width = '100%';
+        this.healthBarFill.style.height = '100%';
+        this.healthBarFill.style.backgroundColor = '#4CAF50'; // Green
+        this.healthBarFill.style.transition = 'width 0.3s ease';
+        healthBarBg.appendChild(this.healthBarFill);
+        
+        // Create health text
+        this.healthText = document.createElement('div');
+        this.healthText.textContent = '100/100';
+        this.healthText.style.color = 'white';
+        this.healthText.style.fontSize = '10px';
+        this.healthText.style.textAlign = 'center';
+        this.healthText.style.marginTop = '2px';
+        this.healthBarContainer.appendChild(this.healthText);
+    }
+    
+    /**
+     * Create target info display
+     */
+    createTargetInfo() {
+        // Create target info container
+        this.targetInfoContainer = document.createElement('div');
+        this.targetInfoContainer.id = 'target-info-container';
+        this.targetInfoContainer.style.position = 'absolute';
+        this.targetInfoContainer.style.top = '20px';
+        this.targetInfoContainer.style.left = '50%';
+        this.targetInfoContainer.style.transform = 'translateX(-50%)';
+        this.targetInfoContainer.style.width = '250px';
+        this.targetInfoContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        this.targetInfoContainer.style.borderRadius = '5px';
+        this.targetInfoContainer.style.padding = '10px';
+        this.targetInfoContainer.style.boxSizing = 'border-box';
+        this.targetInfoContainer.style.zIndex = '1000';
+        this.targetInfoContainer.style.display = 'none'; // Hidden by default
+        document.body.appendChild(this.targetInfoContainer);
+        
+        // Create target label
+        const targetLabel = document.createElement('div');
+        targetLabel.textContent = 'TARGET: ENEMY SHIP';
+        targetLabel.style.color = 'white';
+        targetLabel.style.fontSize = '12px';
+        targetLabel.style.fontWeight = 'bold';
+        targetLabel.style.marginBottom = '5px';
+        targetLabel.style.textAlign = 'center';
+        this.targetInfoContainer.appendChild(targetLabel);
+        
+        // Create target health bar background
+        const targetHealthBarBg = document.createElement('div');
+        targetHealthBarBg.style.width = '100%';
+        targetHealthBarBg.style.height = '15px';
+        targetHealthBarBg.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+        targetHealthBarBg.style.borderRadius = '3px';
+        targetHealthBarBg.style.overflow = 'hidden';
+        this.targetInfoContainer.appendChild(targetHealthBarBg);
+        
+        // Create target health bar fill
+        this.targetHealthBar = document.createElement('div');
+        this.targetHealthBar.style.width = '100%';
+        this.targetHealthBar.style.height = '100%';
+        this.targetHealthBar.style.backgroundColor = '#F44336'; // Red
+        this.targetHealthBar.style.transition = 'width 0.3s ease';
+        targetHealthBarBg.appendChild(this.targetHealthBar);
+        
+        // Create target health text
+        this.targetHealthText = document.createElement('div');
+        this.targetHealthText.textContent = '100/100';
+        this.targetHealthText.style.color = 'white';
+        this.targetHealthText.style.fontSize = '10px';
+        this.targetHealthText.style.textAlign = 'center';
+        this.targetHealthText.style.marginTop = '5px';
+        this.targetInfoContainer.appendChild(this.targetHealthText);
+        
+        // Create distance text
+        this.targetDistanceText = document.createElement('div');
+        this.targetDistanceText.textContent = 'Distance: 0m';
+        this.targetDistanceText.style.color = 'white';
+        this.targetDistanceText.style.fontSize = '10px';
+        this.targetDistanceText.style.textAlign = 'center';
+        this.targetDistanceText.style.marginTop = '5px';
+        this.targetInfoContainer.appendChild(this.targetDistanceText);
+        
+        // Create in range indicator
+        this.targetRangeIndicator = document.createElement('div');
+        this.targetRangeIndicator.textContent = 'OUT OF RANGE';
+        this.targetRangeIndicator.style.color = '#F44336'; // Red
+        this.targetRangeIndicator.style.fontSize = '12px';
+        this.targetRangeIndicator.style.fontWeight = 'bold';
+        this.targetRangeIndicator.style.textAlign = 'center';
+        this.targetRangeIndicator.style.marginTop = '5px';
+        this.targetInfoContainer.appendChild(this.targetRangeIndicator);
+    }
+    
+    /**
+     * Set the current target ship
+     * @param {BaseShip} targetShip - The target ship
+     */
+    setTarget(targetShip) {
+        this.currentTarget = targetShip;
+        
+        if (targetShip) {
+            // Show target info
+            this.targetInfoContainer.style.display = 'block';
+            
+            // Update target health
+            this.updateTargetHealth();
+        } else {
+            // Hide target info
+            this.targetInfoContainer.style.display = 'none';
+        }
+    }
+    
+    /**
+     * Update target health display
+     */
+    updateTargetHealth() {
+        if (!this.currentTarget) return;
+        
+        // Update health bar
+        const healthPercent = this.currentTarget.getHealthPercentage();
+        this.targetHealthBar.style.width = `${healthPercent}%`;
+        
+        // Update health text
+        this.targetHealthText.textContent = `${Math.ceil(this.currentTarget.currentHealth)}/${this.currentTarget.maxHealth}`;
+        
+        // Update color based on health
+        if (healthPercent > 60) {
+            this.targetHealthBar.style.backgroundColor = '#F44336'; // Red
+        } else if (healthPercent > 30) {
+            this.targetHealthBar.style.backgroundColor = '#FF9800'; // Orange
+        } else {
+            this.targetHealthBar.style.backgroundColor = '#FFEB3B'; // Yellow
+        }
+        
+        // Update distance if player ship is available
+        if (this.playerShip) {
+            const distance = Math.round(this.playerShip.getPosition().distanceTo(this.currentTarget.getPosition()));
+            this.targetDistanceText.textContent = `Distance: ${distance}m`;
+            
+            // Update range indicator
+            if (distance <= this.playerShip.cannonRange) {
+                this.targetRangeIndicator.textContent = 'IN RANGE';
+                this.targetRangeIndicator.style.color = '#4CAF50'; // Green
+            } else {
+                this.targetRangeIndicator.textContent = 'OUT OF RANGE';
+                this.targetRangeIndicator.style.color = '#F44336'; // Red
+            }
+        }
     }
     
     /**
@@ -676,46 +881,73 @@ class GameUI {
     
     /**
      * Show a notification message
-     * @param {string} message - Message to display
-     * @param {string} type - Type of notification ('success', 'error', 'info')
+     * @param {string} message - The message to show
+     * @param {number|string} duration - How long to show the message in milliseconds, or notification type
+     * @param {string} type - Notification type: 'success', 'warning', 'error', or null for default
      */
-    showNotification(message, type = 'info') {
-        const notification = document.createElement('div');
-        notification.className = 'game-notification';
-        notification.textContent = message;
-        notification.style.position = 'fixed';
-        notification.style.bottom = '80px';
-        notification.style.right = '20px';
-        notification.style.padding = '10px 15px';
-        notification.style.borderRadius = '4px';
-        notification.style.color = 'white';
-        notification.style.zIndex = '2000';
-        notification.style.opacity = '0';
-        notification.style.transition = 'opacity 0.3s ease';
-        
-        // Set background color based on type
-        if (type === 'success') {
-            notification.style.backgroundColor = 'rgba(76, 175, 80, 0.9)';
-        } else if (type === 'error') {
-            notification.style.backgroundColor = 'rgba(244, 67, 54, 0.9)';
-        } else {
-            notification.style.backgroundColor = 'rgba(33, 150, 243, 0.9)';
+    showNotification(message, duration = 3000, type = null) {
+        // Handle case where duration is actually the type (for backward compatibility)
+        if (typeof duration === 'string') {
+            type = duration;
+            duration = 3000;
         }
         
-        document.body.appendChild(notification);
+        // Create notification container if it doesn't exist
+        let notificationContainer = document.getElementById('notificationContainer');
+        
+        if (!notificationContainer) {
+            notificationContainer = document.createElement('div');
+            notificationContainer.id = 'notificationContainer';
+            notificationContainer.style.position = 'absolute';
+            notificationContainer.style.top = '100px';
+            notificationContainer.style.left = '50%';
+            notificationContainer.style.transform = 'translateX(-50%)';
+            notificationContainer.style.zIndex = '1000';
+            document.body.appendChild(notificationContainer);
+        }
+        
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = 'notification';
+        
+        // Set background color based on type
+        let bgColor = 'rgba(0, 0, 0, 0.7)'; // Default
+        if (type === 'success') {
+            bgColor = 'rgba(76, 175, 80, 0.9)'; // Green
+        } else if (type === 'warning') {
+            bgColor = 'rgba(255, 152, 0, 0.9)'; // Orange
+        } else if (type === 'error') {
+            bgColor = 'rgba(244, 67, 54, 0.9)'; // Red
+        }
+        
+        notification.style.backgroundColor = bgColor;
+        notification.style.color = 'white';
+        notification.style.padding = '10px 20px';
+        notification.style.borderRadius = '5px';
+        notification.style.marginBottom = '10px';
+        notification.style.textAlign = 'center';
+        notification.style.transition = 'opacity 0.5s';
+        notification.style.opacity = '0';
+        notification.style.fontWeight = 'bold';
+        notification.style.fontSize = '16px';
+        notification.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
+        notification.textContent = message;
+        
+        // Add to container
+        notificationContainer.appendChild(notification);
         
         // Fade in
         setTimeout(() => {
             notification.style.opacity = '1';
         }, 10);
         
-        // Remove after 3 seconds
+        // Remove after duration
         setTimeout(() => {
             notification.style.opacity = '0';
             setTimeout(() => {
-                document.body.removeChild(notification);
-            }, 300);
-        }, 3000);
+                notificationContainer.removeChild(notification);
+            }, 500);
+        }, duration);
     }
     
     /**
@@ -745,8 +977,39 @@ class GameUI {
      * Update the UI
      */
     update() {
-        // Update any dynamic UI elements here
-        // For now, we don't have any elements that need constant updating
+        // Update health bar if player ship is available
+        if (this.playerShip) {
+            const healthPercent = this.playerShip.getHealthPercentage();
+            this.healthBarFill.style.width = `${healthPercent}%`;
+            this.healthText.textContent = `${Math.ceil(this.playerShip.currentHealth)}/${this.playerShip.maxHealth}`;
+            
+            // Update color based on health
+            if (healthPercent > 60) {
+                this.healthBarFill.style.backgroundColor = '#4CAF50'; // Green
+            } else if (healthPercent > 30) {
+                this.healthBarFill.style.backgroundColor = '#FF9800'; // Orange
+            } else {
+                this.healthBarFill.style.backgroundColor = '#F44336'; // Red
+            }
+        }
+        
+        // Update target info if there is a current target
+        if (this.currentTarget) {
+            this.updateTargetHealth();
+            
+            // If target is sunk, clear target
+            if (this.currentTarget.isSunk) {
+                this.setTarget(null);
+            }
+        }
+    }
+    
+    /**
+     * Set the player ship reference
+     * @param {BaseShip} playerShip - The player's ship
+     */
+    setPlayerShip(playerShip) {
+        this.playerShip = playerShip;
     }
 }
 

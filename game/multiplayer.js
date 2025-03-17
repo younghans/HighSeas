@@ -672,6 +672,31 @@ class MultiplayerManager {
         this.otherPlayerShips.clear();
         this.debug('Multiplayer cleanup complete');
     }
+    
+    /**
+     * Update player health in Firebase
+     * @param {BaseShip} ship - The player's ship
+     */
+    updatePlayerHealth(ship) {
+        if (!this.playerRef || !ship) return Promise.reject('Not connected or no ship');
+        
+        // Get current health and sunk status
+        const health = ship.currentHealth;
+        const isSunk = ship.isSunk;
+        
+        // Update health in Firebase
+        return this.playerRef.update({
+            health: health,
+            isSunk: isSunk,
+            lastUpdated: firebase.database.ServerValue.TIMESTAMP
+        }).then(() => {
+            console.log('Player health updated in Firebase:', health);
+            return true;
+        }).catch(error => {
+            console.error('Error updating player health:', error);
+            return false;
+        });
+    }
 }
 
 export default MultiplayerManager; 
