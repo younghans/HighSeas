@@ -147,7 +147,45 @@ function resetGame() {
     // Reset game started flag
     gameStarted = false;
     
-    // Clean up managers if they exist
+    // Clean up combat managers if they exist
+    if (combatManager) {
+        console.log('Cleaning up combat manager');
+        combatManager.cleanup();
+        combatManager = null;
+    }
+    
+    // Clean up enemy ships manager first to ensure all ships are removed
+    if (enemyShipManager) {
+        console.log('Resetting enemy ship manager');
+        // Make sure to reset the enemy ship manager before nullifying it
+        enemyShipManager.reset();
+        
+        // Add a small delay to ensure all ships are properly removed
+        setTimeout(() => {
+            // Double-check for any remaining enemy ships in the scene
+            if (scene) {
+                scene.traverse(object => {
+                    // Look for any objects that might be enemy ships
+                    if (object.userData && object.userData.isEnemyShip) {
+                        console.log('Found remaining enemy ship, removing:', object.name);
+                        scene.remove(object);
+                    }
+                    
+                    // Also look for any shipwrecks
+                    if (object.userData && object.userData.isShipwreck) {
+                        console.log('Found remaining shipwreck, removing:', object.name);
+                        scene.remove(object);
+                    }
+                });
+            }
+            
+            // Now set to null after cleanup
+            enemyShipManager = null;
+            console.log('Enemy ship manager nullified');
+        }, 100);
+    }
+    
+    // Clean up other managers if they exist
     if (buildingManager) {
         buildingManager.cleanup();
         buildingManager = null;
@@ -156,17 +194,6 @@ function resetGame() {
     if (islandManager) {
         // No cleanup method needed for IslandInteractionManager currently
         islandManager = null;
-    }
-    
-    // Clean up combat managers if they exist
-    if (combatManager) {
-        combatManager.cleanup();
-        combatManager = null;
-    }
-    
-    if (enemyShipManager) {
-        enemyShipManager.reset();
-        enemyShipManager = null;
     }
     
     // Reset camera controls completely
@@ -340,13 +367,13 @@ function startGameWithShip() {
     // Create ship with custom speed but don't position it yet
     // The position will be set by the multiplayer system
     ship = new Sloop(scene, { 
-        speed: 50,
+        // speed: 50,
         // Set a default position that will be overridden by multiplayer
         position: new THREE.Vector3(0, 0, 0),
         // Add combat properties
-        maxHealth: 300,
-        cannonRange: 50,
-        cannonDamage: { min: 8, max: 20 },
+        maxHealth: 100,
+        cannonRange: 100,
+        cannonDamage: { min: 8, max: 25 },
         cannonCooldown: 1500 // 1.5 seconds between shots
     });
     
@@ -522,7 +549,45 @@ function handleResetToMainMenu(event) {
     // Reset game started flag
     gameStarted = false;
     
-    // Clean up managers if they exist
+    // Clean up combat managers if they exist
+    if (combatManager) {
+        console.log('Cleaning up combat manager');
+        combatManager.cleanup();
+        combatManager = null;
+    }
+    
+    // Clean up enemy ships manager first to ensure all ships are removed
+    if (enemyShipManager) {
+        console.log('Resetting enemy ship manager');
+        // Make sure to reset the enemy ship manager before nullifying it
+        enemyShipManager.reset();
+        
+        // Add a small delay to ensure all ships are properly removed
+        setTimeout(() => {
+            // Double-check for any remaining enemy ships in the scene
+            if (scene) {
+                scene.traverse(object => {
+                    // Look for any objects that might be enemy ships
+                    if (object.userData && object.userData.isEnemyShip) {
+                        console.log('Found remaining enemy ship, removing:', object.name);
+                        scene.remove(object);
+                    }
+                    
+                    // Also look for any shipwrecks
+                    if (object.userData && object.userData.isShipwreck) {
+                        console.log('Found remaining shipwreck, removing:', object.name);
+                        scene.remove(object);
+                    }
+                });
+            }
+            
+            // Now set to null after cleanup
+            enemyShipManager = null;
+            console.log('Enemy ship manager nullified');
+        }, 100);
+    }
+    
+    // Clean up other managers if they exist
     if (buildingManager) {
         buildingManager.cleanup();
         buildingManager = null;
@@ -530,17 +595,6 @@ function handleResetToMainMenu(event) {
     
     if (islandManager) {
         islandManager = null;
-    }
-    
-    // Clean up combat managers if they exist
-    if (combatManager) {
-        combatManager.cleanup();
-        combatManager = null;
-    }
-    
-    if (enemyShipManager) {
-        enemyShipManager.reset();
-        enemyShipManager = null;
     }
     
     // Reset camera controls completely

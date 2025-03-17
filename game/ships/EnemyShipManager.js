@@ -93,6 +93,20 @@ class EnemyShipManager {
             cannonDamage: { min: 5, max: 20 }
         });
         
+        // Tag the ship object with userData for easier identification and cleanup
+        const shipObject = enemyShip.getObject();
+        if (shipObject) {
+            shipObject.name = `enemy-ship-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            shipObject.userData.isEnemyShip = true;
+            shipObject.userData.shipId = enemyShip.id || Date.now();
+            
+            // Store reference in scene userData for additional cleanup
+            if (!this.scene.userData.enemyShipObjects) {
+                this.scene.userData.enemyShipObjects = [];
+            }
+            this.scene.userData.enemyShipObjects.push(shipObject);
+        }
+        
         // Verify position is at water level
         const shipPos = enemyShip.getPosition();
         if (shipPos.y !== 0) {
@@ -148,6 +162,23 @@ class EnemyShipManager {
             gold: Math.floor(50 + Math.random() * 100),
             items: []
         };
+        
+        // Get the ship object
+        const shipObject = enemyShip.getObject();
+        
+        // Update userData to mark as shipwreck
+        if (shipObject) {
+            shipObject.name = `shipwreck-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            shipObject.userData.isShipwreck = true;
+            shipObject.userData.isEnemyShip = false; // No longer an enemy ship
+            shipObject.userData.shipwreckId = Date.now();
+            
+            // Store reference in scene userData for additional cleanup
+            if (!this.scene.userData.shipwreckObjects) {
+                this.scene.userData.shipwreckObjects = [];
+            }
+            this.scene.userData.shipwreckObjects.push(shipObject);
+        }
         
         // Add shipwreck to array
         this.shipwrecks.push({
@@ -888,6 +919,8 @@ class EnemyShipManager {
      * Reset all enemy ships (remove and respawn)
      */
     reset() {
+        console.log('EnemyShipManager: Performing complete reset');
+        
         // Remove all enemy ships
         this.enemyShips.forEach(ship => {
             // Clean up wake particles if they exist
@@ -899,8 +932,25 @@ class EnemyShipManager {
                 }
             }
             
+            // Remove any event listeners or animations attached to the ship
             if (ship.shipMesh) {
+                // Remove from scene
                 this.scene.remove(ship.shipMesh);
+                
+                // Dispose of geometries and materials to free memory
+                if (ship.shipMesh.geometry) ship.shipMesh.geometry.dispose();
+                if (ship.shipMesh.material) {
+                    if (Array.isArray(ship.shipMesh.material)) {
+                        ship.shipMesh.material.forEach(material => material.dispose());
+                    } else {
+                        ship.shipMesh.material.dispose();
+                    }
+                }
+            }
+            
+            // Clean up any other resources
+            if (ship.cleanup && typeof ship.cleanup === 'function') {
+                ship.cleanup();
             }
         });
         
@@ -934,8 +984,19 @@ class EnemyShipManager {
                 wreck.bubbles = null;
             }
             
+            // Remove ship mesh and dispose resources
             if (wreck.ship && wreck.ship.shipMesh) {
                 this.scene.remove(wreck.ship.shipMesh);
+                
+                // Dispose of geometries and materials
+                if (wreck.ship.shipMesh.geometry) wreck.ship.shipMesh.geometry.dispose();
+                if (wreck.ship.shipMesh.material) {
+                    if (Array.isArray(wreck.ship.shipMesh.material)) {
+                        wreck.ship.shipMesh.material.forEach(material => material.dispose());
+                    } else {
+                        wreck.ship.shipMesh.material.dispose();
+                    }
+                }
             }
         });
         
@@ -954,21 +1015,52 @@ class EnemyShipManager {
                     wreck.bubbles = null;
                 }
                 
-                // Remove ship mesh if it exists
+                // Remove ship mesh and dispose resources
                 if (wreck.ship && wreck.ship.shipMesh) {
                     this.scene.remove(wreck.ship.shipMesh);
+                    
+                    // Dispose of geometries and materials
+                    if (wreck.ship.shipMesh.geometry) wreck.ship.shipMesh.geometry.dispose();
+                    if (wreck.ship.shipMesh.material) {
+                        if (Array.isArray(wreck.ship.shipMesh.material)) {
+                            wreck.ship.shipMesh.material.forEach(material => material.dispose());
+                        } else {
+                            wreck.ship.shipMesh.material.dispose();
+                        }
+                    }
                 }
             });
             
             this.sinkingShipwrecks = [];
         }
         
+        // Clean up any other scene objects related to enemy ships
+        if (this.scene.userData.enemyShipObjects) {
+            this.scene.userData.enemyShipObjects.forEach(obj => {
+                this.scene.remove(obj);
+            });
+            this.scene.userData.enemyShipObjects = [];
+        }
+        
+        // Clean up any shipwreck objects
+        if (this.scene.userData.shipwreckObjects) {
+            this.scene.userData.shipwreckObjects.forEach(obj => {
+                this.scene.remove(obj);
+            });
+            this.scene.userData.shipwreckObjects = [];
+        }
+        
         // Clear arrays
         this.enemyShips = [];
         this.shipwrecks = [];
         
+        // Reset last spawn time
+        this.lastSpawnTime = 0;
+        
         // Respawn enemy ships
         this.init();
+        
+        console.log('EnemyShipManager: Reset complete, spawned new ships');
     }
     
     /**
