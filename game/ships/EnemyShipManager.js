@@ -44,7 +44,7 @@ class EnemyShipManager {
     }
     
     /**
-     * Spawn a new enemy ship
+     * Spawn a new enemy ship at a random position
      * @returns {BaseShip} The spawned enemy ship
      */
     spawnEnemyShip() {
@@ -127,6 +127,17 @@ class EnemyShipManager {
         enemyShip.onSink = () => {
             this.handleEnemyShipSink(enemyShip);
         };
+        
+        // Create health bar for new enemy ship
+        enemyShip.createHealthBar();
+        
+        // Initially hide the health bar until needed
+        enemyShip.setHealthBarVisible(false);
+        
+        // If combat manager exists, initialize ship with it
+        if (this.combatManager && this.combatManager.initializeEnemyShip) {
+            this.combatManager.initializeEnemyShip(enemyShip);
+        }
         
         // Add to enemy ships array
         this.enemyShips.push(enemyShip);
@@ -318,6 +329,26 @@ class EnemyShipManager {
         if (enemyPos.y !== 0 && !enemyShip.isSunk) {
             enemyPos.y = 0;
             enemyShip.setPosition(enemyPos);
+        }
+        
+        // Update health bar visibility based on:
+        // 1. If the ship is not at full health
+        // 2. If the ship is targeting another ship (in attack mode)
+        if (enemyShip.healthBarContainer) {
+            const isFullHealth = enemyShip.currentHealth >= enemyShip.maxHealth;
+            const isTargeting = enemyShip.aiState === 'attack' && enemyShip.targetShip;
+            
+            if (!isFullHealth || isTargeting) {
+                enemyShip.setHealthBarVisible(true);
+                // If camera is available through combat manager, update the health bar
+                if (this.combatManager && this.combatManager.camera) {
+                    enemyShip.updateHealthBar(this.combatManager.camera);
+                }
+            } else if (!this.combatManager || !this.combatManager.currentTarget || 
+                       this.combatManager.currentTarget !== enemyShip) {
+                // Hide health bar if not targeted by player and not in conditions above
+                enemyShip.setHealthBarVisible(false);
+            }
         }
         
         // Calculate distance to player
@@ -1066,10 +1097,17 @@ class EnemyShipManager {
     
     /**
      * Set the combat manager reference
-     * @param {CombatManager} combatManager - The combat manager
+     * @param {CombatManager} combatManager - The combat manager instance
      */
     setCombatManager(combatManager) {
         this.combatManager = combatManager;
+        
+        // Initialize existing enemy ships with health bars
+        if (combatManager && combatManager.initializeEnemyShip) {
+            for (const ship of this.enemyShips) {
+                combatManager.initializeEnemyShip(ship);
+            }
+        }
     }
 }
 

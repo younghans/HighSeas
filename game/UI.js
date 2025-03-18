@@ -1157,8 +1157,14 @@ class GameUI {
                 this.healthBarFill.style.backgroundColor = '#F44336'; // Red
             }
             
-            // Update cannon cooldown indicator
-            this.updateCannonCooldown();
+            // Hide cannon cooldown indicator if player ship is sunk
+            if (this.playerShip.isSunk && this.cannonCooldownContainer) {
+                this.cannonCooldownContainer.style.display = 'none';
+            } 
+            // Otherwise update the cooldown indicator if it should be visible
+            else if (!this.playerShip.isSunk) {
+                this.updateCannonCooldown();
+            }
         }
         
         // Update target info if there is a current target

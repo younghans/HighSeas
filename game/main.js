@@ -428,12 +428,27 @@ function startGameWithShip() {
                 }
             }
         });
+        
+        // Make gameUI accessible globally for ship sink events
+        window.gameUI = gameUI;
     } else {
         // Update player ship reference in UI
         gameUI.setPlayerShip(ship);
         
         // Clear any previous target
         gameUI.setTarget(null);
+    }
+    
+    // Make sure player ship has a health bar
+    if (ship && !ship.healthBarContainer) {
+        ship.createHealthBar();
+        
+        // Set initial visibility based on health
+        if (ship.currentHealth < ship.maxHealth) {
+            ship.setHealthBarVisible(true);
+        } else {
+            ship.setHealthBarVisible(false);
+        }
     }
     
     // Show the game UI

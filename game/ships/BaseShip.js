@@ -249,6 +249,11 @@ class BaseShip {
         
         this.currentHealth = Math.max(0, this.currentHealth - amount);
         
+        // Show health bar when taking damage for any ship (player or enemy)
+        if (this.healthBarContainer) {
+            this.setHealthBarVisible(true);
+        }
+        
         // Check if ship is sunk
         if (this.currentHealth <= 0) {
             this.sink();
@@ -266,6 +271,17 @@ class BaseShip {
         
         this.isSunk = true;
         this.stopMoving();
+        
+        // Hide the health bar when ship is sunk
+        if (this.healthBarContainer) {
+            this.setHealthBarVisible(false);
+        }
+        
+        // Trigger UI update immediately if this is the player ship
+        // This ensures cooldown UI and other elements update without waiting for the next frame
+        if (!this.isEnemy && window.gameUI) {
+            window.gameUI.update();
+        }
         
         // Stop wake particles if they exist
         if (this.wakeParticleSystem) {
@@ -359,6 +375,13 @@ class BaseShip {
     resetHealth() {
         this.currentHealth = this.maxHealth;
         this.isSunk = false;
+        
+        // For player ships, hide health bar when health is reset to full
+        if (this.healthBarContainer && !this.isEnemy) {
+            this.setHealthBarVisible(false);
+        }
+        // For enemy ships, we don't immediately hide the health bar on reset
+        // That will be handled by the AI update based on targeting state
     }
     
     /**
@@ -368,8 +391,16 @@ class BaseShip {
     respawn(spawnPosition = new THREE.Vector3(0, 0.5, 0)) {
         console.log('Respawning ship at position:', spawnPosition);
         
+        // Track the current health status before respawning
+        const wasHealthFull = this.currentHealth >= this.maxHealth;
+        
         // First reset health values
         this.resetHealth();
+        
+        // Clear health bar reference since we'll be removing the ship mesh
+        this.healthBarContainer = null;
+        this.healthBarBackground = null;
+        this.healthBarForeground = null;
         
         // Remove old ship mesh and any associated effects
         if (this.shipMesh) {
@@ -442,6 +473,14 @@ class BaseShip {
             
             // Initialize new wake particle system after ship mesh is created
             this.initWakeParticleSystem();
+            
+            // Recreate the health bar after the ship mesh is created
+            this.createHealthBar();
+            
+            // If health is not full after respawn, make health bar visible
+            if (!wasHealthFull) {
+                this.setHealthBarVisible(true);
+            }
         } else {
             console.error('Cannot recreate ship: createShip method not found');
         }
@@ -621,36 +660,96 @@ class BaseShip {
     }
     
     /**
-     * Get the forward vector of the ship based on its rotation
+     * Get the forward vector of the ship
      * @returns {THREE.Vector3} The normalized forward vector
      */
     getForwardVector() {
-        // If we have a ship mesh, use its rotation (visual rotation)
+        // Forward is positive Z in our ship's coordinate system (opposite of three.js standard)
+        const forward = new THREE.Vector3(0, 0, 1);
+        // Apply the ship's rotation
+        forward.applyEuler(this.shipMesh.rotation);
+        return forward;
+    }
+    
+    /**
+     * Create a health bar that appears above the ship
+     * The health bar should only be visible when the ship is targeted
+     */
+    createHealthBar() {
+        // Create container for the health bar that will be positioned above the ship
+        this.healthBarContainer = new THREE.Object3D();
+        
+        // Define dimensions based on ship size
+        const barWidth = 5;
+        const barHeight = 0.5;
+        const barDepth = 0.1;
+        
+        // Create background bar (black/dark gray)
+        const backgroundGeometry = new THREE.BoxGeometry(barWidth, barHeight, barDepth);
+        const backgroundMaterial = new THREE.MeshBasicMaterial({ color: 0x333333 });
+        this.healthBarBackground = new THREE.Mesh(backgroundGeometry, backgroundMaterial);
+        this.healthBarContainer.add(this.healthBarBackground);
+        
+        // Create foreground bar (green for health)
+        const foregroundGeometry = new THREE.BoxGeometry(barWidth, barHeight, barDepth * 1.5);
+        const foregroundMaterial = new THREE.MeshBasicMaterial({ color: 0x44cc44 });  // Green
+        this.healthBarForeground = new THREE.Mesh(foregroundGeometry, foregroundMaterial);
+        this.healthBarForeground.position.z = barDepth * 0.5;  // Position slightly in front
+        this.healthBarContainer.add(this.healthBarForeground);
+        
+        // Position the health bar above the ship
+        this.healthBarContainer.position.y = 8;  // Height above ship
+        
+        // Add to ship mesh, but hide initially
         if (this.shipMesh) {
-            // Create a forward vector (0, 0, 1) and apply the ship's visual rotation
-            const forward = new THREE.Vector3(0, 0, 1);
-            
-            // Create a rotation matrix from the ship mesh's rotation
-            const rotationMatrix = new THREE.Matrix4();
-            rotationMatrix.makeRotationY(this.shipMesh.rotation.y);
-            
-            // Apply rotation to the forward vector
-            forward.applyMatrix4(rotationMatrix);
-            
-            return forward.normalize();
-        } else {
-            // Fallback to internal rotation if no mesh exists
-            const forward = new THREE.Vector3(0, 0, 1);
-            
-            // Create a rotation matrix from the ship's rotation
-            const rotationMatrix = new THREE.Matrix4();
-            rotationMatrix.makeRotationY(this.rotation.y);
-            
-            // Apply rotation to the forward vector
-            forward.applyMatrix4(rotationMatrix);
-            
-            return forward.normalize();
+            this.shipMesh.add(this.healthBarContainer);
+            this.healthBarContainer.visible = false;
         }
+    }
+    
+    /**
+     * Show or hide the health bar
+     * @param {boolean} visible - Whether to show the health bar
+     */
+    setHealthBarVisible(visible) {
+        if (this.healthBarContainer) {
+            this.healthBarContainer.visible = visible;
+        }
+    }
+    
+    /**
+     * Update the health bar to reflect current health
+     * @param {THREE.Camera} camera - The game camera for dynamic scaling
+     */
+    updateHealthBar(camera) {
+        if (!this.healthBarContainer || !this.healthBarForeground || !camera) return;
+        
+        // Update health bar fill based on current health percentage
+        const healthPercent = this.getHealthPercentage() / 100;
+        this.healthBarForeground.scale.x = healthPercent;
+        
+        // Offset to keep the scaling anchored to the left
+        this.healthBarForeground.position.x = -((1 - healthPercent) * 2.5);
+        
+        // Update color based on health
+        if (healthPercent > 0.6) {
+            this.healthBarForeground.material.color.setHex(0x44cc44);  // Green
+        } else if (healthPercent > 0.3) {
+            this.healthBarForeground.material.color.setHex(0xcccc44);  // Yellow
+        } else {
+            this.healthBarForeground.material.color.setHex(0xcc4444);  // Red
+        }
+        
+        // Calculate distance from camera to ship
+        const distance = camera.position.distanceTo(this.shipMesh.position);
+        
+        // Scale the health bar based on distance (smaller when farther away)
+        const baseScale = 0.6;
+        const scale = Math.max(baseScale, Math.min(1, 20 / distance));
+        this.healthBarContainer.scale.set(scale, scale, scale);
+        
+        // Make health bar always face the camera
+        this.healthBarContainer.lookAt(camera.position);
     }
 }
 

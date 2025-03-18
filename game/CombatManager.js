@@ -147,11 +147,33 @@ class CombatManager {
      * @param {BaseShip} ship - The ship to target
      */
     setTarget(ship) {
+        // If we had a previous target, hide its health bar
+        if (this.currentTarget && this.currentTarget.setHealthBarVisible) {
+            this.currentTarget.setHealthBarVisible(false);
+        }
+        
         this.currentTarget = ship;
         
         // Clean up debug arrows if target is cleared
         if (!ship && this.debugArrows && this.debugArrows.length > 0) {
             this.cleanupDebugArrows();
+        }
+        
+        // If we have a new target, show its health bar
+        if (ship && ship.setHealthBarVisible) {
+            ship.setHealthBarVisible(true);
+            
+            // Always show the player ship's health bar when targeting
+            if (this.playerShip && this.playerShip.setHealthBarVisible) {
+                this.playerShip.setHealthBarVisible(true);
+            }
+        } else if (this.playerShip && this.playerShip.setHealthBarVisible) {
+            // If not targeting, only show player's health bar if health is not full
+            if (this.playerShip.currentHealth < this.playerShip.maxHealth) {
+                this.playerShip.setHealthBarVisible(true);
+            } else {
+                this.playerShip.setHealthBarVisible(false);
+            }
         }
         
         // Update UI if available
@@ -575,6 +597,41 @@ class CombatManager {
         // Update debug arrows if we have a player ship and target
         if (this.playerShip && this.currentTarget && !this.playerShip.isSunk && !this.currentTarget.isSunk) {
             this.updateDebugArrows();
+            
+            // Update health bars for player and target when targeting
+            if (this.camera) {
+                if (this.playerShip.updateHealthBar) {
+                    this.playerShip.updateHealthBar(this.camera);
+                }
+                
+                if (this.currentTarget.updateHealthBar) {
+                    this.currentTarget.updateHealthBar(this.camera);
+                }
+            }
+        }
+        // Always update player health bar if it exists, even without a target
+        else if (this.playerShip && !this.playerShip.isSunk && this.camera && this.playerShip.updateHealthBar) {
+            // For non-targeting state, check if we need to show/hide the health bar based on health
+            if (this.playerShip.healthBarContainer) {
+                // Show health bar if not at full health
+                if (this.playerShip.currentHealth < this.playerShip.maxHealth) {
+                    this.playerShip.setHealthBarVisible(true);
+                    this.playerShip.updateHealthBar(this.camera);
+                } else if (!this.currentTarget && this.playerShip.healthBarContainer.visible) {
+                    // Hide health bar if at full health and not targeting
+                    this.playerShip.setHealthBarVisible(false);
+                }
+            }
+        }
+        
+        // Update all visible enemy health bars
+        if (this.enemyShipManager && this.camera) {
+            const enemyShips = this.enemyShipManager.getEnemyShips();
+            for (const ship of enemyShips) {
+                if (ship.healthBarContainer && ship.healthBarContainer.visible && !ship.isSunk) {
+                    ship.updateHealthBar(this.camera);
+                }
+            }
         }
         
         // Update cannonballs
@@ -810,6 +867,10 @@ class CombatManager {
         // Skip if no player ship
         if (!this.playerShip) return;
         
+        // Store if we had a target before respawning
+        const hadTarget = this.currentTarget !== null;
+        const previousTarget = this.currentTarget;
+        
         // If we have a combat service, use it to reset the player ship
         if (this.combatService) {
             try {
@@ -834,6 +895,14 @@ class CombatManager {
         
         // Clear target
         this.setTarget(null);
+        
+        // If we had a target and it's still valid, restore it
+        if (hadTarget && previousTarget && !previousTarget.isSunk) {
+            // Wait a short delay before restoring target to ensure all systems are ready
+            setTimeout(() => {
+                this.setTarget(previousTarget);
+            }, 100);
+        }
     }
     
     /**
@@ -842,6 +911,18 @@ class CombatManager {
      */
     setPlayerShip(playerShip) {
         this.playerShip = playerShip;
+        
+        // Create health bar for the player ship
+        if (playerShip && !playerShip.healthBarContainer) {
+            playerShip.createHealthBar();
+            
+            // Set initial visibility based on health
+            if (playerShip.currentHealth < playerShip.maxHealth) {
+                playerShip.setHealthBarVisible(true);
+            } else {
+                playerShip.setHealthBarVisible(false);
+            }
+        }
     }
     
     /**
@@ -850,6 +931,16 @@ class CombatManager {
      */
     setEnemyShipManager(enemyShipManager) {
         this.enemyShipManager = enemyShipManager;
+        
+        // Create health bars for all existing enemy ships
+        if (enemyShipManager) {
+            const enemyShips = enemyShipManager.getEnemyShips();
+            for (const ship of enemyShips) {
+                if (!ship.healthBarContainer) {
+                    ship.createHealthBar();
+                }
+            }
+        }
     }
     
     /**
@@ -967,6 +1058,16 @@ class CombatManager {
         );
         this.scene.add(targetArrow);
         this.debugArrows.push(targetArrow);
+    }
+    
+    /**
+     * Initialize a new enemy ship by creating its health bar
+     * @param {BaseShip} enemyShip - The enemy ship to initialize
+     */
+    initializeEnemyShip(enemyShip) {
+        if (enemyShip && !enemyShip.healthBarContainer) {
+            enemyShip.createHealthBar();
+        }
     }
 }
 
