@@ -754,6 +754,11 @@ class CombatManager {
                 // Update last fired time
                 this.playerShip.lastFiredTime = Date.now();
                 
+                // Reset the cooldown indicator in UI
+                if (this.ui && this.ui.startCooldown) {
+                    this.ui.startCooldown();
+                }
+                
             } catch (error) {
                 console.error('Error processing combat action:', error);
                 
@@ -770,6 +775,11 @@ class CombatManager {
                 
                 // Update last fired time
                 this.playerShip.lastFiredTime = Date.now();
+                
+                // Reset the cooldown indicator in UI
+                if (this.ui && this.ui.startCooldown) {
+                    this.ui.startCooldown();
+                }
             }
         } else {
             // No server validation, use local combat logic
@@ -784,6 +794,11 @@ class CombatManager {
             
             // Update last fired time
             this.playerShip.lastFiredTime = Date.now();
+            
+            // Reset the cooldown indicator in UI
+            if (this.ui && this.ui.startCooldown) {
+                this.ui.startCooldown();
+            }
         }
     }
     

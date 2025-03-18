@@ -41,6 +41,14 @@ class GameUI {
         this.targetHealthText = null;
         this.currentTarget = null;
         
+        // Cannon cooldown UI elements
+        this.cannonCooldownContainer = null;
+        this.cannonCooldownCircle = null;
+        this.cannonCooldownFill = null;
+        this.cannonCooldownStatus = null;
+        this.cooldownStartTime = 0;
+        this.isCoolingDown = false;
+        
         // Initialize UI
         this.init();
     }
@@ -115,6 +123,9 @@ class GameUI {
         
         // Create health bar container (positioned at the bottom center)
         this.createHealthBar();
+        
+        // Create cannon cooldown indicator
+        this.createCannonCooldownIndicator();
         
         // Create target info container (positioned at the top center)
         this.createTargetInfo();
@@ -380,11 +391,34 @@ class GameUI {
             // Show target info
             this.targetInfoContainer.style.display = 'block';
             
+            // Show cannon cooldown indicator when target is set
+            if (this.cannonCooldownContainer) {
+                this.cannonCooldownContainer.style.display = 'flex';
+                
+                // When setting a new target, update the cooldown indicator to show the current state
+                if (this.playerShip && this.cannonCooldownFill) {
+                    if (this.playerShip.canFire()) {
+                        // If we can fire, show green
+                        this.cannonCooldownFill.setAttribute('stroke-dashoffset', '0');
+                        this.cannonCooldownFill.setAttribute('stroke', '#4CAF50'); // Green
+                        this.isCoolingDown = false;
+                    } else {
+                        // If we can't fire, start the cooldown animation
+                        this.startCooldown();
+                    }
+                }
+            }
+            
             // Update target health
             this.updateTargetHealth();
         } else {
             // Hide target info
             this.targetInfoContainer.style.display = 'none';
+            
+            // Hide cannon cooldown indicator when no target
+            if (this.cannonCooldownContainer) {
+                this.cannonCooldownContainer.style.display = 'none';
+            }
         }
     }
     
@@ -1061,6 +1095,13 @@ class GameUI {
             this.healthBarContainer.style.display = 'block';
         }
         
+        // Only show cannon cooldown indicator if there's a current target
+        if (this.cannonCooldownContainer && this.currentTarget) {
+            this.cannonCooldownContainer.style.display = 'flex';
+        } else if (this.cannonCooldownContainer) {
+            this.cannonCooldownContainer.style.display = 'none';
+        }
+        
         // Only show target info if there's a current target
         if (this.targetInfoContainer && this.currentTarget) {
             this.targetInfoContainer.style.display = 'block';
@@ -1085,6 +1126,9 @@ class GameUI {
         // Explicitly hide the health bar and target info containers
         if (this.healthBarContainer) {
             this.healthBarContainer.style.display = 'none';
+        }
+        if (this.cannonCooldownContainer) {
+            this.cannonCooldownContainer.style.display = 'none';
         }
         if (this.targetInfoContainer) {
             this.targetInfoContainer.style.display = 'none';
@@ -1112,6 +1156,9 @@ class GameUI {
             } else {
                 this.healthBarFill.style.backgroundColor = '#F44336'; // Red
             }
+            
+            // Update cannon cooldown indicator
+            this.updateCannonCooldown();
         }
         
         // Update target info if there is a current target
@@ -1131,6 +1178,127 @@ class GameUI {
      */
     setPlayerShip(playerShip) {
         this.playerShip = playerShip;
+    }
+    
+    /**
+     * Create cannon cooldown indicator
+     */
+    createCannonCooldownIndicator() {
+        // Create cooldown container
+        this.cannonCooldownContainer = document.createElement('div');
+        this.cannonCooldownContainer.id = 'cannon-cooldown-container';
+        this.cannonCooldownContainer.style.position = 'absolute';
+        this.cannonCooldownContainer.style.bottom = '48%'; // Position in the middle of the screen vertically
+        this.cannonCooldownContainer.style.left = '50%'; // Center horizontally
+        this.cannonCooldownContainer.style.transform = 'translateX(-50%) translateY(40px)'; // Center and offset below ship
+        this.cannonCooldownContainer.style.width = '20px'; // Container width (even smaller)
+        this.cannonCooldownContainer.style.height = '20px'; // Container height (even smaller)
+        this.cannonCooldownContainer.style.display = 'none'; // Hidden by default until a target is selected
+        this.cannonCooldownContainer.style.flexDirection = 'column';
+        this.cannonCooldownContainer.style.alignItems = 'center';
+        this.cannonCooldownContainer.style.justifyContent = 'center';
+        this.cannonCooldownContainer.style.zIndex = '1000';
+        document.body.appendChild(this.cannonCooldownContainer);
+        
+        // Create circular cooldown indicator - removed background
+        this.cannonCooldownCircle = document.createElement('div');
+        this.cannonCooldownCircle.style.width = '20px';
+        this.cannonCooldownCircle.style.height = '20px';
+        this.cannonCooldownCircle.style.borderRadius = '50%';
+        this.cannonCooldownCircle.style.position = 'relative';
+        this.cannonCooldownCircle.style.overflow = 'visible'; // Changed to visible since we don't need to hide overflow
+        this.cannonCooldownContainer.appendChild(this.cannonCooldownCircle);
+        
+        // Create circular cooldown fill using SVG
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', '100%');
+        svg.style.position = 'absolute';
+        svg.style.top = '0';
+        svg.style.left = '0';
+        svg.style.transform = 'rotate(-90deg)'; // Start from the top
+        
+        // Create circle path for cooldown
+        this.cannonCooldownFill = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        this.cannonCooldownFill.setAttribute('cx', '10');
+        this.cannonCooldownFill.setAttribute('cy', '10');
+        this.cannonCooldownFill.setAttribute('r', '8');
+        this.cannonCooldownFill.setAttribute('fill', 'transparent');
+        this.cannonCooldownFill.setAttribute('stroke', '#4CAF50'); // Start with green when ready
+        this.cannonCooldownFill.setAttribute('stroke-width', '2');
+        this.cannonCooldownFill.setAttribute('stroke-dasharray', '50.3'); // 2 * PI * 8
+        this.cannonCooldownFill.setAttribute('stroke-dashoffset', '0');
+        
+        svg.appendChild(this.cannonCooldownFill);
+        this.cannonCooldownCircle.appendChild(svg);
+    }
+    
+    /**
+     * Update cannon cooldown indicator
+     */
+    updateCannonCooldown() {
+        if (!this.playerShip || !this.cannonCooldownFill) return;
+        
+        const now = Date.now();
+        const canFire = this.playerShip.canFire();
+        
+        // If we're in cooldown mode but now can fire, update the UI
+        if (this.isCoolingDown && canFire) {
+            this.resetCooldownIndicator();
+            return;
+        }
+        
+        // If we can't fire, update the cooldown indicator
+        if (!canFire) {
+            // Make sure we have a start time
+            if (!this.isCoolingDown) {
+                this.startCooldown();
+            }
+            
+            // Calculate progress (0 to 1)
+            const elapsed = now - this.cooldownStartTime;
+            const progress = Math.min(1, elapsed / this.playerShip.cannonCooldown);
+            
+            // Update the SVG circle dashoffset to show cooldown progress
+            const circumference = 50.3;
+            const dashOffset = circumference * (1 - progress);
+            this.cannonCooldownFill.setAttribute('stroke-dashoffset', dashOffset);
+            
+            // Gradually change color from red to green based on progress
+            const red = Math.floor(244 - (244 - 76) * progress); // 244 -> 76
+            const green = Math.floor(67 + (175 - 67) * progress); // 67 -> 175
+            const blue = Math.floor(54 + (80 - 54) * progress); // 54 -> 80
+            
+            const color = `rgb(${red}, ${green}, ${blue})`;
+            this.cannonCooldownFill.setAttribute('stroke', color);
+        }
+    }
+    
+    /**
+     * Start the cooldown timer
+     */
+    startCooldown() {
+        if (!this.cannonCooldownFill) return;
+        
+        this.isCoolingDown = true;
+        this.cooldownStartTime = Date.now();
+        
+        // Reset the circle to show empty
+        this.cannonCooldownFill.setAttribute('stroke-dashoffset', '50.3');
+        this.cannonCooldownFill.setAttribute('stroke', '#F44336'); // Red
+    }
+    
+    /**
+     * Reset the cooldown indicator to ready state
+     */
+    resetCooldownIndicator() {
+        if (!this.cannonCooldownFill) return;
+        
+        this.isCoolingDown = false;
+        
+        // Reset the circle to show full
+        this.cannonCooldownFill.setAttribute('stroke-dashoffset', '0');
+        this.cannonCooldownFill.setAttribute('stroke', '#4CAF50'); // Green
     }
 }
 
