@@ -107,6 +107,7 @@ class WindParticleSystem {
         this.trailSystem = new THREE.LineSegments(trails, trailMaterial);
         this.trailSystem.layers.set(1);
         this.trailSystem.renderOrder = -1;
+        this.trailSystem.frustumCulled = false;
         
         this.scene.add(this.trailSystem);
     }
