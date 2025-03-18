@@ -243,6 +243,17 @@ function resetGame() {
     // Hide game UI if it exists
     if (gameUI) {
         gameUI.hide();
+        
+        // Explicitly hide the target info and health bar containers
+        if (gameUI.targetInfoContainer) {
+            gameUI.targetInfoContainer.style.display = 'none';
+        }
+        if (gameUI.healthBarContainer) {
+            gameUI.healthBarContainer.style.display = 'none';
+        }
+        
+        // Clear any target in the UI
+        gameUI.setTarget(null);
     }
     
     // Clean up multiplayer
@@ -367,7 +378,6 @@ function startGameWithShip() {
     // Create ship with custom speed but don't position it yet
     // The position will be set by the multiplayer system
     ship = new Sloop(scene, { 
-        // speed: 50,
         // Set a default position that will be overridden by multiplayer
         position: new THREE.Vector3(0, 0, 0),
         // Add combat properties
@@ -421,6 +431,9 @@ function startGameWithShip() {
     } else {
         // Update player ship reference in UI
         gameUI.setPlayerShip(ship);
+        
+        // Clear any previous target
+        gameUI.setTarget(null);
     }
     
     // Show the game UI
@@ -485,6 +498,15 @@ function startGameWithShip() {
         scene: scene,
         camera: camera
     });
+    
+    // Make sure no target is selected at game start
+    if (combatManager && gameUI) {
+        combatManager.setTarget(null);
+        gameUI.setTarget(null);
+        
+        // Update the GameUI with a reference to the combatManager
+        gameUI.combatManager = combatManager;
+    }
     
     // Connect EnemyShipManager to CombatManager
     enemyShipManager.setCombatManager(combatManager);
@@ -633,6 +655,22 @@ function handleResetToMainMenu(event) {
     
     // Create minimal UI for main menu
     createMinimalUI();
+    
+    // Hide game UI and explicitly hide health/target containers
+    if (gameUI) {
+        gameUI.hide();
+        
+        // Explicitly hide the target info and health bar containers
+        if (gameUI.targetInfoContainer) {
+            gameUI.targetInfoContainer.style.display = 'none';
+        }
+        if (gameUI.healthBarContainer) {
+            gameUI.healthBarContainer.style.display = 'none';
+        }
+        
+        // Clear any target in the UI
+        gameUI.setTarget(null);
+    }
     
     // Clean up multiplayer but don't sign out
     if (multiplayerManager) {

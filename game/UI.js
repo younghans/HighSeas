@@ -12,6 +12,7 @@ class GameUI {
         this.activeMenuBottom = null;
         this.activeMenuTop = null;
         this.playerShip = options.playerShip || null;
+        this.combatManager = options.combatManager || null;
         
         // UI elements
         this.bottomUIContainer = null;
@@ -112,7 +113,7 @@ class GameUI {
         this.topMenuContainer.style.boxSizing = 'border-box';
         this.topUIContainer.appendChild(this.topMenuContainer);
         
-        // Create health bar container (positioned at the bottom left)
+        // Create health bar container (positioned at the bottom center)
         this.createHealthBar();
         
         // Create target info container (positioned at the top center)
@@ -148,12 +149,13 @@ class GameUI {
         this.healthBarContainer.id = 'health-bar-container';
         this.healthBarContainer.style.position = 'absolute';
         this.healthBarContainer.style.bottom = '20px';
-        this.healthBarContainer.style.left = '20px';
-        this.healthBarContainer.style.width = '200px';
-        this.healthBarContainer.style.height = '30px';
+        this.healthBarContainer.style.left = '50%'; // Center horizontally
+        this.healthBarContainer.style.transform = 'translateX(-50%)'; // Center adjustment
+        this.healthBarContainer.style.width = '250px'; // Wider container
+        this.healthBarContainer.style.height = 'auto'; // Auto height to fit content
         this.healthBarContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
         this.healthBarContainer.style.borderRadius = '5px';
-        this.healthBarContainer.style.padding = '5px';
+        this.healthBarContainer.style.padding = '8px 10px 8px 10px'; // Equal top and bottom padding
         this.healthBarContainer.style.boxSizing = 'border-box';
         this.healthBarContainer.style.zIndex = '1000';
         document.body.appendChild(this.healthBarContainer);
@@ -162,9 +164,9 @@ class GameUI {
         const healthLabel = document.createElement('div');
         healthLabel.textContent = 'SHIP HEALTH';
         healthLabel.style.color = 'white';
-        healthLabel.style.fontSize = '10px';
+        healthLabel.style.fontSize = '12px';
         healthLabel.style.fontWeight = 'bold';
-        healthLabel.style.marginBottom = '2px';
+        healthLabel.style.marginBottom = '2px'; // Slight adjustment
         healthLabel.style.textAlign = 'center';
         this.healthBarContainer.appendChild(healthLabel);
         
@@ -191,7 +193,7 @@ class GameUI {
         this.healthText.style.color = 'white';
         this.healthText.style.fontSize = '10px';
         this.healthText.style.textAlign = 'center';
-        this.healthText.style.marginTop = '2px';
+        this.healthText.style.marginTop = '2px'; // Matching top margin
         this.healthBarContainer.appendChild(this.healthText);
     }
     
@@ -269,6 +271,102 @@ class GameUI {
         this.targetRangeIndicator.style.textAlign = 'center';
         this.targetRangeIndicator.style.marginTop = '5px';
         this.targetInfoContainer.appendChild(this.targetRangeIndicator);
+        
+        // Create buttons container
+        const buttonsContainer = document.createElement('div');
+        buttonsContainer.style.display = 'flex';
+        buttonsContainer.style.justifyContent = 'space-between';
+        buttonsContainer.style.marginTop = '10px';
+        buttonsContainer.style.width = '100%';
+        this.targetInfoContainer.appendChild(buttonsContainer);
+        
+        // Create fire button
+        const fireButton = document.createElement('button');
+        fireButton.textContent = 'FIRE';
+        fireButton.style.flex = '1';
+        fireButton.style.padding = '8px 0';
+        fireButton.style.backgroundColor = '#F44336'; // Red
+        fireButton.style.color = 'white';
+        fireButton.style.border = 'none';
+        fireButton.style.borderRadius = '4px';
+        fireButton.style.fontWeight = 'bold';
+        fireButton.style.cursor = 'pointer';
+        fireButton.style.marginRight = '5px';
+        fireButton.style.transition = 'background-color 0.2s';
+        
+        // Add hover effect
+        fireButton.addEventListener('mouseover', () => {
+            fireButton.style.backgroundColor = '#D32F2F';
+        });
+        fireButton.addEventListener('mouseout', () => {
+            fireButton.style.backgroundColor = '#F44336';
+        });
+        
+        // Add click event
+        fireButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            
+            // Simulate spacebar press (keydown)
+            const spaceDownEvent = new KeyboardEvent('keydown', {
+                code: 'Space',
+                key: ' ',
+                keyCode: 32,
+                which: 32,
+                bubbles: true,
+                cancelable: true
+            });
+            document.dispatchEvent(spaceDownEvent);
+            
+            // Simulate spacebar release (keyup) after a short delay
+            setTimeout(() => {
+                const spaceUpEvent = new KeyboardEvent('keyup', {
+                    code: 'Space',
+                    key: ' ',
+                    keyCode: 32,
+                    which: 32,
+                    bubbles: true,
+                    cancelable: true
+                });
+                document.dispatchEvent(spaceUpEvent);
+            }, 50); // 50ms delay, enough to trigger the firing but stop auto-fire
+        });
+        buttonsContainer.appendChild(fireButton);
+        
+        // Create disengage button
+        const disengageButton = document.createElement('button');
+        disengageButton.textContent = 'DISENGAGE';
+        disengageButton.style.flex = '1';
+        disengageButton.style.padding = '8px 0';
+        disengageButton.style.backgroundColor = '#2196F3'; // Blue
+        disengageButton.style.color = 'white';
+        disengageButton.style.border = 'none';
+        disengageButton.style.borderRadius = '4px';
+        disengageButton.style.fontWeight = 'bold';
+        disengageButton.style.cursor = 'pointer';
+        disengageButton.style.marginLeft = '5px';
+        disengageButton.style.transition = 'background-color 0.2s';
+        
+        // Add hover effect
+        disengageButton.addEventListener('mouseover', () => {
+            disengageButton.style.backgroundColor = '#1976D2';
+        });
+        disengageButton.addEventListener('mouseout', () => {
+            disengageButton.style.backgroundColor = '#2196F3';
+        });
+        
+        // Add click event
+        disengageButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            
+            // Clear target in the CombatManager if available (cleans up debug arrows)
+            if (this.combatManager) {
+                this.combatManager.setTarget(null);
+            } else {
+                // Fallback if CombatManager reference is not available
+                this.setTarget(null);
+            }
+        });
+        buttonsContainer.appendChild(disengageButton);
     }
     
     /**
@@ -957,6 +1055,18 @@ class GameUI {
         this.bottomUIContainer.style.display = 'flex';
         this.topUIContainer.style.display = 'flex';
         this.isVisible = true;
+        
+        // Show the health bar container
+        if (this.healthBarContainer) {
+            this.healthBarContainer.style.display = 'block';
+        }
+        
+        // Only show target info if there's a current target
+        if (this.targetInfoContainer && this.currentTarget) {
+            this.targetInfoContainer.style.display = 'block';
+        } else if (this.targetInfoContainer) {
+            this.targetInfoContainer.style.display = 'none';
+        }
     }
     
     /**
@@ -971,6 +1081,17 @@ class GameUI {
         this.topMenuContainer.style.display = 'none';
         this.activeMenuBottom = null;
         this.activeMenuTop = null;
+        
+        // Explicitly hide the health bar and target info containers
+        if (this.healthBarContainer) {
+            this.healthBarContainer.style.display = 'none';
+        }
+        if (this.targetInfoContainer) {
+            this.targetInfoContainer.style.display = 'none';
+        }
+        
+        // Clear any current target
+        this.currentTarget = null;
     }
     
     /**
