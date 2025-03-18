@@ -1,273 +1,337 @@
 import * as THREE from 'three';
 
-class WindParticleSystem {
-    constructor(scene, camera, windDirection, windSpeed, visibilityRadius = 800) {
+/**
+ * Wind Wisp System inspired by The Legend of Zelda: The Wind Waker
+ * Creates flowing wind wisps that appear in the air around the player ship
+ */
+class WindWispSystem {
+    constructor(scene, camera, options = {}) {
         this.scene = scene;
         this.camera = camera;
-        this.windDirection = windDirection;
-        this.windSpeed = windSpeed;
-        this.windVisibilityRadius = visibilityRadius;
-        this.windParticles = null;
-        this.trailSystem = null;
         
-        this.init();
+        // Wind direction (normalized vector)
+        this.windDirection = new THREE.Vector3(1, 0, 0).normalize();
+        
+        // Wisp system settings
+        this.wispCount = options.wispCount || 30;
+        this.wispSpawnRadius = options.spawnRadius || 400;
+        this.wispLifespan = options.lifespan || 2.5; // seconds
+        this.wispSpawnInterval = options.spawnInterval || 0.2; // seconds
+        this.spawnTimer = 0;
+        
+        // Array to store active wisps
+        this.wisps = [];
+        
+        // Initialize wisp materials and geometries
+        this.initWispSystem();
     }
-
-    init() {
-        const particleCount = 50;
-        const trails = new THREE.BufferGeometry();
+    
+    /**
+     * Initialize the wisp system with shared resources
+     */
+    initWispSystem() {
+        // Pre-generate curve patterns for wisps to follow
+        this.wispPatterns = this.generateWispPatterns(8);
         
-        const positions = new Float32Array(particleCount * 3);
-        const velocities = new Float32Array(particleCount * 3);
-        const trailPositions = new Float32Array(particleCount * 6);
-        const trailOpacities = new Float32Array(particleCount * 2);
-        
-        if (this.camera) {
-            const cameraPos = this.camera.position;
-            const cameraDir = this.camera.getWorldDirection(new THREE.Vector3());
-            
-            for (let i = 0; i < particleCount; i++) {
-                const i3 = i * 3;
-                const i6 = i * 6;
-                const i2 = i * 2;
-                
-                const radius = Math.pow(Math.random(), 0.5) * this.windVisibilityRadius * 0.8;
-                const forwardOffset = Math.random() * this.windVisibilityRadius * 0.7;
-                const theta = (Math.random() - 0.5) * Math.PI * 1.2;
-                
-                const right = new THREE.Vector3().crossVectors(cameraDir, new THREE.Vector3(0, 1, 0)).normalize();
-                const position = new THREE.Vector3()
-                    .copy(cameraPos)
-                    .add(cameraDir.clone().multiplyScalar(forwardOffset))
-                    .add(right.clone().multiplyScalar(Math.sin(theta) * radius));
-                
-                position.y = Math.random() * 40 + 2;
-                
-                positions[i3] = position.x;
-                positions[i3 + 1] = position.y;
-                positions[i3 + 2] = position.z;
-                
-                velocities[i3] = this.windDirection.x * this.windSpeed + (Math.random() - 0.5) * 1;
-                velocities[i3 + 1] = (Math.random() - 0.5) * 0.2;
-                velocities[i3 + 2] = this.windDirection.z * this.windSpeed + (Math.random() - 0.5) * 1;
-                
-                const trailLength = this.windSpeed * 0.7;
-                const trailEnd = new THREE.Vector3(
-                    position.x - this.windDirection.x * trailLength,
-                    position.y - this.windDirection.y * trailLength,
-                    position.z - this.windDirection.z * trailLength
-                );
-                
-                trailPositions[i6] = position.x;
-                trailPositions[i6 + 1] = position.y;
-                trailPositions[i6 + 2] = position.z;
-                trailPositions[i6 + 3] = trailEnd.x;
-                trailPositions[i6 + 4] = trailEnd.y;
-                trailPositions[i6 + 5] = trailEnd.z;
-                
-                const opacity = this._calculateOpacity(position, cameraPos);
-                trailOpacities[i2] = opacity * 2.5;
-                trailOpacities[i2 + 1] = opacity * 0.2;
-            }
-        }
-        
-        trails.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
-        trails.setAttribute('opacity', new THREE.BufferAttribute(trailOpacities, 1));
-        
-        this.windParticles = {
-            positions,
-            velocities,
-            trailPositions,
-            trailOpacities,
-            count: particleCount
-        };
-        
-        const trailMaterial = new THREE.ShaderMaterial({
-            uniforms: {},
+        // Create shared wisp material
+        this.wispMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                time: { value: 0 }
+            },
             vertexShader: `
-                attribute float opacity;
-                varying float vOpacity;
+                attribute float phase;
+                varying float vPhase;
+                varying float vDistance;
+                
                 void main() {
-                    vOpacity = opacity;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    vPhase = phase;
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    vDistance = 1.0 - clamp(length(mvPosition.xyz) / 1000.0, 0.0, 1.0);
+                    gl_Position = projectionMatrix * mvPosition;
                 }
             `,
             fragmentShader: `
-                varying float vOpacity;
+                varying float vPhase;
+                varying float vDistance;
+                
                 void main() {
-                    gl_FragColor = vec4(1.0, 1.0, 1.0, vOpacity);
+                    // Apply a power curve to phase to make the opacity falloff more pronounced
+                    float adjustedPhase = pow(vPhase, 1.7);
+                    float opacity = adjustedPhase * vDistance * 0.8;
+                    gl_FragColor = vec4(1.0, 1.0, 1.0, opacity);
                 }
             `,
             transparent: true,
-            depthTest: true,
             depthWrite: false,
             blending: THREE.AdditiveBlending
         });
         
-        this.trailSystem = new THREE.LineSegments(trails, trailMaterial);
-        this.trailSystem.layers.set(1);
-        this.trailSystem.renderOrder = -1;
-        this.trailSystem.frustumCulled = false;
-        
-        this.scene.add(this.trailSystem);
+        // Make sure camera can see the wind layer
+        this.camera.layers.enable(1);
     }
-
-    _calculateOpacity(position, cameraPosition) {
-        const dx = position.x - cameraPosition.x;
-        const dy = position.y - cameraPosition.y;
-        const dz = position.z - cameraPosition.z;
-        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        const normalizedDistance = distance / this.windVisibilityRadius;
-        
-        const distanceOpacity = Math.max(0.2, 1.0 - Math.pow(normalizedDistance, 1.5) * 0.8);
-        return distanceOpacity * (this.windSpeed / 40);
-    }
-
-    update(deltaTime) {
-        if (!this.windParticles || !this.camera) return;
-        
-        const {positions, velocities, trailPositions, trailOpacities, count} = this.windParticles;
-        const cameraPosition = this.camera.position;
-        const cameraDir = this.camera.getWorldDirection(new THREE.Vector3());
-        const right = new THREE.Vector3().crossVectors(cameraDir, new THREE.Vector3(0, 1, 0)).normalize();
+    
+    /**
+     * Generate a set of random curve patterns for wisps to follow
+     */
+    generateWispPatterns(count) {
+        const patterns = [];
         
         for (let i = 0; i < count; i++) {
-            const i3 = i * 3;
-            const i6 = i * 6;
-            const i2 = i * 2;
+            // Generate a random curve with 4-6 control points
+            const pointCount = Math.floor(Math.random() * 3) + 4;
+            const points = [];
             
-            positions[i3] += velocities[i3] * deltaTime;
-            positions[i3 + 1] += velocities[i3 + 1] * deltaTime;
-            positions[i3 + 2] += velocities[i3 + 2] * deltaTime;
+            // Start at origin
+            points.push(new THREE.Vector3(0, 0, 0));
             
-            const position = new THREE.Vector3(positions[i3], positions[i3 + 1], positions[i3 + 2]);
-            
-            const toParticle = position.clone().sub(cameraPosition);
-            const projectedDist = toParticle.dot(cameraDir);
-            const lateralOffset = toParticle.clone().sub(cameraDir.clone().multiplyScalar(projectedDist));
-            const distance = lateralOffset.length();
-            
-            const isBehindCamera = projectedDist < -20;
-            const isTooFarAhead = projectedDist > this.windVisibilityRadius;
-            const isTooFarToSide = distance > this.windVisibilityRadius * 0.6;
-            const isOutOfHeight = positions[i3 + 1] < 0.5 || positions[i3 + 1] > 50;
-            
-            if (isBehindCamera || isTooFarAhead || isTooFarToSide || isOutOfHeight) {
-                this._resetParticle(i, cameraPosition, cameraDir, right);
-            } else {
-                this._updateParticleVelocity(i, deltaTime);
+            // Add random control points along a general path
+            for (let j = 1; j < pointCount; j++) {
+                const progress = j / (pointCount - 1);
+                const deviation = 15 * (1 - progress); // Larger deviations at the start
+                
+                points.push(new THREE.Vector3(
+                    progress * 80 + (Math.random() - 0.5) * deviation,
+                    (Math.random() - 0.5) * deviation,
+                    (Math.random() - 0.5) * deviation
+                ));
             }
             
-            this._updateTrail(i, position);
+            // Create a smooth curve from the points
+            const curve = new THREE.CatmullRomCurve3(points);
+            curve.curveType = 'catmullrom';
+            curve.tension = 0.3;
+            
+            patterns.push(curve);
         }
         
-        this.trailSystem.geometry.attributes.position.needsUpdate = true;
-        this.trailSystem.geometry.attributes.opacity.needsUpdate = true;
+        return patterns;
     }
-
-    _resetParticle(i, cameraPosition, cameraDir, right) {
-        const i3 = i * 3;
-        const radius = Math.pow(Math.random(), 0.5) * this.windVisibilityRadius * 0.5;
-        const forwardOffset = Math.random() * this.windVisibilityRadius * 0.7;
-        const theta = (Math.random() - 0.5) * Math.PI * 1.2;
+    
+    /**
+     * Create a new wind wisp at a random position around the camera
+     */
+    createWindWisp() {
+        // Choose a random pattern
+        const patternIndex = Math.floor(Math.random() * this.wispPatterns.length);
+        const pattern = this.wispPatterns[patternIndex];
         
-        const position = new THREE.Vector3()
-            .copy(cameraPosition)
-            .add(cameraDir.clone().multiplyScalar(forwardOffset))
-            .add(right.clone().multiplyScalar(Math.sin(theta) * radius));
+        // Get camera-relative spawn position
+        const cameraPos = this.camera.position.clone();
+        const cameraForward = this.camera.getWorldDirection(new THREE.Vector3());
+        const spawnRadius = this.wispSpawnRadius * (0.3 + Math.random() * 0.7);
         
-        position.y = Math.random() * 40 + 2;
+        // Random angle within 120 degrees of forward
+        const angle = (Math.random() - 0.5) * Math.PI * 0.8;
+        const right = new THREE.Vector3().crossVectors(cameraForward, new THREE.Vector3(0, 1, 0)).normalize();
         
-        this.windParticles.positions[i3] = position.x;
-        this.windParticles.positions[i3 + 1] = position.y;
-        this.windParticles.positions[i3 + 2] = position.z;
+        // Calculate spawn position
+        const spawnPos = new THREE.Vector3()
+            .copy(cameraPos)
+            .add(cameraForward.clone().multiplyScalar(spawnRadius * 0.5))
+            .add(right.clone().multiplyScalar(Math.sin(angle) * spawnRadius));
         
-        this.windParticles.velocities[i3] = this.windDirection.x * this.windSpeed * (0.8 + Math.random() * 0.4);
-        this.windParticles.velocities[i3 + 1] = (Math.random() - 0.5) * 0.3;
-        this.windParticles.velocities[i3 + 2] = this.windDirection.z * this.windSpeed * (0.8 + Math.random() * 0.4);
+        // Adjust height randomly
+        spawnPos.y = 5 + Math.random() * 30;
+        
+        // Create line segments along the curve
+        const segmentCount = 25 + Math.floor(Math.random() * 15);
+        const linePositions = new Float32Array(segmentCount * 3);
+        const lineIndices = [];
+        const phases = new Float32Array(segmentCount);
+        
+        // Calculate direction matrix to orient the pattern in the wind direction
+        const dirMatrix = new THREE.Matrix4();
+        const up = new THREE.Vector3(0, 1, 0);
+        const windNormalized = this.windDirection.clone().normalize();
+        
+        if (Math.abs(windNormalized.y) < 0.99) {
+            dirMatrix.lookAt(
+                new THREE.Vector3(0, 0, 0),
+                windNormalized,
+                up
+            );
+        }
+        
+        // Create points along curve
+        for (let i = 0; i < segmentCount; i++) {
+            // Get point from curve
+            const t = i / (segmentCount - 1);
+            const point = pattern.getPoint(t);
+            
+            // Orient in wind direction and offset to spawn position
+            point.applyMatrix4(dirMatrix);
+            point.add(spawnPos);
+            
+            // Set position in array
+            const idx = i * 3;
+            linePositions[idx] = point.x;
+            linePositions[idx + 1] = point.y;
+            linePositions[idx + 2] = point.z;
+            
+            // Initial phase (0 to 1) - all points start invisible except the front
+            phases[i] = i === 0 ? 1 : 0;
+            
+            // Create indices for line segments
+            if (i > 0) {
+                lineIndices.push(i - 1, i);
+            }
+        }
+        
+        // Create geometry and attributes
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+        geometry.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
+        geometry.setIndex(lineIndices);
+        
+        // Create the line mesh
+        const lineMaterial = this.wispMaterial.clone();
+        const lines = new THREE.LineSegments(geometry, lineMaterial);
+        lines.frustumCulled = false;
+        lines.layers.set(1);
+        
+        // Add to scene
+        this.scene.add(lines);
+        
+        // Store wisp data
+        this.wisps.push({
+            mesh: lines,
+            positions: linePositions,
+            phases: phases,
+            age: 0,
+            speed: 1 + Math.random() * 0.5, // Random variation in speed
+            segmentCount: segmentCount,
+            lifespan: this.wispLifespan * (0.8 + Math.random() * 0.4) // Random variation in lifespan
+        });
     }
-
-    _updateParticleVelocity(i, deltaTime) {
-        const i3 = i * 3;
-        const lerpFactor = deltaTime * 0.3;
-        this.windParticles.velocities[i3] += (this.windDirection.x * this.windSpeed - this.windParticles.velocities[i3]) * lerpFactor;
-        this.windParticles.velocities[i3 + 2] += (this.windDirection.z * this.windSpeed - this.windParticles.velocities[i3 + 2]) * lerpFactor;
-    }
-
-    _updateTrail(i, position) {
-        const i6 = i * 6;
-        const i2 = i * 2;
-        const trailLength = this.windSpeed * 0.7;
-        const trailEnd = new THREE.Vector3(
-            position.x - this.windDirection.x * trailLength,
-            position.y - this.windDirection.y * trailLength,
-            position.z - this.windDirection.z * trailLength
-        );
+    
+    /**
+     * Update the wind system
+     */
+    update(deltaTime) {
+        // Update spawn timer and create new wisps
+        this.spawnTimer += deltaTime;
+        if (this.spawnTimer >= this.wispSpawnInterval) {
+            this.spawnTimer = 0;
+            
+            // Only spawn if we haven't reached the maximum number of wisps
+            if (this.wisps.length < this.wispCount) {
+                this.createWindWisp();
+            }
+        }
         
-        this.windParticles.trailPositions[i6] = position.x;
-        this.windParticles.trailPositions[i6 + 1] = position.y;
-        this.windParticles.trailPositions[i6 + 2] = position.z;
-        this.windParticles.trailPositions[i6 + 3] = trailEnd.x;
-        this.windParticles.trailPositions[i6 + 4] = trailEnd.y;
-        this.windParticles.trailPositions[i6 + 5] = trailEnd.z;
-        
-        const opacity = this._calculateOpacity(position, this.camera.position);
-        this.windParticles.trailOpacities[i2] = opacity * 2.5;
-        this.windParticles.trailOpacities[i2 + 1] = opacity * 0.2;
+        // Update existing wisps
+        for (let i = this.wisps.length - 1; i >= 0; i--) {
+            const wisp = this.wisps[i];
+            wisp.age += deltaTime * wisp.speed;
+            
+            // Calculate progress (0 to 1)
+            const progress = Math.min(wisp.age / wisp.lifespan, 1);
+            
+            // Keep track of whether any part of the wisp is still visible
+            let anyPointVisible = false;
+            
+            // Calculate the extended length to ensure the tail completes its journey
+            const extraDistance = wisp.segmentCount * 0.7 + 2; // Tail length + fade distance
+            
+            // Update phases of each point based on the animation progress
+            const leadingEdge = progress * (wisp.segmentCount + extraDistance);
+            const tailLength = wisp.segmentCount * 0.7; // 70% of the wisp length is visible at once
+            
+            for (let j = 0; j < wisp.segmentCount; j++) {
+                const distanceFromLeadingEdge = leadingEdge - j;
+                let newPhase = 0;
+                
+                // Points ahead of the leading edge stay invisible
+                if (distanceFromLeadingEdge < 0) {
+                    newPhase = 0;
+                } 
+                // Points at the leading edge fade in
+                else if (distanceFromLeadingEdge <= 1) {
+                    newPhase = distanceFromLeadingEdge;
+                    if (newPhase > 0.05) anyPointVisible = true; // Only count as visible if opacity is significant
+                }
+                // Points within the tail length have a gradual fade from head to tail
+                else if (distanceFromLeadingEdge <= tailLength) {
+                    // Apply a gradual falloff from head (1.0) to tail (0.4)
+                    const tailProgress = distanceFromLeadingEdge / tailLength;
+                    const falloff = 0.4 + (0.6 * (1.0 - tailProgress));
+                    newPhase = falloff;
+                    anyPointVisible = true;
+                }
+                // Points beyond the tail length fade out
+                else if (distanceFromLeadingEdge <= tailLength + 2) {
+                    // Start from the reduced opacity at the tail end (0.4)
+                    const fadeStartOpacity = 0.4;
+                    const fadeProgress = (distanceFromLeadingEdge - tailLength) / 2;
+                    newPhase = fadeStartOpacity * (1 - fadeProgress);
+                    if (newPhase > 0.05) anyPointVisible = true; // Only count as visible if opacity is significant
+                }
+                // Points far behind the leading edge stay invisible
+                else {
+                    newPhase = 0;
+                }
+                
+                wisp.phases[j] = newPhase;
+            }
+            
+            // Update the phase attribute
+            wisp.mesh.geometry.attributes.phase.needsUpdate = true;
+            
+            // If wisp has completed its lifecycle AND no points are visibly noticeable, remove it
+            if (progress >= 1) {
+                if (!anyPointVisible) {
+                    this.scene.remove(wisp.mesh);
+                    wisp.mesh.geometry.dispose();
+                    this.wisps.splice(i, 1);
+                } else if (progress >= 1.5) {
+                    // Force remove if it's been hanging too long (fallback safety)
+                    this.scene.remove(wisp.mesh);
+                    wisp.mesh.geometry.dispose();
+                    this.wisps.splice(i, 1);
+                }
+            }
+        }
     }
-
-    setWind(direction, speed) {
-        this.windDirection = direction.clone().normalize();
-        this.windSpeed = Math.max(0, speed);
+    
+    /**
+     * Set the wind direction
+     */
+    setWindDirection(direction) {
+        this.windDirection.copy(direction).normalize();
     }
-
-    setVisibilityRadius(radius) {
-        this.windVisibilityRadius = Math.max(50, radius);
-    }
-
-    getVisibilityRadius() {
-        return this.windVisibilityRadius;
+    
+    /**
+     * Get the current wind direction
+     */
+    getWindDirection() {
+        return this.windDirection.clone();
     }
 }
 
+/**
+ * Main wind system that manages wind direction changes and the wisp system
+ */
 class WindSystem {
     constructor(scene, camera, options = {}) {
         this.scene = scene;
         this.camera = camera;
         
-        // Wind system variables
-        this.windDirection = new THREE.Vector3(1, 0, 0); // Initial wind direction
-        this.windSpeed = options.windSpeed || 20; // Wind speed
+        // Wind direction and transition variables
+        this.windDirection = new THREE.Vector3(1, 0, 0).normalize();
         this.windChangeTimer = 0;
         this.WIND_CHANGE_INTERVAL = options.changeInterval || 15; // Change wind direction every 15 seconds
-        this.newWindDirection = new THREE.Vector3(1, 0, 0); // Target wind direction during transitions
+        this.newWindDirection = new THREE.Vector3(1, 0, 0).normalize();
         this.isWindChanging = false;
         this.windTransitionProgress = 0;
         this.WIND_TRANSITION_DURATION = options.transitionDuration || 3; // Transition duration in seconds
         
-        // Initialize wind particle system
-        this.initWindParticleSystem();
-    }
-    
-    initWindParticleSystem() {
-        // Enable camera layers for wind particles
-        this.camera.layers.enable(1);
-        
-        // Create wind particle system
-        this.particleSystem = new WindParticleSystem(
-            this.scene,
-            this.camera,
-            this.windDirection.clone().normalize(),
-            this.windSpeed,
-            800 // visibility radius
-        );
-        
-        // Ensure wind particles are rendered with proper depth testing
-        if (this.particleSystem.trailSystem) {
-            this.particleSystem.trailSystem.material.depthTest = true;
-            this.particleSystem.trailSystem.material.depthWrite = false;
-            this.particleSystem.trailSystem.renderOrder = -1; // Render before ship
-        }
+        // Initialize wind wisp system
+        this.wispSystem = new WindWispSystem(scene, camera, {
+            spawnRadius: options.wispSpawnRadius || 400,
+            wispCount: options.wispCount || 30,
+            spawnInterval: options.wispSpawnInterval || 0.2,
+            lifespan: options.wispLifespan || 2.5
+        });
     }
     
     update(deltaTime) {
@@ -289,8 +353,8 @@ class WindSystem {
                 lerpFactor
             ).normalize();
             
-            // Update wind particle system with interpolated direction
-            this.particleSystem.setWind(currentDirection, this.windSpeed);
+            // Update wind wisp system with interpolated direction
+            this.wispSystem.setWindDirection(currentDirection);
             
             // If transition is complete, finalize the change
             if (t >= 1.0) {
@@ -317,8 +381,8 @@ class WindSystem {
             this.windTransitionProgress = 0;
         }
         
-        // Update the particle system
-        this.particleSystem.update(deltaTime);
+        // Update the wisp system
+        this.wispSystem.update(deltaTime);
     }
     
     // Smooth step function for nicer transitions
@@ -327,24 +391,15 @@ class WindSystem {
         return x * x * (3 - 2 * x);
     }
     
-    setWindSpeed(speed) {
-        this.windSpeed = Math.max(0, speed);
-        this.particleSystem.setWind(this.windDirection, this.windSpeed);
-    }
-    
     getWindDirection() {
         return this.windDirection.clone();
-    }
-    
-    getWindSpeed() {
-        return this.windSpeed;
     }
     
     // Force an immediate wind direction change
     setWindDirection(direction) {
         this.windDirection.copy(direction).normalize();
-        this.particleSystem.setWind(this.windDirection, this.windSpeed);
+        this.wispSystem.setWindDirection(this.windDirection);
     }
 }
 
-export { WindSystem, WindParticleSystem }; 
+export { WindSystem }; 
