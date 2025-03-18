@@ -17,6 +17,8 @@ class WindWispSystem {
         this.wispSpawnRadius = options.spawnRadius || 400;
         this.wispLifespan = options.lifespan || 2.5; // seconds
         this.wispSpawnInterval = options.spawnInterval || 0.2; // seconds
+        this.wispBaseSpeed = options.baseSpeed || 0.5; // Base speed for wind wisps
+        this.wispSpeedVariation = options.speedVariation || 0.2; // Random speed variation
         this.spawnTimer = 0;
         
         // Array to store active wisps
@@ -77,8 +79,8 @@ class WindWispSystem {
         const patterns = [];
         
         for (let i = 0; i < count; i++) {
-            // Generate a random curve with 4-6 control points
-            const pointCount = Math.floor(Math.random() * 3) + 4;
+            // Generate a random curve with 6-9 control points for smoother, longer curves
+            const pointCount = Math.floor(Math.random() * 4) + 6;
             const points = [];
             
             // Start at origin
@@ -87,10 +89,10 @@ class WindWispSystem {
             // Add random control points along a general path
             for (let j = 1; j < pointCount; j++) {
                 const progress = j / (pointCount - 1);
-                const deviation = 15 * (1 - progress); // Larger deviations at the start
+                const deviation = 10 * (1 - progress); // Larger deviations at the start
                 
                 points.push(new THREE.Vector3(
-                    progress * 80 + (Math.random() - 0.5) * deviation,
+                    progress * 120 + (Math.random() - 0.5) * deviation, // Increased length from 80 to 120
                     (Math.random() - 0.5) * deviation,
                     (Math.random() - 0.5) * deviation
                 ));
@@ -99,7 +101,7 @@ class WindWispSystem {
             // Create a smooth curve from the points
             const curve = new THREE.CatmullRomCurve3(points);
             curve.curveType = 'catmullrom';
-            curve.tension = 0.3;
+            curve.tension = 0.25; // Reduced tension for smoother curves
             
             patterns.push(curve);
         }
@@ -133,8 +135,8 @@ class WindWispSystem {
         // Adjust height randomly
         spawnPos.y = 5 + Math.random() * 30;
         
-        // Create line segments along the curve
-        const segmentCount = 25 + Math.floor(Math.random() * 15);
+        // Create line segments along the curve with more segments for smoother curves
+        const segmentCount = 40 + Math.floor(Math.random() * 20); // Increased from 25+15 to 40+20
         const linePositions = new Float32Array(segmentCount * 3);
         const lineIndices = [];
         const phases = new Float32Array(segmentCount);
@@ -198,7 +200,7 @@ class WindWispSystem {
             positions: linePositions,
             phases: phases,
             age: 0,
-            speed: 1 + Math.random() * 0.5, // Random variation in speed
+            speed: this.wispBaseSpeed + Math.random() * this.wispSpeedVariation, // Use configurable speed values
             segmentCount: segmentCount,
             lifespan: this.wispLifespan * (0.8 + Math.random() * 0.4) // Random variation in lifespan
         });
@@ -330,7 +332,9 @@ class WindSystem {
             spawnRadius: options.wispSpawnRadius || 400,
             wispCount: options.wispCount || 30,
             spawnInterval: options.wispSpawnInterval || 0.2,
-            lifespan: options.wispLifespan || 2.5
+            lifespan: options.wispLifespan || 2.5,
+            baseSpeed: options.wispBaseSpeed || 0.5, // Pass the base speed
+            speedVariation: options.wispSpeedVariation || 0.1 // Pass the speed variation
         });
     }
     
