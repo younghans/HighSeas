@@ -749,6 +749,26 @@ class CombatManager {
         
         // Check if player ship is sunk
         if (this.playerShip && this.playerShip.isSunk) {
+            // If we have a target and the player ship is sunk, clear the target immediately
+            if (this.currentTarget) {
+                // Clean up debug arrows before clearing target
+                this.cleanupDebugArrows();
+                this.setTarget(null);
+            }
+            
+            // Ensure player health bar is hidden when sunk
+            if (this.playerShip.healthBarContainer) {
+                this.playerShip.setHealthBarVisible(false);
+                
+                // Force visibility to false directly as well
+                this.playerShip.healthBarContainer.visible = false;
+                
+                // If using HTML/CSS health bars, also update DOM style
+                if (this.playerShip.healthBarContainer.style) {
+                    this.playerShip.healthBarContainer.style.display = 'none';
+                }
+            }
+            
             // Reset player ship after a delay if not already resetting
             if (!this.isResetting) {
                 this.isResetting = true;
@@ -871,6 +891,10 @@ class CombatManager {
         const hadTarget = this.currentTarget !== null;
         const previousTarget = this.currentTarget;
         
+        // Ensure target is cleared and debug arrows are removed
+        this.cleanupDebugArrows();
+        this.setTarget(null);
+        
         // If we have a combat service, use it to reset the player ship
         if (this.combatService) {
             try {
@@ -893,16 +917,8 @@ class CombatManager {
         // Reset flag
         this.isResetting = false;
         
-        // Clear target
-        this.setTarget(null);
-        
-        // If we had a target and it's still valid, restore it
-        if (hadTarget && previousTarget && !previousTarget.isSunk) {
-            // Wait a short delay before restoring target to ensure all systems are ready
-            setTimeout(() => {
-                this.setTarget(previousTarget);
-            }, 100);
-        }
+        // Don't restore the previous target - we've already cleared it explicitly
+        // and the player should manually re-select a target after respawning
     }
     
     /**

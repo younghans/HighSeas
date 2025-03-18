@@ -482,10 +482,10 @@ class EnemyShipManager {
                         Math.random() * (enemyShip.cannonDamage.max - enemyShip.cannonDamage.min)
                     ) : 0;
                     
-                    // Apply damage to player only if it's a hit
-                    if (isHit) {
-                        this.playerShip.takeDamage(damage);
-                    }
+                    // Remove direct damage application - damage will be applied when cannonball hits
+                    // if (isHit) {
+                    //    this.playerShip.takeDamage(damage);
+                    // }
                     
                     // Update last fired time
                     enemyShip.lastFiredTime = Date.now();

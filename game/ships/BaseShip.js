@@ -275,6 +275,25 @@ class BaseShip {
         // Hide the health bar when ship is sunk
         if (this.healthBarContainer) {
             this.setHealthBarVisible(false);
+            
+            // Force the health bar to be hidden for player ships
+            if (!this.isEnemy) {
+                this.healthBarContainer.visible = false;
+                
+                // If using HTML/CSS health bars, also update DOM style
+                if (this.healthBarContainer.style) {
+                    this.healthBarContainer.style.display = 'none';
+                }
+            }
+        }
+        
+        // If this ship is being targeted by the player via combat manager, clear the target
+        if (window.combatManager && window.combatManager.currentTarget === this) {
+            // Clean up debug arrows before clearing target
+            if (window.combatManager.cleanupDebugArrows) {
+                window.combatManager.cleanupDebugArrows();
+            }
+            window.combatManager.setTarget(null);
         }
         
         // Trigger UI update immediately if this is the player ship

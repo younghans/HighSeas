@@ -514,6 +514,9 @@ function startGameWithShip() {
         camera: camera
     });
     
+    // Make combatManager globally accessible for BaseShip class
+    window.combatManager = combatManager;
+    
     // Make sure no target is selected at game start
     if (combatManager && gameUI) {
         combatManager.setTarget(null);

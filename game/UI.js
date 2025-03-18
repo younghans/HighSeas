@@ -121,9 +121,6 @@ class GameUI {
         this.topMenuContainer.style.boxSizing = 'border-box';
         this.topUIContainer.appendChild(this.topMenuContainer);
         
-        // Create health bar container (positioned at the bottom center)
-        this.createHealthBar();
-        
         // Create cannon cooldown indicator
         this.createCannonCooldownIndicator();
         
@@ -152,63 +149,6 @@ class GameUI {
     }
     
     /**
-     * Create health bar for player ship
-     */
-    createHealthBar() {
-        // Create health bar container
-        this.healthBarContainer = document.createElement('div');
-        this.healthBarContainer.id = 'health-bar-container';
-        this.healthBarContainer.style.position = 'absolute';
-        this.healthBarContainer.style.bottom = '20px';
-        this.healthBarContainer.style.left = '50%'; // Center horizontally
-        this.healthBarContainer.style.transform = 'translateX(-50%)'; // Center adjustment
-        this.healthBarContainer.style.width = '250px'; // Wider container
-        this.healthBarContainer.style.height = 'auto'; // Auto height to fit content
-        this.healthBarContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-        this.healthBarContainer.style.borderRadius = '5px';
-        this.healthBarContainer.style.padding = '8px 10px 8px 10px'; // Equal top and bottom padding
-        this.healthBarContainer.style.boxSizing = 'border-box';
-        this.healthBarContainer.style.zIndex = '1000';
-        document.body.appendChild(this.healthBarContainer);
-        
-        // Create health bar label
-        const healthLabel = document.createElement('div');
-        healthLabel.textContent = 'SHIP HEALTH';
-        healthLabel.style.color = 'white';
-        healthLabel.style.fontSize = '12px';
-        healthLabel.style.fontWeight = 'bold';
-        healthLabel.style.marginBottom = '2px'; // Slight adjustment
-        healthLabel.style.textAlign = 'center';
-        this.healthBarContainer.appendChild(healthLabel);
-        
-        // Create health bar background
-        const healthBarBg = document.createElement('div');
-        healthBarBg.style.width = '100%';
-        healthBarBg.style.height = '12px';
-        healthBarBg.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
-        healthBarBg.style.borderRadius = '3px';
-        healthBarBg.style.overflow = 'hidden';
-        this.healthBarContainer.appendChild(healthBarBg);
-        
-        // Create health bar fill
-        this.healthBarFill = document.createElement('div');
-        this.healthBarFill.style.width = '100%';
-        this.healthBarFill.style.height = '100%';
-        this.healthBarFill.style.backgroundColor = '#4CAF50'; // Green
-        this.healthBarFill.style.transition = 'width 0.3s ease';
-        healthBarBg.appendChild(this.healthBarFill);
-        
-        // Create health text
-        this.healthText = document.createElement('div');
-        this.healthText.textContent = '100/100';
-        this.healthText.style.color = 'white';
-        this.healthText.style.fontSize = '10px';
-        this.healthText.style.textAlign = 'center';
-        this.healthText.style.marginTop = '2px'; // Matching top margin
-        this.healthBarContainer.appendChild(this.healthText);
-    }
-    
-    /**
      * Create target info display
      */
     createTargetInfo() {
@@ -216,7 +156,7 @@ class GameUI {
         this.targetInfoContainer = document.createElement('div');
         this.targetInfoContainer.id = 'target-info-container';
         this.targetInfoContainer.style.position = 'absolute';
-        this.targetInfoContainer.style.top = '20px';
+        this.targetInfoContainer.style.bottom = '20px';
         this.targetInfoContainer.style.left = '50%';
         this.targetInfoContainer.style.transform = 'translateX(-50%)';
         this.targetInfoContainer.style.width = '250px';
@@ -237,32 +177,6 @@ class GameUI {
         targetLabel.style.marginBottom = '5px';
         targetLabel.style.textAlign = 'center';
         this.targetInfoContainer.appendChild(targetLabel);
-        
-        // Create target health bar background
-        const targetHealthBarBg = document.createElement('div');
-        targetHealthBarBg.style.width = '100%';
-        targetHealthBarBg.style.height = '15px';
-        targetHealthBarBg.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
-        targetHealthBarBg.style.borderRadius = '3px';
-        targetHealthBarBg.style.overflow = 'hidden';
-        this.targetInfoContainer.appendChild(targetHealthBarBg);
-        
-        // Create target health bar fill
-        this.targetHealthBar = document.createElement('div');
-        this.targetHealthBar.style.width = '100%';
-        this.targetHealthBar.style.height = '100%';
-        this.targetHealthBar.style.backgroundColor = '#F44336'; // Red
-        this.targetHealthBar.style.transition = 'width 0.3s ease';
-        targetHealthBarBg.appendChild(this.targetHealthBar);
-        
-        // Create target health text
-        this.targetHealthText = document.createElement('div');
-        this.targetHealthText.textContent = '100/100';
-        this.targetHealthText.style.color = 'white';
-        this.targetHealthText.style.fontSize = '10px';
-        this.targetHealthText.style.textAlign = 'center';
-        this.targetHealthText.style.marginTop = '5px';
-        this.targetInfoContainer.appendChild(this.targetHealthText);
         
         // Create distance text
         this.targetDistanceText = document.createElement('div');
@@ -409,8 +323,8 @@ class GameUI {
                 }
             }
             
-            // Update target health
-            this.updateTargetHealth();
+            // Update target distance and range status
+            this.updateTargetInfo();
         } else {
             // Hide target info
             this.targetInfoContainer.style.display = 'none';
@@ -423,26 +337,10 @@ class GameUI {
     }
     
     /**
-     * Update target health display
+     * Update target information display
      */
-    updateTargetHealth() {
+    updateTargetInfo() {
         if (!this.currentTarget) return;
-        
-        // Update health bar
-        const healthPercent = this.currentTarget.getHealthPercentage();
-        this.targetHealthBar.style.width = `${healthPercent}%`;
-        
-        // Update health text
-        this.targetHealthText.textContent = `${Math.ceil(this.currentTarget.currentHealth)}/${this.currentTarget.maxHealth}`;
-        
-        // Update color based on health
-        if (healthPercent > 60) {
-            this.targetHealthBar.style.backgroundColor = '#F44336'; // Red
-        } else if (healthPercent > 30) {
-            this.targetHealthBar.style.backgroundColor = '#FF9800'; // Orange
-        } else {
-            this.targetHealthBar.style.backgroundColor = '#FFEB3B'; // Yellow
-        }
         
         // Update distance if player ship is available
         if (this.playerShip) {
@@ -457,6 +355,11 @@ class GameUI {
                 this.targetRangeIndicator.textContent = 'OUT OF RANGE';
                 this.targetRangeIndicator.style.color = '#F44336'; // Red
             }
+        }
+        
+        // Check if target is sunk
+        if (this.currentTarget.isSunk) {
+            this.setTarget(null);
         }
     }
     
@@ -1090,11 +993,6 @@ class GameUI {
         this.topUIContainer.style.display = 'flex';
         this.isVisible = true;
         
-        // Show the health bar container
-        if (this.healthBarContainer) {
-            this.healthBarContainer.style.display = 'block';
-        }
-        
         // Only show cannon cooldown indicator if there's a current target
         if (this.cannonCooldownContainer && this.currentTarget) {
             this.cannonCooldownContainer.style.display = 'flex';
@@ -1123,10 +1021,6 @@ class GameUI {
         this.activeMenuBottom = null;
         this.activeMenuTop = null;
         
-        // Explicitly hide the health bar and target info containers
-        if (this.healthBarContainer) {
-            this.healthBarContainer.style.display = 'none';
-        }
         if (this.cannonCooldownContainer) {
             this.cannonCooldownContainer.style.display = 'none';
         }
@@ -1142,34 +1036,18 @@ class GameUI {
      * Update the UI
      */
     update() {
-        // Update health bar if player ship is available
-        if (this.playerShip) {
-            const healthPercent = this.playerShip.getHealthPercentage();
-            this.healthBarFill.style.width = `${healthPercent}%`;
-            this.healthText.textContent = `${Math.ceil(this.playerShip.currentHealth)}/${this.playerShip.maxHealth}`;
-            
-            // Update color based on health
-            if (healthPercent > 60) {
-                this.healthBarFill.style.backgroundColor = '#4CAF50'; // Green
-            } else if (healthPercent > 30) {
-                this.healthBarFill.style.backgroundColor = '#FF9800'; // Orange
-            } else {
-                this.healthBarFill.style.backgroundColor = '#F44336'; // Red
-            }
-            
-            // Hide cannon cooldown indicator if player ship is sunk
-            if (this.playerShip.isSunk && this.cannonCooldownContainer) {
-                this.cannonCooldownContainer.style.display = 'none';
-            } 
-            // Otherwise update the cooldown indicator if it should be visible
-            else if (!this.playerShip.isSunk) {
-                this.updateCannonCooldown();
-            }
+        // Hide cannon cooldown indicator if player ship is sunk
+        if (this.playerShip && this.playerShip.isSunk && this.cannonCooldownContainer) {
+            this.cannonCooldownContainer.style.display = 'none';
+        } 
+        // Otherwise update the cooldown indicator if it should be visible
+        else if (this.playerShip && !this.playerShip.isSunk) {
+            this.updateCannonCooldown();
         }
         
         // Update target info if there is a current target
         if (this.currentTarget) {
-            this.updateTargetHealth();
+            this.updateTargetInfo();
             
             // If target is sunk, clear target
             if (this.currentTarget.isSunk) {
