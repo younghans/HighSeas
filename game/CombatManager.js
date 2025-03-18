@@ -177,13 +177,123 @@ class CombatManager {
     }
     
     /**
+     * Fire at the current target
+     */
+    async fireAtCurrentTarget() {
+        // Skip if no player ship or no target
+        if (!this.playerShip || !this.currentTarget) return;
+        
+        // Skip if player ship is sunk
+        if (this.playerShip.isSunk) return;
+        
+        // Calculate distance to target
+        const distance = this.playerShip.getPosition().distanceTo(this.currentTarget.getPosition());
+        
+        // Check if target is in range
+        if (distance > this.playerShip.cannonRange) {
+            console.log('Target out of range');
+            return;
+        }
+        
+        // Check if player can fire (cooldown)
+        if (!this.playerShip.canFire()) {
+            console.log('Cannon on cooldown');
+            return;
+        }
+        
+        // Calculate miss chance based on orientation and distance
+        const missChance = this.calculateMissChance(this.playerShip, this.currentTarget);
+        
+        // Determine if shot is a hit or miss
+        const isHit = Math.random() >= missChance;
+        
+        // Calculate damage (0 for misses)
+        const damage = isHit ? Math.floor(
+            this.playerShip.cannonDamage.min + 
+            Math.random() * (this.playerShip.cannonDamage.max - this.playerShip.cannonDamage.min)
+        ) : 0;
+        
+        // If we have a combat service, use it for server validation
+        if (this.combatService) {
+            try {
+                // Only process combat action if it's a hit
+                if (isHit) {
+                    // For server validation, we need to validate the hit on firing,
+                    // but we won't apply the damage to the ship until impact
+                    const result = await this.combatService.processCombatAction(
+                        this.currentTarget.id,
+                        damage
+                    );
+                    
+                    if (!result.success) {
+                        // Handle specific error cases
+                        if (result.error && result.error.includes('cooldown')) {
+                            console.log('Server cooldown in progress, waiting...');
+                            // Don't show error to user for cooldown issues
+                            return;
+                        } else {
+                            console.error('Combat action failed:', result.error);
+                            return;
+                        }
+                    }
+                    
+                    // Fire visual cannonball with server-validated result data
+                    this.fireCannonball(this.playerShip, this.currentTarget, damage, !isHit, result);
+                } else {
+                    // Fire visual cannonball for miss
+                    this.fireCannonball(this.playerShip, this.currentTarget, damage, !isHit);
+                }
+                
+                // Update last fired time
+                this.playerShip.lastFiredTime = Date.now();
+                
+                // Reset the cooldown indicator in UI
+                if (this.ui && this.ui.startCooldown) {
+                    this.ui.startCooldown();
+                }
+                
+            } catch (error) {
+                console.error('Error processing combat action:', error);
+                
+                // Try to use local combat logic as fallback
+                console.log('Falling back to local combat logic');
+                
+                // Fire visual cannonball (damage will be applied on impact)
+                this.fireCannonball(this.playerShip, this.currentTarget, damage, !isHit);
+                
+                // Update last fired time
+                this.playerShip.lastFiredTime = Date.now();
+                
+                // Reset the cooldown indicator in UI
+                if (this.ui && this.ui.startCooldown) {
+                    this.ui.startCooldown();
+                }
+            }
+        } else {
+            // No server validation, use local combat logic
+            
+            // Fire visual cannonball (damage will be applied on impact)
+            this.fireCannonball(this.playerShip, this.currentTarget, damage, !isHit);
+            
+            // Update last fired time
+            this.playerShip.lastFiredTime = Date.now();
+            
+            // Reset the cooldown indicator in UI
+            if (this.ui && this.ui.startCooldown) {
+                this.ui.startCooldown();
+            }
+        }
+    }
+    
+    /**
      * Fire a cannonball from source to target
      * @param {BaseShip} source - Source ship
      * @param {BaseShip} target - Target ship
      * @param {number} damage - Damage amount (0 for miss)
      * @param {boolean} isMiss - Whether this shot is a miss
+     * @param {Object} serverResult - Optional server validation result
      */
-    fireCannonball(source, target, damage, isMiss = false) {
+    fireCannonball(source, target, damage, isMiss = false, serverResult = null) {
         // Skip if no scene
         if (!this.scene) return;
         
@@ -260,7 +370,8 @@ class CombatManager {
             targetPosition: isMiss ? adjustedTargetPos : predictedTargetPos.clone(),
             hasHit: false,
             initialTargetPos: targetPos.clone(), // Store initial target position
-            predictedPos: predictedTargetPos.clone() // Store predicted position for debugging
+            predictedPos: predictedTargetPos.clone(), // Store predicted position for debugging
+            serverResult: serverResult // Store server validation result if available
         };
         
         // Add to scene and cannonballs array
@@ -531,9 +642,27 @@ class CombatManager {
                 }
             }
             // For hits, check if we've reached the target ship
-            else if (!userData.isMiss && !userData.hasHit) {
+            else if (!userData.isMiss && !userData.hasHit && userData.target && !userData.target.isSunk) {
                 const distanceToTarget = cannonball.position.distanceTo(userData.target.getPosition());
                 if (distanceToTarget < 8) {
+                    // Apply damage now that the cannonball has hit
+                    if (userData.damage > 0) {
+                        // If we have server validation result, use that
+                        if (userData.serverResult && userData.serverResult.success) {
+                            // Update target health from server result
+                            userData.target.currentHealth = userData.serverResult.newHealth;
+                            
+                            // If target was sunk, update its state
+                            if (userData.serverResult.isSunk) {
+                                userData.target.sink();
+                            }
+                        }
+                        // Otherwise apply damage directly
+                        else {
+                            userData.target.takeDamage(userData.damage);
+                        }
+                    }
+                    
                     // Create hit effect
                     this.createHitEffect(cannonball.position.clone());
                     
@@ -607,12 +736,7 @@ class CombatManager {
                             Math.random() * (enemyShip.cannonDamage.max - enemyShip.cannonDamage.min)
                         ) : 0;
                         
-                        // Apply damage to player only if it's a hit
-                        if (isHit) {
-                            this.playerShip.takeDamage(damage);
-                        }
-                        
-                        // Fire visual cannonball
+                        // Fire visual cannonball - damage will be applied on impact
                         this.fireCannonball(enemyShip, this.playerShip, damage, !isHit);
                         
                         // Update last fired time
@@ -677,129 +801,6 @@ class CombatManager {
         }
         
         return finalMissChance;
-    }
-    
-    /**
-     * Fire at the current target
-     */
-    async fireAtCurrentTarget() {
-        // Skip if no player ship or no target
-        if (!this.playerShip || !this.currentTarget) return;
-        
-        // Skip if player ship is sunk
-        if (this.playerShip.isSunk) return;
-        
-        // Calculate distance to target
-        const distance = this.playerShip.getPosition().distanceTo(this.currentTarget.getPosition());
-        
-        // Check if target is in range
-        if (distance > this.playerShip.cannonRange) {
-            console.log('Target out of range');
-            return;
-        }
-        
-        // Check if player can fire (cooldown)
-        if (!this.playerShip.canFire()) {
-            console.log('Cannon on cooldown');
-            return;
-        }
-        
-        // Calculate miss chance based on orientation and distance
-        const missChance = this.calculateMissChance(this.playerShip, this.currentTarget);
-        
-        // Determine if shot is a hit or miss
-        const isHit = Math.random() >= missChance;
-        
-        // Calculate damage (0 for misses)
-        const damage = isHit ? Math.floor(
-            this.playerShip.cannonDamage.min + 
-            Math.random() * (this.playerShip.cannonDamage.max - this.playerShip.cannonDamage.min)
-        ) : 0;
-        
-        // If we have a combat service, use it for server validation
-        if (this.combatService) {
-            try {
-                // Only process combat action if it's a hit
-                if (isHit) {
-                    // Process combat action on server
-                    const result = await this.combatService.processCombatAction(
-                        this.currentTarget.id,
-                        damage
-                    );
-                    
-                    if (result.success) {
-                        // Server validated the hit, update target health
-                        this.currentTarget.currentHealth = result.newHealth;
-                        
-                        // If target was sunk, update its state
-                        if (result.isSunk) {
-                            this.currentTarget.sink();
-                        }
-                    } else {
-                        // Handle specific error cases
-                        if (result.error && result.error.includes('cooldown')) {
-                            console.log('Server cooldown in progress, waiting...');
-                            // Don't show error to user for cooldown issues
-                            return;
-                        } else {
-                            console.error('Combat action failed:', result.error);
-                            return;
-                        }
-                    }
-                }
-                
-                // Fire visual cannonball (for both hits and misses)
-                this.fireCannonball(this.playerShip, this.currentTarget, damage, !isHit);
-                
-                // Update last fired time
-                this.playerShip.lastFiredTime = Date.now();
-                
-                // Reset the cooldown indicator in UI
-                if (this.ui && this.ui.startCooldown) {
-                    this.ui.startCooldown();
-                }
-                
-            } catch (error) {
-                console.error('Error processing combat action:', error);
-                
-                // Try to use local combat logic as fallback
-                console.log('Falling back to local combat logic');
-                
-                // Apply damage if it's a hit
-                if (isHit) {
-                    this.currentTarget.takeDamage(damage);
-                }
-                
-                // Fire visual cannonball
-                this.fireCannonball(this.playerShip, this.currentTarget, damage, !isHit);
-                
-                // Update last fired time
-                this.playerShip.lastFiredTime = Date.now();
-                
-                // Reset the cooldown indicator in UI
-                if (this.ui && this.ui.startCooldown) {
-                    this.ui.startCooldown();
-                }
-            }
-        } else {
-            // No server validation, use local combat logic
-            
-            // Apply damage if it's a hit
-            if (isHit) {
-                this.currentTarget.takeDamage(damage);
-            }
-            
-            // Fire visual cannonball
-            this.fireCannonball(this.playerShip, this.currentTarget, damage, !isHit);
-            
-            // Update last fired time
-            this.playerShip.lastFiredTime = Date.now();
-            
-            // Reset the cooldown indicator in UI
-            if (this.ui && this.ui.startCooldown) {
-                this.ui.startCooldown();
-            }
-        }
     }
     
     /**
