@@ -800,7 +800,7 @@ class CombatManager {
                 const result = await this.combatService.resetPlayerShip();
                 
                 if (result.success) {
-                    console.log('Player ship reset successfully');
+                    console.log('Player ship reset successfully on server');
                 } else {
                     console.error('Failed to reset player ship:', result.error);
                 }
@@ -809,11 +809,9 @@ class CombatManager {
             }
         }
         
-        // Reset health locally regardless of server response
-        this.playerShip.resetHealth();
-        
-        // Reset position to origin
-        this.playerShip.setPosition(new THREE.Vector3(0, 0.5, 0));
+        console.log('Respawning player ship locally');
+        // Use the new respawn method instead of just resetting health
+        this.playerShip.respawn(new THREE.Vector3(0, 0.5, 0));
         
         // Reset flag
         this.isResetting = false;

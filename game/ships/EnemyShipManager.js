@@ -90,7 +90,8 @@ class EnemyShipManager {
             hullColor: 0x8B0000, // Dark red hull for enemy ships
             isEnemy: true,
             maxHealth: 80 + Math.floor(Math.random() * 40), // Random health between 80-120
-            cannonDamage: { min: 5, max: 20 }
+            cannonDamage: { min: 5, max: 20 },
+            cannonCooldown: 3000 // 3 seconds between shots (adjust as needed)
         });
         
         // Tag the ship object with userData for easier identification and cleanup

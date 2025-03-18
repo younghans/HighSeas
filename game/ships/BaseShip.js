@@ -362,6 +362,95 @@ class BaseShip {
     }
     
     /**
+     * Respawn the ship with a fresh appearance after being sunk
+     * @param {THREE.Vector3} spawnPosition - Position to respawn at (defaults to origin)
+     */
+    respawn(spawnPosition = new THREE.Vector3(0, 0.5, 0)) {
+        console.log('Respawning ship at position:', spawnPosition);
+        
+        // First reset health values
+        this.resetHealth();
+        
+        // Remove old ship mesh and any associated effects
+        if (this.shipMesh) {
+            console.log('Removing old ship mesh from scene');
+            
+            // Check if shipMesh is a Group with children 
+            if (this.shipMesh.type === 'Group') {
+                // Process all children recursively
+                this.shipMesh.traverse(child => {
+                    if (child.isMesh) {
+                        // Dispose of geometry
+                        if (child.geometry) {
+                            child.geometry.dispose();
+                        }
+                        
+                        // Dispose of materials (could be an array or single material)
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material.forEach(mat => {
+                                    if (mat) mat.dispose();
+                                });
+                            } else {
+                                child.material.dispose();
+                            }
+                        }
+                    }
+                });
+            } else {
+                // Handle the case where shipMesh is a single mesh
+                if (this.shipMesh.geometry) {
+                    this.shipMesh.geometry.dispose();
+                }
+                
+                if (this.shipMesh.material) {
+                    if (Array.isArray(this.shipMesh.material)) {
+                        this.shipMesh.material.forEach(mat => {
+                            if (mat) mat.dispose(); 
+                        });
+                    } else {
+                        this.shipMesh.material.dispose();
+                    }
+                }
+            }
+            
+            // Remove wake particle system if it exists
+            if (this.wakeParticleSystem) {
+                this.wakeParticleSystem.dispose();
+                this.wakeParticleSystem = null;
+            }
+            
+            // Remove ship mesh from scene
+            this.scene.remove(this.shipMesh);
+            this.shipMesh = null;
+        }
+        
+        // Reset position and rotation
+        this.position.copy(spawnPosition);
+        this.rotation.set(0, 0, 0);
+        this.isMoving = false;
+        this.targetPosition = null;
+        
+        // Create new ship mesh if the class implements createShip
+        if (typeof this.createShip === 'function') {
+            console.log('Creating new ship mesh with original colors:', 
+                `Hull: 0x${this.hullColor.toString(16)}, ` +
+                `Deck: 0x${this.deckColor.toString(16)}, ` + 
+                `Sail: 0x${this.sailColor.toString(16)}`);
+                
+            this.createShip();
+            
+            // Initialize new wake particle system after ship mesh is created
+            this.initWakeParticleSystem();
+        } else {
+            console.error('Cannot recreate ship: createShip method not found');
+        }
+        
+        console.log('Ship respawn complete');
+        return this;
+    }
+    
+    /**
      * Convert a sunken ship to a shipwreck
      * This method changes the appearance of the ship to look like a shipwreck
      */

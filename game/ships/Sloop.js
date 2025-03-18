@@ -37,9 +37,15 @@ class Sloop extends BaseShip {
      * Create the sloop ship mesh
      */
     createShip() {
+        // Ensure we're using the original colors from the properties
+        console.log('Creating Sloop with original colors:', 
+            `Hull: ${this.hullColor.toString(16)}, ` +
+            `Deck: ${this.deckColor.toString(16)}, ` + 
+            `Sail: ${this.sailColor.toString(16)}`);
+
         const shipGroup = new THREE.Group();
         
-        // Hull material
+        // Hull material - always use the original hullColor property
         const hullMaterial = new THREE.MeshStandardMaterial({ 
             color: this.hullColor,
             roughness: 0.7,
@@ -150,6 +156,7 @@ class Sloop extends BaseShip {
         deckGeometry.setIndex(deckIndices);
         deckGeometry.computeVertexNormals();
         
+        // Deck material - always use the original deckColor property
         const deckMaterial = new THREE.MeshStandardMaterial({ 
             color: this.deckColor,
             roughness: 0.8,
@@ -164,6 +171,7 @@ class Sloop extends BaseShip {
         
         // Mast - centered on the boat
         const mastGeometry = new THREE.CylinderGeometry(0.1, 0.1, 4, 8);
+        // Mast material - always use the original hullColor property
         const mastMaterial = new THREE.MeshStandardMaterial({ 
             color: this.hullColor,
             roughness: 0.9,
@@ -177,6 +185,7 @@ class Sloop extends BaseShip {
         
         // Sail - centered with mast
         const sailGeometry = new THREE.PlaneGeometry(2, 3);
+        // Sail material - always use the original sailColor property
         const sailMaterial = new THREE.MeshStandardMaterial({ 
             color: this.sailColor,
             side: THREE.DoubleSide,
