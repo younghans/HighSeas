@@ -71,7 +71,7 @@ class BuildingManager {
         if (this.onInfoUpdate) {
             this.onInfoUpdate({
                 title: 'Build Mode',
-                message: 'Select a building type from the menu'
+                message: 'Choose building type'
             });
         }
         
@@ -173,8 +173,8 @@ class BuildingManager {
             // Update info display via callback
             if (this.onInfoUpdate) {
                 this.onInfoUpdate({
-                    title: `Build Mode: ${buildingType === 'marketStall' ? 'Market Stall' : 'Dock'}`,
-                    message: 'Left-click: Place building\nR: Rotate building\nClick away to cancel'
+                    title: `Build: ${buildingType === 'marketStall' ? 'Market' : 'Dock'}`,
+                    message: 'Left-click: Place\nR: Rotate\nClick away: Cancel'
                 });
             }
             
@@ -244,7 +244,7 @@ class BuildingManager {
         if (this.onInfoUpdate) {
             this.onInfoUpdate({
                 title: 'Yarr!',
-                message: 'Left-click: Move ship to location\nRight-click drag: Move camera'
+                message: 'Left-click: Move ship\nRight-click: Camera'
             });
         }
         

@@ -179,13 +179,14 @@ class CreativeStandalone {
             infoElement.style.left = '10px';
             infoElement.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
             infoElement.style.color = 'white';
-            infoElement.style.padding = '10px';
-            infoElement.style.borderRadius = '5px';
+            infoElement.style.padding = '5px';
+            infoElement.style.borderRadius = '3px';
             infoElement.style.fontFamily = 'Arial, sans-serif';
+            infoElement.style.fontSize = '10px';
             infoElement.style.zIndex = '1000';
             infoElement.innerHTML = `
                 <h2>Island Creator</h2>
-                <p>Create and customize your island!</p>
+                <p>Create your island!</p>
             `;
             document.body.appendChild(infoElement);
         }

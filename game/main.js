@@ -333,7 +333,7 @@ function createMinimalUI() {
     infoElement.id = 'info';
     infoElement.innerHTML = `
         <h2>Yarr!</h2>
-        <p>Click Play to start your adventure!</p>
+        <p>Click Play to begin</p>
     `;
     document.body.appendChild(infoElement);
     
@@ -537,10 +537,10 @@ function startGameWithShip() {
     if (infoElement) {
         infoElement.innerHTML = `
             <h2>Yarr!</h2>
-            <p>Left-click: Move ship to location</p>
-            <p>Right-click drag: Move camera</p>
-            <p>Click on enemy ship: Target for combat</p>
-            <p>Spacebar: Fire cannons at targeted ship</p>
+            <p>Left-click: Move ship</p>
+            <p>Right-click: Camera</p>
+            <p>Click enemy: Target</p>
+            <p>Space: Fire cannons</p>
         `;
     }
     
@@ -720,10 +720,10 @@ function updateUIForGameplay() {
     const infoElement = document.getElementById('info');
     infoElement.innerHTML = `
         <h2>Yarr!</h2>
-        <p>Left-click: Move ship to location</p>
-        <p>Right-click drag: Move camera</p>
-        <p>Click on enemy ship: Target for combat</p>
-        <p>Spacebar: Fire cannons at targeted ship</p>
+        <p>Left-click: Move ship</p>
+        <p>Right-click: Rotate camera</p>
+        <p>Click enemy: Target</p>
+        <p>Space: Fire cannons</p>
     `;
 }
 
