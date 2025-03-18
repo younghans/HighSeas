@@ -16,9 +16,13 @@ class WindWispSystem {
         this.wispCount = options.wispCount || 30;
         this.wispSpawnRadius = options.spawnRadius || 400;
         this.wispLifespan = options.lifespan || 2.5; // seconds
-        this.wispSpawnInterval = options.spawnInterval || 0.2; // seconds
+        this.wispSpawnInterval = options.spawnInterval || .3; // seconds
         this.wispBaseSpeed = options.baseSpeed || 0.5; // Base speed for wind wisps
         this.wispSpeedVariation = options.speedVariation || 0.2; // Random speed variation
+        
+        // Pattern settings
+        this.wispPatternLength = options.patternLength || 60; // Length of wind wisp patterns
+        this.wispPatternDeviation = options.patternDeviation || 1; // Amount of random deviation in paths
         this.spawnTimer = 0;
         
         // Array to store active wisps
@@ -89,10 +93,10 @@ class WindWispSystem {
             // Add random control points along a general path
             for (let j = 1; j < pointCount; j++) {
                 const progress = j / (pointCount - 1);
-                const deviation = 10 * (1 - progress); // Larger deviations at the start
+                const deviation = this.wispPatternDeviation * (1 - progress); // Larger deviations at the start
                 
                 points.push(new THREE.Vector3(
-                    progress * 120 + (Math.random() - 0.5) * deviation, // Increased length from 80 to 120
+                    progress * this.wispPatternLength + (Math.random() - 0.5) * deviation, // Use configurable pattern length
                     (Math.random() - 0.5) * deviation,
                     (Math.random() - 0.5) * deviation
                 ));
@@ -321,7 +325,7 @@ class WindSystem {
         // Wind direction and transition variables
         this.windDirection = new THREE.Vector3(1, 0, 0).normalize();
         this.windChangeTimer = 0;
-        this.WIND_CHANGE_INTERVAL = options.changeInterval || 15; // Change wind direction every 15 seconds
+        this.WIND_CHANGE_INTERVAL = options.changeInterval || 60; // Change wind direction every 15 seconds
         this.newWindDirection = new THREE.Vector3(1, 0, 0).normalize();
         this.isWindChanging = false;
         this.windTransitionProgress = 0;
@@ -329,12 +333,16 @@ class WindSystem {
         
         // Initialize wind wisp system
         this.wispSystem = new WindWispSystem(scene, camera, {
-            spawnRadius: options.wispSpawnRadius || 400,
-            wispCount: options.wispCount || 30,
-            spawnInterval: options.wispSpawnInterval || 0.2,
-            lifespan: options.wispLifespan || 2.5,
-            baseSpeed: options.wispBaseSpeed || 0.5, // Pass the base speed
-            speedVariation: options.wispSpeedVariation || 0.1 // Pass the speed variation
+            // Only pass values that are explicitly provided in options,
+            // otherwise let WindWispSystem use its own defaults
+            ...(options.wispSpawnRadius !== undefined && { spawnRadius: options.wispSpawnRadius }),
+            ...(options.wispCount !== undefined && { wispCount: options.wispCount }),
+            ...(options.wispSpawnInterval !== undefined && { spawnInterval: options.wispSpawnInterval }),
+            ...(options.wispLifespan !== undefined && { lifespan: options.wispLifespan }),
+            ...(options.wispBaseSpeed !== undefined && { baseSpeed: options.wispBaseSpeed }),
+            ...(options.wispSpeedVariation !== undefined && { speedVariation: options.wispSpeedVariation }),
+            ...(options.patternLength !== undefined && { patternLength: options.patternLength }),
+            ...(options.patternDeviation !== undefined && { patternDeviation: options.patternDeviation })
         });
     }
     

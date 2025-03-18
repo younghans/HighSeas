@@ -687,8 +687,8 @@ function setupGameplayControls() {
     // Create new orbit controls for gameplay
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enablePan = false;
-    controls.minDistance = 5;
-    controls.maxDistance = 200;
+    controls.minDistance = 10;
+    controls.maxDistance = 50;
     controls.maxPolarAngle = Math.PI / 2 - 0.1; // Prevent going below horizon
     
     // Explicitly set the mouse buttons configuration for gameplay
