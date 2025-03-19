@@ -280,6 +280,9 @@ class EnemyShipManager {
      * @param {number} time - Current time
      */
     update(delta, time) {
+        // Fixed delta time for sinking animations to ensure consistency
+        const SINKING_DELTA = 1/60; // Fixed 60fps delta time
+        
         // Check if we need to spawn new enemy ships
         const now = Date.now();
         if (now - this.lastSpawnTime > this.spawnInterval && this.enemyShips.length < this.maxEnemyShips) {
@@ -288,14 +291,17 @@ class EnemyShipManager {
         
         // Update each enemy ship
         this.enemyShips.forEach(enemyShip => {
-            // Skip if sunk
-            if (enemyShip.isSunk) return;
-            
-            // Update AI behavior
-            this.updateEnemyAI(enemyShip, delta);
-            
-            // Update ship physics and animation
-            enemyShip.update(delta, time);
+            // Use different update approach based on sinking state
+            if (enemyShip.isSunk) {
+                // Use fixed delta time for sinking animation to match player ship sinking speed
+                enemyShip.update(SINKING_DELTA, time);
+            } else {
+                // Update AI behavior for non-sunk ships
+                this.updateEnemyAI(enemyShip, delta);
+                
+                // Update ship physics and animation with normal delta
+                enemyShip.update(delta, time);
+            }
         });
         
         // Clean up old shipwrecks (after 5 minutes)

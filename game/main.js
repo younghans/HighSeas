@@ -926,8 +926,15 @@ function animate() {
         // Store previous movement state to detect when ship stops
         const wasMoving = ship.isMoving;
         
-        // Update ship
-        ship.update(delta, elapsedTime);
+        // For sinking ships, use a fixed delta time to ensure consistent animation speed
+        // across both local and networked ships
+        if (ship.isSunk) {
+            // Use a fixed delta time of 1/60th of a second (60fps)
+            ship.update(1/60, elapsedTime);
+        } else {
+            // For normal movement, use the regular delta time
+            ship.update(delta, elapsedTime);
+        }
         
         // If ship was moving but has now stopped, sync final position with Firebase
         if (wasMoving && !ship.isMoving && multiplayerManager) {
@@ -1101,6 +1108,21 @@ function initMultiplayer() {
                     }
                     
                     return wasSunk;
+                };
+
+                // Override ship's sink method to immediately sync with Firebase
+                const originalSink = ship.sink;
+                ship.sink = function() {
+                    // Call original method
+                    originalSink.call(this);
+                    
+                    // Sync with Firebase immediately to propagate sinking animation to other players
+                    if (multiplayerManager) {
+                        console.log('Syncing sunk status with multiplayer');
+                        multiplayerManager.updatePlayerHealth(ship);
+                        // Also update position since y position changes during sinking
+                        multiplayerManager.updatePlayerPosition(ship);
+                    }
                 };
             } else {
                 console.error('Failed to initialize multiplayer');

@@ -115,13 +115,42 @@ class BaseShip {
         if (this.isSunk) {
             // Add sinking animation if ship is sunk
             if (this.shipMesh) {
-                // Gradually sink the ship
-                if (this.shipMesh.position.y > -2.5) {
-                    this.shipMesh.position.y -= 0.2 * delta;
-                    this.shipMesh.rotation.z += 0.1 * delta;
+                // Use fixed sinking speed constants to ensure consistent animation
+                // regardless of delta time variations between local and network players
+                const SINK_SPEED = 0.2;      // Units per second the ship sinks
+                const TILT_SPEED = 0.1;      // Radians per second the ship tilts
+                const MAX_SINK_DEPTH = -2.5; // Maximum depth the ship sinks to
+                
+                // Check if we have custom sinking animation parameters
+                if (this.shipMesh.userData.sinkStartTime) {
+                    const now = Date.now();
+                    const elapsed = now - this.shipMesh.userData.sinkStartTime;
+                    const progress = Math.min(1, elapsed / this.shipMesh.userData.sinkDuration);
+                    
+                    // Calculate smooth rotation with easing
+                    if (progress < 1) {
+                        // Use cubic easing for a more natural rotation
+                        const easeOutProgress = 1 - Math.pow(1 - progress, 3);
+                        
+                        // Interpolate between initial and target rotation
+                        const initialRotation = this.shipMesh.userData.initialRotationZ;
+                        const targetRotation = this.shipMesh.userData.targetRotationZ;
+                        this.shipMesh.rotation.z = initialRotation + (targetRotation - initialRotation) * easeOutProgress;
+                        
+                        // Sync internal rotation with mesh rotation
+                        this.rotation.z = this.shipMesh.rotation.z;
+                    }
+                } else {
+                    // Fallback to simple tilt if no custom parameters
+                    this.shipMesh.rotation.z += TILT_SPEED * delta;
                     
                     // Sync internal rotation with mesh rotation
                     this.rotation.z = this.shipMesh.rotation.z;
+                }
+                
+                // Gradually sink the ship
+                if (this.shipMesh.position.y > MAX_SINK_DEPTH) {
+                    this.shipMesh.position.y -= SINK_SPEED * delta;
                 }
             }
             return;
@@ -313,7 +342,15 @@ class BaseShip {
             }
         }
         
-        // Convert to shipwreck
+        // Prepare sinking animation parameters
+        if (this.shipMesh) {
+            this.shipMesh.userData.sinkStartTime = Date.now();
+            this.shipMesh.userData.initialRotationZ = this.shipMesh.rotation.z || 0;
+            this.shipMesh.userData.targetRotationZ = Math.PI * 0.4; // Target rotation for sinking
+            this.shipMesh.userData.sinkDuration = 3000; // 3 seconds to complete rotation
+        }
+        
+        // Convert to shipwreck (but don't apply immediate rotation, let animation handle it)
         this.convertToShipwreck();
         
         // Trigger any sink-specific behavior
@@ -504,6 +541,13 @@ class BaseShip {
             console.error('Cannot recreate ship: createShip method not found');
         }
         
+        // Sync with multiplayer if this is the player's ship
+        if (!this.isEnemy && window.multiplayerManager) {
+            console.log('Syncing respawn with multiplayer');
+            window.multiplayerManager.updatePlayerPosition(this);
+            window.multiplayerManager.updatePlayerHealth(this);
+        }
+        
         console.log('Ship respawn complete');
         return this;
     }
@@ -515,11 +559,7 @@ class BaseShip {
     convertToShipwreck() {
         // If the ship mesh exists, modify it to look like a shipwreck
         if (this.shipMesh) {
-            // Rotate the ship to make it look capsized
-            this.shipMesh.rotation.z = Math.PI * 0.4; // More pronounced tilt
-            
-            // Sync internal rotation with mesh rotation
-            this.rotation.z = this.shipMesh.rotation.z;
+            // Don't apply immediate rotation, let the animation handle it gradually
             
             // Adjust position to keep more of the ship visible above water
             this.shipMesh.position.y -= 0.2; // Less submerged than before

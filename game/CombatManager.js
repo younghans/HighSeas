@@ -591,6 +591,9 @@ class CombatManager {
      * @param {number} delta - Time delta since last frame
      */
     update(delta) {
+        // Fixed delta time for sinking animations
+        const SINKING_DELTA = 1/60; // Fixed 60fps delta time
+        
         // Skip if no scene
         if (!this.scene) return;
         
@@ -913,6 +916,15 @@ class CombatManager {
         console.log('Respawning player ship locally');
         // Use the new respawn method instead of just resetting health
         this.playerShip.respawn(new THREE.Vector3(0, 0.5, 0));
+        
+        // Synchronize the respawn with multiplayer if available
+        if (window.multiplayerManager) {
+            console.log('Synchronizing ship respawn with multiplayer');
+            // Force an immediate position update to the respawn point
+            window.multiplayerManager.updatePlayerPosition(this.playerShip);
+            // Force health update to full
+            window.multiplayerManager.updatePlayerHealth(this.playerShip);
+        }
         
         // Reset flag
         this.isResetting = false;

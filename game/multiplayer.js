@@ -242,6 +242,9 @@ class MultiplayerManager {
                 y: 0, // Force destination y to always be 0
                 z: playerShip.targetPosition.z
             } : null,
+            // Include sink status to synchronize sinking animation
+            isSunk: playerShip.isSunk, 
+            health: playerShip.currentHealth,
             lastUpdated: firebase.database.ServerValue.TIMESTAMP
         };
         
@@ -251,7 +254,9 @@ class MultiplayerManager {
         const syncType = playerShip.targetPosition ? 'position and destination' : 'position';
         this.debug(`Synced player ${syncType} to server:`, {
             position: updateData.position,
-            destination: updateData.destination
+            destination: updateData.destination,
+            isSunk: updateData.isSunk,
+            health: updateData.health
         });
     }
     
@@ -418,11 +423,94 @@ class MultiplayerManager {
         
         this.debug(`Updating ship for player: ${playerData.displayName} (${playerData.id})`, {
             position: playerData.position,
-            destination: playerData.destination
+            destination: playerData.destination,
+            health: playerData.health,
+            isSunk: playerData.isSunk
         });
         
         // Get the ship object
         const shipObject = otherPlayerShip.getObject();
+        
+        // Update health and sunk status
+        if (playerData.health !== undefined) {
+            otherPlayerShip.currentHealth = playerData.health;
+            
+            // Update health bar if one exists
+            if (otherPlayerShip.updateHealthBar && otherPlayerShip.healthBarContainer) {
+                otherPlayerShip.updateHealthBar();
+            }
+        }
+        
+        // Handle sunk status
+        if (playerData.isSunk !== undefined) {
+            // If ship has just been sunk, start sinking animation
+            if (playerData.isSunk && !otherPlayerShip.isSunk) {
+                this.debug(`Player ship was sunk: ${playerData.displayName}`);
+                
+                // Ensure the ship is at the correct position before starting sinking animation
+                if (playerData.position) {
+                    // Position the ship at water level before sinking
+                    shipObject.position.set(
+                        playerData.position.x,
+                        0, // Water level
+                        playerData.position.z
+                    );
+                    
+                    // Update the internal position
+                    otherPlayerShip.position.copy(shipObject.position);
+                    
+                    // Reset any existing z-rotation to start animation from a clean state
+                    shipObject.userData.sinkStartTime = Date.now();
+                    shipObject.userData.initialRotationZ = shipObject.rotation.z || 0;
+                    shipObject.userData.targetRotationZ = Math.PI * 0.4; // Target rotation for sinking
+                    shipObject.userData.sinkDuration = 3000; // 3 seconds to complete rotation
+                }
+                
+                // Mark as sunk to start sinking animation
+                otherPlayerShip.isSunk = true;
+            } 
+            // If ship has respawned from being sunk
+            else if (!playerData.isSunk && otherPlayerShip.isSunk) {
+                this.debug(`Player ship respawned: ${playerData.displayName}`);
+                // Stop any ongoing sinking animation and reset
+                otherPlayerShip.isSunk = false;
+                
+                // Clear any sinking animation parameters
+                if (shipObject.userData) {
+                    delete shipObject.userData.sinkStartTime;
+                    delete shipObject.userData.initialRotationZ;
+                    delete shipObject.userData.targetRotationZ;
+                    delete shipObject.userData.sinkDuration;
+                }
+                
+                // Reset ship position and rotation
+                if (playerData.position) {
+                    shipObject.position.set(
+                        playerData.position.x,
+                        0, // Ensure y is 0
+                        playerData.position.z
+                    );
+                    
+                    // Also update the ship's internal position
+                    otherPlayerShip.position.copy(shipObject.position);
+                }
+                
+                // Reset ship rotation completely
+                if (shipObject.rotation) {
+                    shipObject.rotation.set(0, playerData.rotation?.y || 0, 0);
+                    otherPlayerShip.rotation.set(0, playerData.rotation?.y || 0, 0);
+                }
+            }
+        }
+        
+        // Don't update position if ship is sunk - let sinking animation continue
+        if (otherPlayerShip.isSunk) {
+            // Clear destination to stop movement
+            otherPlayerShip.userData.destination = null;
+            otherPlayerShip.targetPosition = null;
+            otherPlayerShip.isMoving = false;
+            return;
+        }
         
         // Update last known position
         otherPlayerShip.userData.lastPosition = new THREE.Vector3(
@@ -509,6 +597,9 @@ class MultiplayerManager {
      * @param {number} delta - Time since last update in seconds
      */
     update(delta) {
+        // Use a fixed delta for sinking animation to ensure consistent speed with player ship
+        const SINKING_DELTA = 1/60; // Fixed 60fps delta time
+        
         // Update each other player's ship
         this.otherPlayerShips.forEach((otherPlayerShip, playerId) => {
             const playerData = this.otherPlayers.get(playerId);
@@ -519,6 +610,30 @@ class MultiplayerManager {
             const shipObject = otherPlayerShip.getObject();
             if (!shipObject) return;
             
+            // Always update the ship's sink status from the player data
+            if (playerData.isSunk !== undefined && otherPlayerShip.isSunk !== playerData.isSunk) {
+                otherPlayerShip.isSunk = playerData.isSunk;
+                
+                // If the ship just sank, reset its position to match the player data
+                // This ensures consistent starting point for the sinking animation
+                if (playerData.isSunk && playerData.position) {
+                    shipObject.position.set(
+                        playerData.position.x,
+                        0, // Start at water level before sinking
+                        playerData.position.z
+                    );
+                    otherPlayerShip.position.copy(shipObject.position);
+                }
+            }
+            
+            // If ship is sunk, only handle the sinking animation and don't try to move it
+            if (otherPlayerShip.isSunk) {
+                // Use fixed delta time for sinking animation to match player ship sinking speed
+                otherPlayerShip.update(SINKING_DELTA, performance.now() * 0.001);
+                return;
+            }
+            
+            // For non-sunk ships, use the provided delta time for normal movement
             // If the ship has a destination, let the ship's update method handle movement
             if (otherPlayerShip.userData.destination) {
                 // If we don't have a target position set yet, set it
