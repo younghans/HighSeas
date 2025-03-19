@@ -437,3 +437,53 @@ function calculateDistance(pos1, pos2) {
     const dz = pos1.z - pos2.z;
     return Math.sqrt(dx * dx + dy * dy + dz * dz);
 }
+
+/**
+ * Scheduled function to clean up old shipwrecks
+ * Runs hourly to remove shipwrecks that are:
+ * - Looted and older than 1 hour
+ * - Unlooted but older than 24 hours (abandoned)
+ */
+exports.cleanupOldShipwrecks = functions.pubsub.schedule('every 60 minutes').onRun(async (context) => {
+    console.log('Running scheduled shipwreck cleanup');
+    
+    try {
+        // Get all shipwrecks
+        const shipwrecksRef = admin.database().ref('shipwrecks');
+        const shipwrecksSnapshot = await shipwrecksRef.once('value');
+        const shipwrecks = shipwrecksSnapshot.val() || {};
+        
+        const now = Date.now();
+        const ONE_HOUR = 60 * 60 * 1000;
+        const ONE_DAY = 24 * ONE_HOUR;
+        
+        const deletions = [];
+        
+        // Check each shipwreck
+        for (const [id, shipwreck] of Object.entries(shipwrecks)) {
+            // If shipwreck was looted more than 1 hour ago, delete it
+            if (shipwreck.looted && shipwreck.lootedAt && (now - shipwreck.lootedAt > ONE_HOUR)) {
+                console.log(`Deleting looted shipwreck ${id} (looted ${Math.round((now - shipwreck.lootedAt) / (60 * 1000))} minutes ago)`);
+                deletions.push(shipwrecksRef.child(id).remove());
+            }
+            // If shipwreck is over 24 hours old and unlooted (abandoned), delete it
+            else if (shipwreck.createdAt && (now - shipwreck.createdAt > ONE_DAY) && !shipwreck.looted) {
+                console.log(`Deleting old unlooted shipwreck ${id} (created ${Math.round((now - shipwreck.createdAt) / ONE_HOUR)} hours ago)`);
+                deletions.push(shipwrecksRef.child(id).remove());
+            }
+        }
+        
+        // Wait for all deletions to complete
+        if (deletions.length > 0) {
+            await Promise.all(deletions);
+            console.log(`Cleanup complete. Removed ${deletions.length} old shipwrecks`);
+        } else {
+            console.log('No shipwrecks needed cleanup');
+        }
+        
+        return null;
+    } catch (error) {
+        console.error('Error cleaning up shipwrecks:', error);
+        return null;
+    }
+});

@@ -9,3 +9,4 @@ const combatFunctions = require('./combat');
 exports.processCombatAction = combatFunctions.processCombatAction;
 exports.lootShipwreck = combatFunctions.lootShipwreck;
 exports.resetPlayerShip = combatFunctions.resetPlayerShip;
+exports.cleanupOldShipwrecks = combatFunctions.cleanupOldShipwrecks;
