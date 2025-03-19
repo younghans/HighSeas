@@ -206,7 +206,8 @@ class EnemyShipManager {
             },
             shipType: shipType, // Save ship type so other clients know what model to use
             createdAt: Date.now(),
-            looted: false
+            looted: false,
+            createdByClient: true  // Flag to indicate this was created locally first
         };
         
         // Add detailed debug logs to diagnose the issue
@@ -228,6 +229,13 @@ class EnemyShipManager {
                 }
             }
         }
+        
+        // Flag to track if this shipwreck has been created in Firebase
+        // This will help us avoid duplicates when the data is loaded back from Firebase
+        if (!this.locallyCreatedShipwreckIds) {
+            this.locallyCreatedShipwreckIds = new Set();
+        }
+        this.locallyCreatedShipwreckIds.add(shipwreckId);
         
         // Save to Firebase if available
         if (this.combatService && window.firebase && window.auth) {
@@ -275,7 +283,8 @@ class EnemyShipManager {
             id: shipwreckId, // Use the same ID as in Firebase
             shipType: shipType, // Store ship type for reference
             createdAt: Date.now(),
-            looted: false
+            looted: false,
+            isLocallyCreated: true // Flag to indicate this was created locally
         });
     }
     
@@ -313,6 +322,8 @@ class EnemyShipManager {
      * @param {Object} shipwreck - The shipwreck to remove
      */
     removeShipwreck(shipwreck) {
+        console.log(`Removing shipwreck: ${shipwreck.id}, looted: ${shipwreck.looted}`);
+        
         // Find index of shipwreck
         const index = this.shipwrecks.findIndex(wreck => wreck.id === shipwreck.id);
         
@@ -320,6 +331,7 @@ class EnemyShipManager {
         if (index !== -1) {
             // Remove treasure indicator if it exists
             if (shipwreck.ship && shipwreck.ship.treasureIndicator) {
+                console.log(`Removing treasure indicator for shipwreck: ${shipwreck.id}`);
                 this.scene.remove(shipwreck.ship.treasureIndicator);
                 
                 // Remove from animation list if it exists
@@ -329,6 +341,29 @@ class EnemyShipManager {
                         this.scene.userData.treasureIndicators.splice(index, 1);
                     }
                 }
+                
+                // Dispose of resources
+                if (shipwreck.ship.treasureIndicator.children) {
+                    shipwreck.ship.treasureIndicator.children.forEach(child => {
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material.forEach(mat => mat.dispose());
+                            } else {
+                                child.material.dispose();
+                            }
+                        }
+                    });
+                }
+                
+                shipwreck.ship.treasureIndicator = null;
+            }
+            
+            // Clean up bubble effects if they exist
+            if (shipwreck.bubbles) {
+                console.log(`Removing bubble effect for shipwreck: ${shipwreck.id}`);
+                this.removeBubbleEffect(shipwreck.bubbles);
+                shipwreck.bubbles = null;
             }
             
             // Clean up wake particles if they exist
@@ -345,8 +380,37 @@ class EnemyShipManager {
             
             // Remove mesh from scene
             if (shipwreck.ship && shipwreck.ship.shipMesh) {
+                console.log(`Removing shipwreck mesh from scene: ${shipwreck.id}`);
                 this.scene.remove(shipwreck.ship.shipMesh);
+                
+                // Dispose of geometries and materials
+                if (shipwreck.ship.shipMesh.traverse) {
+                    shipwreck.ship.shipMesh.traverse(child => {
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material.forEach(mat => mat.dispose());
+                            } else {
+                                child.material.dispose();
+                            }
+                        }
+                    });
+                }
             }
+            
+            // Remove references in scene userData
+            if (this.scene.userData.shipwreckObjects) {
+                const objectIndex = this.scene.userData.shipwreckObjects.findIndex(
+                    obj => obj.userData && obj.userData.shipwreckId === shipwreck.id
+                );
+                if (objectIndex !== -1) {
+                    this.scene.userData.shipwreckObjects.splice(objectIndex, 1);
+                }
+            }
+            
+            console.log(`Successfully removed shipwreck: ${shipwreck.id}`);
+        } else {
+            console.warn(`Could not find shipwreck with ID: ${shipwreck.id} to remove`);
         }
     }
     
@@ -728,14 +792,25 @@ class EnemyShipManager {
      * @param {Object} shipwreck - The shipwreck to sink
      */
     startShipwreckSinkingAnimation(shipwreck) {
-        if (!shipwreck.ship || !shipwreck.ship.shipMesh) return;
+        if (!shipwreck.ship || !shipwreck.ship.shipMesh) {
+            console.warn('Cannot start sinking animation: shipwreck has no valid ship mesh');
+            return;
+        }
+        
+        // Skip if already sinking
+        if (shipwreck.sinking) {
+            console.log(`Shipwreck ${shipwreck.id} is already sinking, not starting another animation`);
+            return;
+        }
+        
+        console.log(`Starting sinking animation for shipwreck: ${shipwreck.id}`);
         
         // Mark shipwreck as sinking
         shipwreck.sinking = true;
         shipwreck.sinkStartTime = Date.now();
         shipwreck.originalY = shipwreck.ship.shipMesh.position.y;
-        shipwreck.sinkDuration = 10000; // 30 seconds to sink
-        shipwreck.targetY = -2; // Sink 10 units below water
+        shipwreck.sinkDuration = 10000; // 10 seconds to sink
+        shipwreck.targetY = -20; // Sink 20 units below water
         
         // Create bubble effect
         shipwreck.bubbles = this.createBubbleEffect(shipwreck.ship.shipMesh.position);
@@ -762,6 +837,7 @@ class EnemyShipManager {
                         
                         // Skip invalid wrecks
                         if (!wreck || !wreck.sinking || !wreck.ship || !wreck.ship.shipMesh) {
+                            console.log('Removing invalid shipwreck from sinking list');
                             this.sinkingShipwrecks.splice(i, 1);
                             continue;
                         }
@@ -778,6 +854,7 @@ class EnemyShipManager {
                         
                         // Add some rotation as it sinks
                         wreck.ship.shipMesh.rotation.z += 0.002;
+                        wreck.ship.shipMesh.rotation.x += 0.001 * Math.sin(elapsed * 0.001); // Add slight rocking
                         
                         // Update bubble effect
                         if (wreck.bubbles) {
@@ -786,6 +863,8 @@ class EnemyShipManager {
                         
                         // Check if sinking is complete
                         if (progress >= 1) {
+                            console.log(`Shipwreck ${wreck.id} sinking animation complete`);
+                            
                             // Remove bubbles
                             if (wreck.bubbles) {
                                 this.removeBubbleEffect(wreck.bubbles);
@@ -795,8 +874,9 @@ class EnemyShipManager {
                             // Remove from sinking list
                             this.sinkingShipwrecks.splice(i, 1);
                             
-                            // Schedule actual removal
+                            // Schedule actual removal with a small delay
                             setTimeout(() => {
+                                console.log(`Removing shipwreck ${wreck.id} from scene`);
                                 this.removeShipwreck(wreck);
                             }, 1000);
                         } else {
@@ -809,12 +889,14 @@ class EnemyShipManager {
                 if (activeSinking) {
                     this.scene.userData.shipwreckSinkingAnimationId = requestAnimationFrame(animateSinkingShipwrecks);
                 } else {
+                    console.log('All shipwreck sinking animations complete, stopping animation loop');
                     cancelAnimationFrame(this.scene.userData.shipwreckSinkingAnimationId);
                     this.scene.userData.shipwreckSinkingAnimationId = null;
                 }
             };
             
             // Start animation loop
+            console.log('Starting shipwreck sinking animation loop');
             this.scene.userData.shipwreckSinkingAnimationId = requestAnimationFrame(animateSinkingShipwrecks);
         }
     }
@@ -1304,17 +1386,43 @@ class EnemyShipManager {
             
             // Process each shipwreck from Firebase
             for (const [id, fbShipwreck] of Object.entries(fbShipwrecks)) {
-                // Skip already looted shipwrecks
-                if (fbShipwreck.looted) continue;
-                
                 // Check if we already have this shipwreck locally
                 const existingIndex = this.shipwrecks.findIndex(sw => sw.id === id);
                 
                 if (existingIndex === -1) {
+                    // Check if this was locally created (avoid duplicate)
+                    const wasLocallyCreated = this.locallyCreatedShipwreckIds && 
+                                              this.locallyCreatedShipwreckIds.has(id);
+                    
+                    if (wasLocallyCreated) {
+                        console.log(`Shipwreck ${id} was created locally, skipping Firebase creation`);
+                        continue;
+                    }
+                    
+                    // Skip already looted shipwrecks unless they were recently looted (last 30 seconds)
+                    const wasRecentlyLooted = fbShipwreck.looted && 
+                                             fbShipwreck.lootedAt && 
+                                             (Date.now() - fbShipwreck.lootedAt < 30000);
+                    
+                    // If it's an old looted shipwreck, skip creating it
+                    if (fbShipwreck.looted && !wasRecentlyLooted) {
+                        console.log(`Skipping already looted shipwreck: ${id}`);
+                        continue;
+                    }
+                    
                     console.log(`Adding new shipwreck from Firebase: ${id}`);
                     
                     // Create a new shipwreck in the local scene
                     this.createShipwreckFromFirebase(id, fbShipwreck);
+                    
+                    // If it was recently looted, start the sinking animation
+                    if (wasRecentlyLooted) {
+                        console.log(`Shipwreck ${id} was recently looted, starting sinking animation`);
+                        const shipwreck = this.shipwrecks.find(sw => sw.id === id);
+                        if (shipwreck) {
+                            this.startShipwreckSinkingAnimation(shipwreck);
+                        }
+                    }
                 } else {
                     // Update existing shipwreck if needed
                     const localShipwreck = this.shipwrecks[existingIndex];
@@ -1323,6 +1431,8 @@ class EnemyShipManager {
                     if (fbShipwreck.looted && !localShipwreck.looted) {
                         console.log(`Shipwreck ${id} was looted by another player`);
                         localShipwreck.looted = true;
+                        localShipwreck.lootedAt = fbShipwreck.lootedAt;
+                        localShipwreck.lootedBy = fbShipwreck.lootedBy;
                         
                         // Start the sinking animation if ship reference exists
                         if (localShipwreck.ship) {
@@ -1341,6 +1451,7 @@ class EnemyShipManager {
                                 localShipwreck.ship.treasureIndicator = null;
                             }
                             
+                            // Start sinking animation
                             this.startShipwreckSinkingAnimation(localShipwreck);
                         }
                     }
@@ -1351,11 +1462,64 @@ class EnemyShipManager {
             // (shouldn't happen but just in case)
             const localOnly = [...localShipwreckIds].filter(id => !firebaseShipwreckIds.has(id));
             for (const id of localOnly) {
+                // Skip very recently created local shipwrecks that might not have
+                // been synchronized to Firebase yet
+                const shipwreck = this.shipwrecks.find(sw => sw.id === id);
+                if (shipwreck && shipwreck.isLocallyCreated && 
+                    Date.now() - shipwreck.createdAt < 5000) {
+                    console.log(`Keeping recently created local shipwreck ${id} (waiting for Firebase sync)`);
+                    continue;
+                }
+                
                 console.log(`Local shipwreck ${id} does not exist in Firebase, removing`);
                 const indexToRemove = this.shipwrecks.findIndex(sw => sw.id === id);
                 if (indexToRemove !== -1) {
                     const shipwreckToRemove = this.shipwrecks[indexToRemove];
                     this.removeShipwreck(shipwreckToRemove);
+                }
+            }
+        });
+        
+        // Listen for specific shipwreck changes (for real-time updates)
+        shipwrecksRef.on('child_changed', (snapshot) => {
+            const fbShipwreck = snapshot.val();
+            const id = snapshot.key;
+            
+            if (!fbShipwreck) return;
+            
+            console.log(`Shipwreck ${id} updated in Firebase:`, fbShipwreck);
+            
+            // Find the shipwreck locally
+            const localShipwreckIndex = this.shipwrecks.findIndex(sw => sw.id === id);
+            
+            // If we have this shipwreck locally
+            if (localShipwreckIndex !== -1) {
+                const localShipwreck = this.shipwrecks[localShipwreckIndex];
+                
+                // If the shipwreck was newly looted, update local state and start sinking
+                if (fbShipwreck.looted && !localShipwreck.looted) {
+                    console.log(`Shipwreck ${id} was just looted by another player, starting sinking animation`);
+                    localShipwreck.looted = true;
+                    localShipwreck.lootedAt = fbShipwreck.lootedAt;
+                    localShipwreck.lootedBy = fbShipwreck.lootedBy;
+                    
+                    // Remove treasure indicator if it exists
+                    if (localShipwreck.ship && localShipwreck.ship.treasureIndicator) {
+                        this.scene.remove(localShipwreck.ship.treasureIndicator);
+                        
+                        // Also remove from animation list if it exists
+                        if (this.scene.userData.treasureIndicators) {
+                            const index = this.scene.userData.treasureIndicators.indexOf(localShipwreck.ship.treasureIndicator);
+                            if (index !== -1) {
+                                this.scene.userData.treasureIndicators.splice(index, 1);
+                            }
+                        }
+                        
+                        localShipwreck.ship.treasureIndicator = null;
+                    }
+                    
+                    // Start sinking animation
+                    this.startShipwreckSinkingAnimation(localShipwreck);
                 }
             }
         });
@@ -1369,7 +1533,7 @@ class EnemyShipManager {
     createShipwreckFromFirebase(id, fbShipwreck) {
         // Get ship type from Firebase
         const shipType = fbShipwreck.shipType || 'sloop';
-        console.log(`Creating shipwreck from Firebase with ship type: ${shipType}`);
+        console.log(`Creating shipwreck from Firebase with ship type: ${shipType}, looted: ${fbShipwreck.looted}`);
         
         // Create an actual Sloop instance but don't add it to enemy ships
         const tempShip = new Sloop(this.scene, {
@@ -1436,6 +1600,7 @@ class EnemyShipManager {
             shipMesh.userData.isEnemyShip = false;
             shipMesh.userData.shipwreckId = id;
             shipMesh.userData.shipType = shipType;
+            shipMesh.userData.looted = fbShipwreck.looted || false;
             
             // Store reference in scene userData for additional cleanup
             if (!this.scene.userData.shipwreckObjects) {
@@ -1444,19 +1609,28 @@ class EnemyShipManager {
             this.scene.userData.shipwreckObjects.push(shipMesh);
         }
         
-        // Add treasure indicator
-        this.addTreasureIndicatorToShip(dummyShip);
-        
-        // Add to shipwrecks array
-        this.shipwrecks.push({
+        // Create the shipwreck object to add to our shipwrecks array
+        const shipwreckObj = {
             ship: dummyShip,
             loot: fbShipwreck.loot || { gold: 50 + Math.random() * 100, items: [] },
             position: position,
             id: id,
             shipType: shipType, // Store ship type for reference
             createdAt: fbShipwreck.createdAt || Date.now(),
-            looted: false
-        });
+            looted: fbShipwreck.looted || false, // Set looted status from Firebase
+            lootedAt: fbShipwreck.lootedAt || null,
+            lootedBy: fbShipwreck.lootedBy || null
+        };
+        
+        // Add treasure indicator only if not looted
+        if (!shipwreckObj.looted) {
+            this.addTreasureIndicatorToShip(dummyShip);
+        }
+        
+        // Add to shipwrecks array
+        this.shipwrecks.push(shipwreckObj);
+        
+        return shipwreckObj;
     }
     
     /**
