@@ -7,11 +7,10 @@ import Sloop from './Sloop.js';
 class EnemyShipManager {
     /**
      * Create a new EnemyShipManager
-     * @param {THREE.Scene} scene - The scene to add enemy ships to
      * @param {Object} options - Configuration options
      */
-    constructor(scene, options = {}) {
-        this.scene = scene;
+    constructor(options = {}) {
+        this.scene = options.scene || null;
         this.enemyShips = [];
         this.shipwrecks = [];
         this.playerShip = options.playerShip || null;
@@ -23,6 +22,11 @@ class EnemyShipManager {
         this.aggroRange = options.aggroRange || 150;
         this.lootableRange = options.lootableRange || 20;
         this.combatManager = options.combatManager || null;
+        this.combatService = options.combatService || null;
+        this.enemyShipOptions = options.enemyShipOptions || {};
+        
+        // For synchronization between clients, add shipwrecks debouncing
+        this.shipwreckSyncDebounceTimer = null;
         
         // Bind methods
         this.update = this.update.bind(this);
@@ -44,7 +48,7 @@ class EnemyShipManager {
     }
     
     /**
-     * Spawn a new enemy ship at a random position
+     * Spawn a new enemy ship
      * @returns {BaseShip} The spawned enemy ship
      */
     spawnEnemyShip() {
@@ -82,6 +86,10 @@ class EnemyShipManager {
             );
         }
         
+        // Get a random ship type 
+        const shipOptions = this.getRandomEnemyShipOptions();
+        const shipType = shipOptions.type || 'sloop';
+        
         // Create enemy ship
         const enemyShip = new Sloop(this.scene, {
             position: position,
@@ -91,8 +99,12 @@ class EnemyShipManager {
             isEnemy: true,
             maxHealth: 80 + Math.floor(Math.random() * 40), // Random health between 80-120
             cannonDamage: { min: 5, max: 20 },
-            cannonCooldown: 3000 // 3 seconds between shots (adjust as needed)
+            cannonCooldown: 3000, // 3 seconds between shots (adjust as needed)
+            type: shipType // Set the ship type for shipwreck creation later
         });
+        
+        // Explicitly set the type property on the ship object
+        enemyShip.type = shipType;
         
         // Tag the ship object with userData for easier identification and cleanup
         const shipObject = enemyShip.getObject();
@@ -153,8 +165,8 @@ class EnemyShipManager {
      * @param {BaseShip} enemyShip - The enemy ship that sank
      */
     handleEnemyShipSink(enemyShip) {
-        // Convert to shipwreck
-        this.convertToShipwreck(enemyShip);
+        // Register the shipwreck in the manager
+        this.registerShipwreck(enemyShip);
         
         // Remove from enemy ships array but keep the shipwreck visible
         // We'll only remove it from the enemyShips array, not from the scene
@@ -165,25 +177,88 @@ class EnemyShipManager {
     }
     
     /**
-     * Convert enemy ship to shipwreck
-     * @param {BaseShip} enemyShip - The enemy ship to convert
+     * Register enemy ship as a shipwreck and setup loot
+     * @param {BaseShip} enemyShip - The enemy ship to register as a shipwreck
      */
-    convertToShipwreck(enemyShip) {
+    registerShipwreck(enemyShip) {
+        // Create a unique ID for the shipwreck
+        const shipwreckId = 'wreck-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+        
         // Create loot for the shipwreck
         const loot = {
             gold: Math.floor(50 + Math.random() * 100),
             items: []
         };
         
+        // Get position data
+        const position = enemyShip.getPosition().clone();
+        
+        // Get ship type information for accurate reconstruction on other clients
+        const shipType = enemyShip.type || 'sloop'; // Default to sloop if type not specified
+        
+        // Create shipwreck data for Firebase
+        const shipwreckData = {
+            loot: loot,
+            position: {
+                x: position.x,
+                y: position.y,
+                z: position.z
+            },
+            shipType: shipType, // Save ship type so other clients know what model to use
+            createdAt: Date.now(),
+            looted: false
+        };
+        
+        // Add detailed debug logs to diagnose the issue
+        console.log('Debug - registerShipwreck:');
+        console.log('- this.combatService exists:', !!this.combatService);
+        console.log('- window.firebase exists:', !!window.firebase);
+        console.log('- window.auth exists:', !!window.auth);
+        console.log('- window.auth.currentUser exists:', !!(window.auth && window.auth.currentUser));
+        console.log('- storing shipType:', shipType);
+        
+        if (window.firebase) {
+            console.log('- firebase.database exists:', !!window.firebase.database);
+            if (window.firebase.database) {
+                try {
+                    const dbRef = window.firebase.database().ref();
+                    console.log('- firebase.database().ref works:', !!dbRef);
+                } catch (err) {
+                    console.log('- Error accessing database ref:', err.message);
+                }
+            }
+        }
+        
+        // Save to Firebase if available
+        if (this.combatService && window.firebase && window.auth) {
+            try {
+                console.log('Saving shipwreck to Firebase:', shipwreckId);
+                console.log('Auth state:', window.auth.currentUser ? 'Logged in' : 'Not logged in');
+                
+                const shipwreckRef = window.firebase.database().ref(`shipwrecks/${shipwreckId}`);
+                shipwreckRef.set(shipwreckData)
+                    .then(() => console.log('Shipwreck saved to Firebase'))
+                    .catch(error => console.error('Error saving shipwreck to Firebase:', error));
+            } catch (error) {
+                console.error('Error accessing Firebase:', error);
+            }
+        } else {
+            console.warn('Firebase not available, shipwreck will only exist locally');
+            if (!this.combatService) console.warn('- Missing combatService');
+            if (!window.firebase) console.warn('- Missing window.firebase');
+            if (!window.auth) console.warn('- Missing window.auth');
+        }
+        
         // Get the ship object
         const shipObject = enemyShip.getObject();
         
         // Update userData to mark as shipwreck
         if (shipObject) {
-            shipObject.name = `shipwreck-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+            shipObject.name = `shipwreck-${shipwreckId}`;
             shipObject.userData.isShipwreck = true;
             shipObject.userData.isEnemyShip = false; // No longer an enemy ship
-            shipObject.userData.shipwreckId = Date.now();
+            shipObject.userData.shipwreckId = shipwreckId; // Use the same ID as in Firebase
+            shipObject.userData.shipType = shipType; // Store ship type for reference
             
             // Store reference in scene userData for additional cleanup
             if (!this.scene.userData.shipwreckObjects) {
@@ -192,12 +267,13 @@ class EnemyShipManager {
             this.scene.userData.shipwreckObjects.push(shipObject);
         }
         
-        // Add shipwreck to array
+        // Add shipwreck to local array
         this.shipwrecks.push({
             ship: enemyShip,
             loot: loot,
-            position: enemyShip.getPosition().clone(),
-            id: 'wreck-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+            position: position,
+            id: shipwreckId, // Use the same ID as in Firebase
+            shipType: shipType, // Store ship type for reference
             createdAt: Date.now(),
             looted: false
         });
@@ -280,9 +356,6 @@ class EnemyShipManager {
      * @param {number} time - Current time
      */
     update(delta, time) {
-        // Fixed delta time for sinking animations to ensure consistency
-        const SINKING_DELTA = 1/60; // Fixed 60fps delta time
-        
         // Check if we need to spawn new enemy ships
         const now = Date.now();
         if (now - this.lastSpawnTime > this.spawnInterval && this.enemyShips.length < this.maxEnemyShips) {
@@ -291,17 +364,14 @@ class EnemyShipManager {
         
         // Update each enemy ship
         this.enemyShips.forEach(enemyShip => {
-            // Use different update approach based on sinking state
-            if (enemyShip.isSunk) {
-                // Use fixed delta time for sinking animation to match player ship sinking speed
-                enemyShip.update(SINKING_DELTA, time);
-            } else {
-                // Update AI behavior for non-sunk ships
-                this.updateEnemyAI(enemyShip, delta);
-                
-                // Update ship physics and animation with normal delta
-                enemyShip.update(delta, time);
-            }
+            // Skip if sunk
+            if (enemyShip.isSunk) return;
+            
+            // Update AI behavior
+            this.updateEnemyAI(enemyShip, delta);
+            
+            // Update ship physics and animation
+            enemyShip.update(delta, time);
         });
         
         // Clean up old shipwrecks (after 5 minutes)
@@ -528,38 +598,129 @@ class EnemyShipManager {
     /**
      * Loot a shipwreck
      * @param {Object} shipwreck - The shipwreck to loot
-     * @returns {Object} The loot from the shipwreck
+     * @returns {Promise<Object>} The loot from the shipwreck
      */
-    lootShipwreck(shipwreck) {
-        // Mark as looted
-        shipwreck.looted = true;
-        
-        // Get loot
-        const loot = { ...shipwreck.loot };
-        
-        // Create a gold particle effect at the shipwreck position
-        this.createLootEffect(shipwreck.position);
-        
-        // Remove treasure indicator if it exists
-        if (shipwreck.ship && shipwreck.ship.treasureIndicator) {
-            this.scene.remove(shipwreck.ship.treasureIndicator);
-            
-            // Remove from animation list if it exists
-            if (this.scene.userData.treasureIndicators) {
-                const index = this.scene.userData.treasureIndicators.indexOf(shipwreck.ship.treasureIndicator);
-                if (index !== -1) {
-                    this.scene.userData.treasureIndicators.splice(index, 1);
+    async lootShipwreck(shipwreck) {
+        // First check if combat service is available
+        if (this.combatService) {
+            try {
+                console.log('Looting shipwreck via CombatService:', shipwreck.id);
+                
+                // Debug log the player's position
+                const playerPosition = this.playerShip ? this.playerShip.getPosition() : null;
+                console.log('Player position when looting:', playerPosition);
+                
+                // Update player position in Firebase before looting
+                if (window.firebase && window.auth && window.auth.currentUser && this.playerShip) {
+                    try {
+                        const playerPos = this.playerShip.getPosition();
+                        const uid = window.auth.currentUser.uid;
+                        
+                        console.log('Updating player position in Firebase before looting:', {
+                            uid,
+                            position: {
+                                x: playerPos.x,
+                                y: playerPos.y,
+                                z: playerPos.z
+                            }
+                        });
+                        
+                        // Update player position in Firebase
+                        await window.firebase.database().ref(`players/${uid}/position`).set({
+                            x: playerPos.x,
+                            y: playerPos.y,
+                            z: playerPos.z
+                        });
+                        
+                        console.log('Player position updated in Firebase');
+                    } catch (error) {
+                        console.error('Error updating player position in Firebase:', error);
+                    }
                 }
+                
+                // Debug log the shipwreck position
+                console.log('Shipwreck position:', shipwreck.position);
+                
+                // Calculate distance between player and shipwreck
+                if (this.playerShip && shipwreck.position) {
+                    const playerPos = this.playerShip.getPosition();
+                    const distance = playerPos.distanceTo(shipwreck.position);
+                    console.log('Distance to shipwreck:', distance, 'Lootable range:', this.lootableRange);
+                }
+                
+                // Call the server-side function to loot the shipwreck
+                const result = await this.combatService.lootShipwreck(shipwreck.id);
+                
+                if (result.success) {
+                    console.log('Successfully looted shipwreck via server:', result);
+                    
+                    // Mark as looted locally
+                    shipwreck.looted = true;
+                    
+                    // Remove the treasure indicator if it exists
+                    if (shipwreck.ship && shipwreck.ship.treasureIndicator) {
+                        this.scene.remove(shipwreck.ship.treasureIndicator);
+                        
+                        // Also remove from the scene's treasure indicators array if it exists
+                        if (this.scene.userData.treasureIndicators) {
+                            const index = this.scene.userData.treasureIndicators.indexOf(shipwreck.ship.treasureIndicator);
+                            if (index !== -1) {
+                                this.scene.userData.treasureIndicators.splice(index, 1);
+                            }
+                        }
+                        
+                        shipwreck.ship.treasureIndicator = null;
+                    }
+                    
+                    // Create a gold particle effect at the shipwreck position
+                    this.createLootEffect(shipwreck.position);
+                    
+                    // Start sinking animation instead of immediately scheduling removal
+                    this.startShipwreckSinkingAnimation(shipwreck);
+                    
+                    // Return the loot received from the server
+                    return result.loot;
+                } else {
+                    console.error('Failed to loot shipwreck:', result.error);
+                    throw new Error(result.error || 'Failed to loot shipwreck');
+                }
+            } catch (error) {
+                console.error('Error looting shipwreck via CombatService:', error);
+                throw error;
+            }
+        } else {
+            // Fallback to local looting if combat service is unavailable
+            console.warn('CombatService unavailable, looting shipwreck locally');
+            
+            // Mark as looted
+            shipwreck.looted = true;
+            
+            // Get loot
+            const loot = { ...shipwreck.loot };
+            
+            // Create a gold particle effect at the shipwreck position
+            this.createLootEffect(shipwreck.position);
+            
+            // Remove the treasure indicator if it exists
+            if (shipwreck.ship && shipwreck.ship.treasureIndicator) {
+                this.scene.remove(shipwreck.ship.treasureIndicator);
+                
+                // Also remove from the scene's treasure indicators array if it exists
+                if (this.scene.userData.treasureIndicators) {
+                    const index = this.scene.userData.treasureIndicators.indexOf(shipwreck.ship.treasureIndicator);
+                    if (index !== -1) {
+                        this.scene.userData.treasureIndicators.splice(index, 1);
+                    }
+                }
+                
+                shipwreck.ship.treasureIndicator = null;
             }
             
-            // Clear reference
-            shipwreck.ship.treasureIndicator = null;
+            // Start sinking animation instead of immediately scheduling removal
+            this.startShipwreckSinkingAnimation(shipwreck);
+            
+            return loot;
         }
-        
-        // Start sinking animation instead of immediately scheduling removal
-        this.startShipwreckSinkingAnimation(shipwreck);
-        
-        return loot;
     }
     
     /**
@@ -1114,6 +1275,345 @@ class EnemyShipManager {
                 combatManager.initializeEnemyShip(ship);
             }
         }
+    }
+    
+    /**
+     * Load shipwrecks from Firebase to ensure all clients see the same shipwrecks
+     * Called at game initialization and when shipwrecks are updated
+     */
+    loadShipwrecksFromFirebase() {
+        // Skip if Firebase is not available
+        if (!window.firebase || !window.auth || !window.auth.currentUser) {
+            console.warn('Firebase not available, cannot load shipwrecks from server');
+            return;
+        }
+        
+        console.log('Loading shipwrecks from Firebase');
+        
+        // Get reference to shipwrecks in Firebase
+        const shipwrecksRef = window.firebase.database().ref('shipwrecks');
+        
+        // Listen for shipwrecks
+        shipwrecksRef.on('value', (snapshot) => {
+            const fbShipwrecks = snapshot.val() || {};
+            console.log('Received shipwrecks from Firebase:', Object.keys(fbShipwrecks).length);
+            
+            // Store shipwreck IDs that exist in Firebase
+            const firebaseShipwreckIds = new Set(Object.keys(fbShipwrecks));
+            const localShipwreckIds = new Set(this.shipwrecks.map(sw => sw.id));
+            
+            // Process each shipwreck from Firebase
+            for (const [id, fbShipwreck] of Object.entries(fbShipwrecks)) {
+                // Skip already looted shipwrecks
+                if (fbShipwreck.looted) continue;
+                
+                // Check if we already have this shipwreck locally
+                const existingIndex = this.shipwrecks.findIndex(sw => sw.id === id);
+                
+                if (existingIndex === -1) {
+                    console.log(`Adding new shipwreck from Firebase: ${id}`);
+                    
+                    // Create a new shipwreck in the local scene
+                    this.createShipwreckFromFirebase(id, fbShipwreck);
+                } else {
+                    // Update existing shipwreck if needed
+                    const localShipwreck = this.shipwrecks[existingIndex];
+                    
+                    // If the shipwreck is now looted in Firebase but not locally, update local state
+                    if (fbShipwreck.looted && !localShipwreck.looted) {
+                        console.log(`Shipwreck ${id} was looted by another player`);
+                        localShipwreck.looted = true;
+                        
+                        // Start the sinking animation if ship reference exists
+                        if (localShipwreck.ship) {
+                            // Remove treasure indicator if it exists
+                            if (localShipwreck.ship.treasureIndicator) {
+                                this.scene.remove(localShipwreck.ship.treasureIndicator);
+                                
+                                // Also remove from animation list if it exists
+                                if (this.scene.userData.treasureIndicators) {
+                                    const index = this.scene.userData.treasureIndicators.indexOf(localShipwreck.ship.treasureIndicator);
+                                    if (index !== -1) {
+                                        this.scene.userData.treasureIndicators.splice(index, 1);
+                                    }
+                                }
+                                
+                                localShipwreck.ship.treasureIndicator = null;
+                            }
+                            
+                            this.startShipwreckSinkingAnimation(localShipwreck);
+                        }
+                    }
+                }
+            }
+            
+            // Find shipwrecks in our local array that don't exist in Firebase
+            // (shouldn't happen but just in case)
+            const localOnly = [...localShipwreckIds].filter(id => !firebaseShipwreckIds.has(id));
+            for (const id of localOnly) {
+                console.log(`Local shipwreck ${id} does not exist in Firebase, removing`);
+                const indexToRemove = this.shipwrecks.findIndex(sw => sw.id === id);
+                if (indexToRemove !== -1) {
+                    const shipwreckToRemove = this.shipwrecks[indexToRemove];
+                    this.removeShipwreck(shipwreckToRemove);
+                }
+            }
+        });
+    }
+    
+    /**
+     * Create a shipwreck in the scene from Firebase data
+     * @param {string} id - The shipwreck ID
+     * @param {Object} fbShipwreck - The shipwreck data from Firebase
+     */
+    createShipwreckFromFirebase(id, fbShipwreck) {
+        // Get ship type from Firebase
+        const shipType = fbShipwreck.shipType || 'sloop';
+        console.log(`Creating shipwreck from Firebase with ship type: ${shipType}`);
+        
+        // Create an actual Sloop instance but don't add it to enemy ships
+        const tempShip = new Sloop(this.scene, {
+            position: new THREE.Vector3(
+                fbShipwreck.position.x,
+                fbShipwreck.position.y,
+                fbShipwreck.position.z
+            ),
+            // Use damaged/wrecked appearance
+            hullColor: 0x8B4513, // Brown
+            type: shipType
+        });
+        
+        // Get the ship mesh
+        const shipMesh = tempShip.getObject();
+        
+        // Store the position for easier access
+        const position = new THREE.Vector3(
+            fbShipwreck.position.x,
+            fbShipwreck.position.y,
+            fbShipwreck.position.z
+        );
+        
+        // Create a dummy ship object that will be used for the shipwreck
+        const dummyShip = {
+            getPosition: () => position.clone(),
+            getObject: () => shipMesh,
+            shipMesh: shipMesh,
+            type: shipType
+        };
+        
+        // Position the ship
+        shipMesh.position.copy(position);
+        
+        // Apply shipwreck appearance
+        shipMesh.rotation.z = Math.PI * 0.4; // Capsized rotation
+        
+        // If the ship has materials, modify them to look damaged
+        if (shipMesh.material) {
+            shipMesh.material.color.multiplyScalar(0.7);
+            shipMesh.material.color.r = Math.min(1, shipMesh.material.color.r * 1.5);
+        } else if (shipMesh.children) {
+            shipMesh.children.forEach(child => {
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(mat => {
+                            if (mat.color) {
+                                mat.color.multiplyScalar(0.7);
+                                mat.color.r = Math.min(1, mat.color.r * 1.5);
+                            }
+                        });
+                    } else if (child.material.color) {
+                        child.material.color.multiplyScalar(0.7);
+                        child.material.color.r = Math.min(1, child.material.color.r * 1.5);
+                    }
+                }
+            });
+        }
+        
+        // Update userData to mark as shipwreck
+        if (shipMesh) {
+            shipMesh.name = `shipwreck-${id}`;
+            shipMesh.userData.isShipwreck = true;
+            shipMesh.userData.isEnemyShip = false;
+            shipMesh.userData.shipwreckId = id;
+            shipMesh.userData.shipType = shipType;
+            
+            // Store reference in scene userData for additional cleanup
+            if (!this.scene.userData.shipwreckObjects) {
+                this.scene.userData.shipwreckObjects = [];
+            }
+            this.scene.userData.shipwreckObjects.push(shipMesh);
+        }
+        
+        // Add treasure indicator
+        this.addTreasureIndicatorToShip(dummyShip);
+        
+        // Add to shipwrecks array
+        this.shipwrecks.push({
+            ship: dummyShip,
+            loot: fbShipwreck.loot || { gold: 50 + Math.random() * 100, items: [] },
+            position: position,
+            id: id,
+            shipType: shipType, // Store ship type for reference
+            createdAt: fbShipwreck.createdAt || Date.now(),
+            looted: false
+        });
+    }
+    
+    /**
+     * Get ship options by type
+     * @param {string} shipType - The type of ship to find options for
+     * @returns {Object} Ship options for the requested type
+     */
+    getShipOptionsByType(shipType) {
+        // Define some basic ship types if enemyShipOptions isn't set up
+        const defaultOptions = [
+            {
+                type: 'sloop',
+                createShipMesh: () => {
+                    const geometry = new THREE.BoxGeometry(5, 2, 12);
+                    const material = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
+                    return new THREE.Mesh(geometry, material);
+                }
+            },
+            {
+                type: 'schooner',
+                createShipMesh: () => {
+                    const geometry = new THREE.BoxGeometry(6, 2, 14);
+                    const material = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
+                    return new THREE.Mesh(geometry, material);
+                }
+            }
+        ];
+        
+        // Use provided enemy ship options or default ones
+        const options = this.enemyShipOptions.shipTypes || defaultOptions;
+        
+        // Find the matching ship type
+        const matchingOption = options.find(option => option.type === shipType);
+        
+        // Return the matching option or a default if not found
+        return matchingOption || options[0];
+    }
+    
+    /**
+     * Get random enemy ship options
+     * @returns {Object} Random enemy ship options
+     */
+    getRandomEnemyShipOptions() {
+        // Define some basic ship types if enemyShipOptions isn't set up
+        const defaultOptions = [
+            {
+                type: 'sloop',
+                createShipMesh: () => {
+                    const geometry = new THREE.BoxGeometry(5, 2, 12);
+                    const material = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
+                    return new THREE.Mesh(geometry, material);
+                }
+            },
+            {
+                type: 'schooner',
+                createShipMesh: () => {
+                    const geometry = new THREE.BoxGeometry(6, 2, 14);
+                    const material = new THREE.MeshBasicMaterial({ color: 0x8B4513 });
+                    return new THREE.Mesh(geometry, material);
+                }
+            }
+        ];
+        
+        // Use provided enemy ship options or default ones
+        const options = this.enemyShipOptions.shipTypes || defaultOptions;
+        
+        // Pick a random ship type
+        const randomIndex = Math.floor(Math.random() * options.length);
+        return options[randomIndex];
+    }
+    
+    /**
+     * Add a treasure indicator to a ship
+     * @param {Object} ship - The ship to add the treasure indicator to
+     */
+    addTreasureIndicatorToShip(ship) {
+        if (!this.scene || !ship.shipMesh) return;
+        
+        // Create a treasure chest with a more distinctive appearance
+        const chestGeometry = new THREE.BoxGeometry(1.5, 1, 1);
+        const chestMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); // Gold color
+        const treasureChest = new THREE.Mesh(chestGeometry, chestMaterial);
+        
+        // Add a glow effect by creating a slightly larger, semi-transparent box
+        const glowGeometry = new THREE.BoxGeometry(1.8, 1.3, 1.3);
+        const glowMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xFFFF00, 
+            transparent: true, 
+            opacity: 0.3 
+        });
+        const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+        treasureChest.add(glowMesh);
+        
+        // Position above the shipwreck
+        treasureChest.position.copy(ship.shipMesh.position);
+        treasureChest.position.y = 4; // Float above the ship for better visibility
+        
+        // Add animation data
+        treasureChest.userData = {
+            baseY: treasureChest.position.y,
+            phase: Math.random() * Math.PI * 2, // Random starting phase
+            bobSpeed: 1 + Math.random() * 0.5,  // Random bob speed
+            bobHeight: 0.5 + Math.random() * 0.3 // Increased bob height for visibility
+        };
+        
+        // Create a "LOOT" text label
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = 128;
+        canvas.height = 64;
+        context.fillStyle = 'rgba(0, 0, 0, 0)';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw text
+        context.font = 'bold 32px Arial';
+        context.textAlign = 'center';
+        context.fillStyle = 'gold';
+        context.strokeStyle = 'black';
+        context.lineWidth = 4;
+        context.strokeText('LOOT', canvas.width / 2, canvas.height / 2);
+        context.fillText('LOOT', canvas.width / 2, canvas.height / 2);
+        
+        // Create texture and sprite
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.SpriteMaterial({ 
+            map: texture,
+            transparent: true,
+            opacity: 0.9,
+            depthTest: false
+        });
+        const textSprite = new THREE.Sprite(material);
+        textSprite.scale.set(4, 2, 1);
+        textSprite.position.y = 1.5;
+        treasureChest.add(textSprite);
+        
+        // Add to scene
+        this.scene.add(treasureChest);
+        
+        // Add to treasure indicators array for animation
+        if (!this.scene.userData.treasureIndicators) {
+            this.scene.userData.treasureIndicators = [];
+        }
+        this.scene.userData.treasureIndicators.push(treasureChest);
+        
+        // Store reference in ship
+        ship.treasureIndicator = treasureChest;
+    }
+    
+    /**
+     * Initialize the manager with Firebase listeners for multiplayer
+     * Call this after Firebase and authentication are initialized
+     */
+    initializeWithFirebase() {
+        console.log('Initializing EnemyShipManager with Firebase');
+        
+        // Load shipwrecks from Firebase for multiplayer synchronization
+        this.loadShipwrecksFromFirebase();
     }
 }
 

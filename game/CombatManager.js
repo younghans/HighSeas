@@ -591,9 +591,6 @@ class CombatManager {
      * @param {number} delta - Time delta since last frame
      */
     update(delta) {
-        // Fixed delta time for sinking animations
-        const SINKING_DELTA = 1/60; // Fixed 60fps delta time
-        
         // Skip if no scene
         if (!this.scene) return;
         
@@ -624,6 +621,19 @@ class CombatManager {
                     // Hide health bar if at full health and not targeting
                     this.playerShip.setHealthBarVisible(false);
                 }
+            }
+        }
+        
+        // We no longer need to check for player ship sinking here, as it's handled via schedulePlayerRespawn
+        // However, we still need to handle the target being sunk
+        
+        // Update current target if it exists
+        if (this.currentTarget) {
+            // If target is sunk, clear target
+            if (this.currentTarget.isSunk) {
+                // Clean up debug arrows before clearing target
+                this.cleanupDebugArrows();
+                this.setTarget(null);
             }
         }
         
@@ -747,47 +757,6 @@ class CombatManager {
             const index = this.cannonballs.indexOf(cannonball);
             if (index !== -1) {
                 this.cannonballs.splice(index, 1);
-            }
-        }
-        
-        // Check if player ship is sunk
-        if (this.playerShip && this.playerShip.isSunk) {
-            // If we have a target and the player ship is sunk, clear the target immediately
-            if (this.currentTarget) {
-                // Clean up debug arrows before clearing target
-                this.cleanupDebugArrows();
-                this.setTarget(null);
-            }
-            
-            // Ensure player health bar is hidden when sunk
-            if (this.playerShip.healthBarContainer) {
-                this.playerShip.setHealthBarVisible(false);
-                
-                // Force visibility to false directly as well
-                this.playerShip.healthBarContainer.visible = false;
-                
-                // If using HTML/CSS health bars, also update DOM style
-                if (this.playerShip.healthBarContainer.style) {
-                    this.playerShip.healthBarContainer.style.display = 'none';
-                }
-            }
-            
-            // Reset player ship after a delay if not already resetting
-            if (!this.isResetting) {
-                this.isResetting = true;
-                setTimeout(() => {
-                    this.resetPlayerShip();
-                }, 3000); // 3 second delay
-            }
-        }
-        
-        // Update current target if it exists
-        if (this.currentTarget) {
-            // If target is sunk, clear target
-            if (this.currentTarget.isSunk) {
-                // Clean up debug arrows before clearing target
-                this.cleanupDebugArrows();
-                this.setTarget(null);
             }
         }
         
@@ -916,15 +885,6 @@ class CombatManager {
         console.log('Respawning player ship locally');
         // Use the new respawn method instead of just resetting health
         this.playerShip.respawn(new THREE.Vector3(0, 0.5, 0));
-        
-        // Synchronize the respawn with multiplayer if available
-        if (window.multiplayerManager) {
-            console.log('Synchronizing ship respawn with multiplayer');
-            // Force an immediate position update to the respawn point
-            window.multiplayerManager.updatePlayerPosition(this.playerShip);
-            // Force health update to full
-            window.multiplayerManager.updatePlayerHealth(this.playerShip);
-        }
         
         // Reset flag
         this.isResetting = false;
@@ -1096,6 +1056,21 @@ class CombatManager {
         if (enemyShip && !enemyShip.healthBarContainer) {
             enemyShip.createHealthBar();
         }
+    }
+    
+    /**
+     * Schedule player respawn after sinking
+     * Called by the BaseShip when capsizing animation completes
+     */
+    schedulePlayerRespawn() {
+        // Skip if already resetting
+        if (this.isResetting) return;
+        
+        console.log('Player capsizing animation complete, respawning immediately');
+        this.isResetting = true;
+        
+        // Immediately reset the player ship without delay
+        this.resetPlayerShip();
     }
 }
 

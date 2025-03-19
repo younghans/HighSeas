@@ -113,15 +113,8 @@ class CombatService {
         }
         
         if (!this.functions) {
-            console.warn('Firebase Functions not available, using local looting logic');
-            // Return a mock success response
-            return { 
-                success: true,
-                loot: {
-                    gold: Math.floor(50 + Math.random() * 100),
-                    items: []
-                }
-            };
+            console.error('Firebase Functions not available');
+            return { success: false, error: 'Firebase Functions not available' };
         }
         
         try {

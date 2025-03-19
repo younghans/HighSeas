@@ -22,6 +22,9 @@ let authStateListeners = [];
 // Initialize auth
 const auth = firebase.auth();
 
+// Expose auth to window for global access
+window.auth = auth;
+
 // Google auth provider
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 

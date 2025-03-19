@@ -113,46 +113,7 @@ class BaseShip {
     update(delta, time) {
         // Don't move if sunk
         if (this.isSunk) {
-            // Add sinking animation if ship is sunk
-            if (this.shipMesh) {
-                // Use fixed sinking speed constants to ensure consistent animation
-                // regardless of delta time variations between local and network players
-                const SINK_SPEED = 0.2;      // Units per second the ship sinks
-                const TILT_SPEED = 0.1;      // Radians per second the ship tilts
-                const MAX_SINK_DEPTH = -2.5; // Maximum depth the ship sinks to
-                
-                // Check if we have custom sinking animation parameters
-                if (this.shipMesh.userData.sinkStartTime) {
-                    const now = Date.now();
-                    const elapsed = now - this.shipMesh.userData.sinkStartTime;
-                    const progress = Math.min(1, elapsed / this.shipMesh.userData.sinkDuration);
-                    
-                    // Calculate smooth rotation with easing
-                    if (progress < 1) {
-                        // Use cubic easing for a more natural rotation
-                        const easeOutProgress = 1 - Math.pow(1 - progress, 3);
-                        
-                        // Interpolate between initial and target rotation
-                        const initialRotation = this.shipMesh.userData.initialRotationZ;
-                        const targetRotation = this.shipMesh.userData.targetRotationZ;
-                        this.shipMesh.rotation.z = initialRotation + (targetRotation - initialRotation) * easeOutProgress;
-                        
-                        // Sync internal rotation with mesh rotation
-                        this.rotation.z = this.shipMesh.rotation.z;
-                    }
-                } else {
-                    // Fallback to simple tilt if no custom parameters
-                    this.shipMesh.rotation.z += TILT_SPEED * delta;
-                    
-                    // Sync internal rotation with mesh rotation
-                    this.rotation.z = this.shipMesh.rotation.z;
-                }
-                
-                // Gradually sink the ship
-                if (this.shipMesh.position.y > MAX_SINK_DEPTH) {
-                    this.shipMesh.position.y -= SINK_SPEED * delta;
-                }
-            }
+            // We no longer need this animation here since we have the convertToShipwreck animation
             return;
         }
         
@@ -342,15 +303,7 @@ class BaseShip {
             }
         }
         
-        // Prepare sinking animation parameters
-        if (this.shipMesh) {
-            this.shipMesh.userData.sinkStartTime = Date.now();
-            this.shipMesh.userData.initialRotationZ = this.shipMesh.rotation.z || 0;
-            this.shipMesh.userData.targetRotationZ = Math.PI * 0.4; // Target rotation for sinking
-            this.shipMesh.userData.sinkDuration = 3000; // 3 seconds to complete rotation
-        }
-        
-        // Convert to shipwreck (but don't apply immediate rotation, let animation handle it)
+        // Convert to shipwreck
         this.convertToShipwreck();
         
         // Trigger any sink-specific behavior
@@ -541,13 +494,6 @@ class BaseShip {
             console.error('Cannot recreate ship: createShip method not found');
         }
         
-        // Sync with multiplayer if this is the player's ship
-        if (!this.isEnemy && window.multiplayerManager) {
-            console.log('Syncing respawn with multiplayer');
-            window.multiplayerManager.updatePlayerPosition(this);
-            window.multiplayerManager.updatePlayerHealth(this);
-        }
-        
         console.log('Ship respawn complete');
         return this;
     }
@@ -559,50 +505,130 @@ class BaseShip {
     convertToShipwreck() {
         // If the ship mesh exists, modify it to look like a shipwreck
         if (this.shipMesh) {
-            // Don't apply immediate rotation, let the animation handle it gradually
+            // Store original rotation
+            const originalRotationZ = this.shipMesh.rotation.z;
+            const targetRotationZ = Math.PI * 0.4; // Target capsized rotation
             
-            // Adjust position to keep more of the ship visible above water
-            this.shipMesh.position.y -= 0.2; // Less submerged than before
+            // Store original position
+            const originalPositionY = this.shipMesh.position.y;
+            const targetPositionY = originalPositionY - 0.2; // Target position adjustment
             
-            // Sync internal position with mesh position
-            this.position.y = this.shipMesh.position.y;
+            // Store original material colors before modifying them
+            const originalMaterials = this.captureOriginalMaterials();
             
-            // If the ship has materials, modify them to look damaged but still visible
-            if (this.shipMesh.material) {
-                // For a single material
-                this.shipMesh.material.color.multiplyScalar(0.7); // Less darkening
-                // Add some red tint to indicate damage
-                this.shipMesh.material.color.r = Math.min(1, this.shipMesh.material.color.r * 1.5);
-            } else if (this.shipMesh.children) {
-                // For multiple materials/meshes
-                this.shipMesh.children.forEach(child => {
-                    if (child.material) {
-                        if (Array.isArray(child.material)) {
-                            // Handle array of materials
-                            child.material.forEach(mat => {
-                                if (mat.color) {
-                                    mat.color.multiplyScalar(0.7); // Less darkening
-                                    // Add some red tint to indicate damage
-                                    mat.color.r = Math.min(1, mat.color.r * 1.5);
-                                }
-                            });
-                        } else {
-                            // Handle single material
-                            if (child.material.color) {
-                                child.material.color.multiplyScalar(0.7); // Less darkening
-                                // Add some red tint to indicate damage
-                                child.material.color.r = Math.min(1, child.material.color.r * 1.5);
+            // Animation parameters
+            const animationDuration = 5000; // 5 seconds
+            const startTime = Date.now();
+            
+            // Start animation
+            const animateCapsizing = () => {
+                const elapsedTime = Date.now() - startTime;
+                const progress = Math.min(1, elapsedTime / animationDuration);
+                
+                // Cubic ease-out for more natural motion
+                const easedProgress = 1 - Math.pow(1 - progress, 3);
+                
+                // Update rotation
+                this.shipMesh.rotation.z = originalRotationZ + (targetRotationZ - originalRotationZ) * easedProgress;
+                
+                // Sync internal rotation with mesh rotation
+                this.rotation.z = this.shipMesh.rotation.z;
+                
+                // Update position
+                this.shipMesh.position.y = originalPositionY + (targetPositionY - originalPositionY) * easedProgress;
+                
+                // Sync internal position with mesh position
+                this.position.y = this.shipMesh.position.y;
+                
+                // Gradually update material colors based on the same progress
+                this.updateMaterialColors(originalMaterials, easedProgress);
+                
+                // Continue animation if not complete
+                if (progress < 1) {
+                    requestAnimationFrame(animateCapsizing);
+                } else {
+                    // If this is the player ship, notify CombatManager to schedule respawn
+                    // This happens before adding the treasure indicator
+                    if (!this.isEnemy && window.combatManager) {
+                        // Signal combat manager to start respawn timer
+                        window.combatManager.schedulePlayerRespawn();
+                    }
+                    
+                    // Add treasure indicator once fully capsized
+                    this.addTreasureIndicator();
+                    
+                    console.log('Ship converted to shipwreck');
+                }
+            };
+            
+            // Start the animation
+            animateCapsizing();
+        }
+    }
+    
+    /**
+     * Capture original material colors before modifying them
+     * @returns {Array} Array of original material data
+     */
+    captureOriginalMaterials() {
+        const originalMaterials = [];
+        
+        // Handle single material
+        if (this.shipMesh.material) {
+            originalMaterials.push({
+                material: this.shipMesh.material,
+                originalColor: this.shipMesh.material.color.clone()
+            });
+        } 
+        // Handle multiple materials across child meshes
+        else if (this.shipMesh.children) {
+            this.shipMesh.children.forEach(child => {
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        // Handle array of materials
+                        child.material.forEach(mat => {
+                            if (mat && mat.color) {
+                                originalMaterials.push({
+                                    material: mat,
+                                    originalColor: mat.color.clone()
+                                });
                             }
+                        });
+                    } else {
+                        // Handle single material
+                        if (child.material.color) {
+                            originalMaterials.push({
+                                material: child.material,
+                                originalColor: child.material.color.clone()
+                            });
                         }
                     }
-                });
-            }
-            
-            // Add a treasure indicator above the shipwreck
-            this.addTreasureIndicator();
-            
-            console.log('Ship converted to shipwreck');
+                }
+            });
         }
+        
+        return originalMaterials;
+    }
+    
+    /**
+     * Update material colors based on animation progress
+     * @param {Array} originalMaterials - Array of original material data
+     * @param {number} progress - Animation progress (0-1)
+     */
+    updateMaterialColors(originalMaterials, progress) {
+        originalMaterials.forEach(item => {
+            const { material, originalColor } = item;
+            
+            // Calculate target damaged color (same formula as previously used)
+            const targetColor = originalColor.clone();
+            targetColor.multiplyScalar(0.7); // Darkening factor
+            targetColor.r = Math.min(1, targetColor.r * 1.5); // Red tint
+            
+            // Interpolate between original and target color
+            material.color.r = originalColor.r + (targetColor.r - originalColor.r) * progress;
+            material.color.g = originalColor.g + (targetColor.g - originalColor.g) * progress;
+            material.color.b = originalColor.b + (targetColor.b - originalColor.b) * progress;
+        });
     }
     
     /**

@@ -378,6 +378,7 @@ function startGameWithShip() {
     // Create ship with custom speed but don't position it yet
     // The position will be set by the multiplayer system
     ship = new Sloop(scene, { 
+        speed: 50,
         // Set a default position that will be overridden by multiplayer
         position: new THREE.Vector3(0, 0, 0),
         // Add combat properties
@@ -497,18 +498,53 @@ function startGameWithShip() {
         multiplayerManager: multiplayerManager
     });
     
-    // Initialize EnemyShipManager
-    enemyShipManager = new EnemyShipManager(scene, {
-        playerShip: ship,
-        maxEnemyShips: 5,
-        worldSize: 2000,
-        aggroRange: 150
-    });
+    // Initialize CombatService first if Firebase is available
+    if (typeof firebase !== 'undefined') {
+        try {
+            console.log('Initializing CombatService with Firebase');
+            console.log('Firebase availability check:', {
+                firebase: !!firebase,
+                database: !!(firebase && firebase.database),
+                auth: !!(firebase && firebase.auth),
+                functions: !!(firebase && firebase.functions)
+            });
+            
+            // Expose a debug function globally to check Firebase status
+            window.debugFirebase = () => {
+                console.log('Firebase Debug Status:');
+                console.log('- firebase exists:', !!window.firebase);
+                console.log('- auth exists:', !!(window.auth));
+                console.log('- currentUser exists:', !!(window.auth && window.auth.currentUser));
+                console.log('- database exists:', !!(window.firebase && window.firebase.database));
+                console.log('- functions exists:', !!(window.firebase && window.firebase.functions));
+                
+                if (window.auth && window.auth.currentUser) {
+                    console.log('- user ID:', window.auth.currentUser.uid);
+                }
+                
+                return 'Firebase debug complete - see console for details';
+            };
+            
+            combatService = new CombatService({
+                firebase: firebase,
+                auth: Auth
+            });
+            console.log('CombatService initialized successfully');
+        } catch (error) {
+            console.error('Error initializing CombatService:', error);
+            combatService = null;
+        }
+    } else {
+        console.warn('Firebase is not available, combat server validation will be disabled');
+        console.log('Window object contains firebase?', 'firebase' in window);
+        combatService = null;
+    }
     
-    // Initialize CombatManager
+    // Now initialize managers in the correct order
+    
+    // Initialize CombatManager first (without enemy ships yet)
     combatManager = new CombatManager({
         playerShip: ship,
-        enemyShipManager: enemyShipManager,
         ui: gameUI,
         scene: scene,
         camera: camera
@@ -516,6 +552,29 @@ function startGameWithShip() {
     
     // Make combatManager globally accessible for BaseShip class
     window.combatManager = combatManager;
+    
+    // Connect combat service to combat manager if available
+    if (combatService && combatManager) {
+        console.log('Connecting CombatService to CombatManager');
+        combatManager.setCombatService(combatService);
+    }
+    
+    // Initialize EnemyShipManager with the now-initialized combatService
+    enemyShipManager = new EnemyShipManager({
+        scene: scene,
+        playerShip: ship,
+        maxEnemyShips: 5,
+        spawnRadius: 800,
+        worldSize: 2000,
+        aggroRange: 150,
+        combatManager: combatManager,
+        combatService: combatService // Now combatService is properly initialized
+    });
+    
+    // Update CombatManager with enemy ship manager reference
+    if (combatManager && enemyShipManager) {
+        combatManager.setEnemyShipManager(enemyShipManager);
+    }
     
     // Make sure no target is selected at game start
     if (combatManager && gameUI) {
@@ -527,27 +586,8 @@ function startGameWithShip() {
     }
     
     // Connect EnemyShipManager to CombatManager
-    enemyShipManager.setCombatManager(combatManager);
-    
-    // Initialize CombatService if Firebase is available
-    if (typeof firebase !== 'undefined') {
-        try {
-            console.log('Initializing CombatService with Firebase');
-            combatService = new CombatService({
-                firebase: firebase,
-                auth: Auth
-            });
-            
-            // Connect combat service to combat manager
-            if (combatManager) {
-                console.log('Connecting CombatService to CombatManager');
-                combatManager.setCombatService(combatService);
-            }
-        } catch (error) {
-            console.error('Error initializing CombatService:', error);
-        }
-    } else {
-        console.warn('Firebase is not available, combat server validation will be disabled');
+    if (enemyShipManager && combatManager) {
+        enemyShipManager.setCombatManager(combatManager);
     }
     
     // Update info panel with combat instructions
@@ -846,20 +886,28 @@ function onMouseClick(event) {
                     const distance = playerPosition.distanceTo(clickedShipwreck.position);
                     
                     if (distance <= enemyShipManager.lootableRange) {
-                        // Shipwreck is in range, loot it
-                        const loot = enemyShipManager.lootShipwreck(clickedShipwreck);
-                        
-                        // Show loot notification
-                        if (gameUI) {
-                            // Show a more prominent notification with gold amount
-                            gameUI.showNotification(`TREASURE FOUND! +${loot.gold} gold`, 5000, 'success');
-                            console.log('Looted shipwreck:', loot);
-                        }
-                        
-                        // Update player inventory if multiplayer is enabled
-                        if (multiplayerManager) {
-                            multiplayerManager.updatePlayerInventory(loot);
-                        }
+                        // Shipwreck is in range, loot it (now async)
+                        enemyShipManager.lootShipwreck(clickedShipwreck)
+                            .then(loot => {
+                                // Show loot notification
+                                if (gameUI) {
+                                    // Show a more prominent notification with gold amount
+                                    gameUI.showNotification(`TREASURE FOUND! +${loot.gold} gold`, 5000, 'success');
+                                    console.log('Looted shipwreck:', loot);
+                                }
+                                
+                                // Update player inventory if multiplayer is enabled
+                                if (multiplayerManager) {
+                                    multiplayerManager.updatePlayerInventory(loot);
+                                }
+                            })
+                            .catch(error => {
+                                // Handle looting errors
+                                if (gameUI) {
+                                    gameUI.showNotification(`Failed to loot: ${error.message}`, 3000, 'error');
+                                }
+                                console.error('Error looting shipwreck:', error);
+                            });
                         
                         return; // Click was handled
                     } else {
@@ -926,15 +974,8 @@ function animate() {
         // Store previous movement state to detect when ship stops
         const wasMoving = ship.isMoving;
         
-        // For sinking ships, use a fixed delta time to ensure consistent animation speed
-        // across both local and networked ships
-        if (ship.isSunk) {
-            // Use a fixed delta time of 1/60th of a second (60fps)
-            ship.update(1/60, elapsedTime);
-        } else {
-            // For normal movement, use the regular delta time
-            ship.update(delta, elapsedTime);
-        }
+        // Update ship
+        ship.update(delta, elapsedTime);
         
         // If ship was moving but has now stopped, sync final position with Firebase
         if (wasMoving && !ship.isMoving && multiplayerManager) {
@@ -1084,6 +1125,12 @@ function initMultiplayer() {
             if (success) {
                 console.log('Multiplayer initialized successfully');
                 
+                // Initialize the EnemyShipManager with Firebase for multiplayer synchronization
+                if (enemyShipManager && typeof enemyShipManager.initializeWithFirebase === 'function') {
+                    console.log('Initializing EnemyShipManager multiplayer features');
+                    enemyShipManager.initializeWithFirebase();
+                }
+                
                 // Override ship's moveTo method to sync with Firebase
                 const originalMoveTo = ship.moveTo;
                 ship.moveTo = function(targetPos) {
@@ -1108,21 +1155,6 @@ function initMultiplayer() {
                     }
                     
                     return wasSunk;
-                };
-
-                // Override ship's sink method to immediately sync with Firebase
-                const originalSink = ship.sink;
-                ship.sink = function() {
-                    // Call original method
-                    originalSink.call(this);
-                    
-                    // Sync with Firebase immediately to propagate sinking animation to other players
-                    if (multiplayerManager) {
-                        console.log('Syncing sunk status with multiplayer');
-                        multiplayerManager.updatePlayerHealth(ship);
-                        // Also update position since y position changes during sinking
-                        multiplayerManager.updatePlayerPosition(ship);
-                    }
                 };
             } else {
                 console.error('Failed to initialize multiplayer');

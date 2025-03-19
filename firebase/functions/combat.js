@@ -195,6 +195,7 @@ exports.processCombatAction = functions.https.onCall(async (data, context) => {
 exports.lootShipwreck = functions.https.onCall(async (data, context) => {
     // Ensure user is authenticated
     if (!context.auth) {
+        console.error('Authentication error: User not authenticated');
         throw new functions.https.HttpsError(
             'unauthenticated',
             'You must be logged in to loot shipwrecks'
@@ -203,17 +204,21 @@ exports.lootShipwreck = functions.https.onCall(async (data, context) => {
     
     // Get user ID
     const uid = context.auth.uid;
+    console.log(`Processing loot request for user: ${uid}`);
     
     // Get required parameters
     const { shipwreckId } = data;
     
     // Validate parameters
     if (!shipwreckId) {
+        console.error('Invalid argument: Missing shipwreckId');
         throw new functions.https.HttpsError(
             'invalid-argument',
             'Missing required parameter: shipwreckId'
         );
     }
+    
+    console.log(`Attempting to loot shipwreck: ${shipwreckId}`);
     
     try {
         // Get player data
@@ -221,11 +226,37 @@ exports.lootShipwreck = functions.https.onCall(async (data, context) => {
         const playerSnapshot = await playerRef.once('value');
         const player = playerSnapshot.val();
         
+        console.log(`Player data:`, player ? 'Found' : 'Not found');
+        
         // Validate player exists and is not sunk
-        if (!player || player.isSunk) {
+        if (!player) {
+            console.error(`Player not found: ${uid}`);
+            
+            // If player doesn't exist, create a minimal player record
+            const defaultPlayerData = {
+                health: 100,
+                isSunk: false,
+                inventory: {
+                    gold: 0,
+                    items: {}
+                },
+                isOnline: true,
+                position: { x: 0, y: 0, z: 0 }
+            };
+            
+            console.log(`Creating new player record for: ${uid}`);
+            await playerRef.set(defaultPlayerData);
+            
+            // Use this default data for the rest of the function
+            player = defaultPlayerData;
+            console.log(`Created player record`);
+        }
+        
+        if (player.isSunk) {
+            console.error(`Player is sunk, cannot loot: ${uid}`);
             throw new functions.https.HttpsError(
                 'failed-precondition',
-                'Player ship is invalid or sunk'
+                'Player ship is sunk and cannot loot'
             );
         }
         
@@ -234,39 +265,57 @@ exports.lootShipwreck = functions.https.onCall(async (data, context) => {
         const shipwreckSnapshot = await shipwreckRef.once('value');
         const shipwreck = shipwreckSnapshot.val();
         
+        console.log(`Shipwreck data:`, shipwreck ? 'Found' : 'Not found');
+        
         // Validate shipwreck exists and is not already looted
-        if (!shipwreck || shipwreck.looted) {
+        if (!shipwreck) {
+            console.error(`Shipwreck not found: ${shipwreckId}`);
             throw new functions.https.HttpsError(
                 'not-found',
-                'Shipwreck not found or already looted'
+                'Shipwreck not found'
+            );
+        }
+        
+        if (shipwreck.looted) {
+            console.error(`Shipwreck already looted: ${shipwreckId}`);
+            throw new functions.https.HttpsError(
+                'failed-precondition',
+                'Shipwreck already looted'
             );
         }
         
         // Validate distance to shipwreck
         const playerPos = {
-            x: player.position.x,
-            y: player.position.y,
-            z: player.position.z
+            x: player.position?.x || 0,
+            y: player.position?.y || 0,
+            z: player.position?.z || 0
         };
         
         const shipwreckPos = {
-            x: shipwreck.position.x,
-            y: shipwreck.position.y,
-            z: shipwreck.position.z
+            x: shipwreck.position?.x || 0,
+            y: shipwreck.position?.y || 0,
+            z: shipwreck.position?.z || 0
         };
         
+        console.log('Player position:', playerPos);
+        console.log('Shipwreck position:', shipwreckPos);
+        
         const distance = calculateDistance(playerPos, shipwreckPos);
-        const LOOT_RANGE = 20; // Maximum looting range
+        const LOOT_RANGE = 100; // Increased loot range for multiplayer
+        
+        console.log(`Distance to shipwreck: ${distance}, Max range: ${LOOT_RANGE}`);
         
         if (distance > LOOT_RANGE) {
+            console.error(`Shipwreck out of range: ${distance} > ${LOOT_RANGE}`);
             throw new functions.https.HttpsError(
                 'failed-precondition',
-                'Shipwreck is out of range'
+                `Shipwreck is out of range: ${Math.round(distance)} > ${LOOT_RANGE}`
             );
         }
         
         // Get loot from shipwreck
         const loot = shipwreck.loot || { gold: 0, items: [] };
+        console.log(`Shipwreck loot:`, loot);
         
         // Update player inventory
         const playerGold = player.inventory?.gold || 0;
@@ -292,8 +341,12 @@ exports.lootShipwreck = functions.https.onCall(async (data, context) => {
         updates[`shipwrecks/${shipwreckId}/lootedBy`] = uid;
         updates[`shipwrecks/${shipwreckId}/lootedAt`] = Date.now();
         
+        console.log(`Updating database with loot results`);
+        
         // Apply updates
         await admin.database().ref().update(updates);
+        
+        console.log(`Successfully looted shipwreck ${shipwreckId}`);
         
         // Return success with loot info
         return {
@@ -304,8 +357,8 @@ exports.lootShipwreck = functions.https.onCall(async (data, context) => {
         console.error('Error looting shipwreck:', error);
         throw new functions.https.HttpsError(
             'internal',
-            'Error looting shipwreck',
-            error.message
+            'Error looting shipwreck: ' + (error.message || 'Unknown error'),
+            error
         );
     }
 });

@@ -6,6 +6,14 @@
         ".read": "auth != null",
         ".write": "auth != null && auth.uid === $uid"
       }
+    },
+    "shipwrecks": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "enemyShips": {
+      ".read": "auth != null",
+      ".write": "auth != null"
     }
   }
 } 
