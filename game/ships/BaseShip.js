@@ -548,14 +548,15 @@ class BaseShip {
                     requestAnimationFrame(animateCapsizing);
                 } else {
                     // If this is the player ship, notify CombatManager to schedule respawn
-                    // This happens before adding the treasure indicator
                     if (!this.isEnemy && window.combatManager) {
                         // Signal combat manager to start respawn timer
                         window.combatManager.schedulePlayerRespawn();
+                    } 
+                    // Only add treasure indicator for enemy ships, not for player ships
+                    else if (this.isEnemy) {
+                        // Add treasure indicator once fully capsized
+                        this.addTreasureIndicator();
                     }
-                    
-                    // Add treasure indicator once fully capsized
-                    this.addTreasureIndicator();
                     
                     console.log('Ship converted to shipwreck');
                 }

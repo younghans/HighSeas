@@ -884,7 +884,13 @@ class CombatManager {
         
         console.log('Respawning player ship locally');
         // Use the new respawn method instead of just resetting health
-        this.playerShip.respawn(new THREE.Vector3(0, 0.5, 0));
+        this.playerShip.respawn(new THREE.Vector3(0, 0, 0));
+        
+        // Immediately sync player position to Firebase after respawn
+        if (window.multiplayerManager) {
+            console.log('Immediately syncing respawn position to Firebase');
+            window.multiplayerManager.updatePlayerPosition(this.playerShip, true);
+        }
         
         // Reset flag
         this.isResetting = false;

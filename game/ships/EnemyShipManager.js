@@ -665,29 +665,55 @@ class EnemyShipManager {
      * @returns {Promise<Object>} The loot from the shipwreck
      */
     async lootShipwreck(shipwreck) {
-        // First check if combat service is available
-        if (this.combatService) {
+        // Skip if already looted
+        if (shipwreck.looted) {
+            console.warn('Shipwreck already looted:', shipwreck.id);
+            return { gold: 0, items: [] };
+        }
+        
+        // Immediately mark as looted locally for a responsive experience
+        shipwreck.looted = true;
+        shipwreck.lootedBy = window.auth?.currentUser?.uid || 'unknown';
+        shipwreck.lootedAt = Date.now();
+        
+        // Get local copy of loot to return immediately
+        const loot = { ...shipwreck.loot };
+        
+        // Remove the treasure indicator immediately
+        if (shipwreck.ship && shipwreck.ship.treasureIndicator) {
+            this.scene.remove(shipwreck.ship.treasureIndicator);
+            
+            // Also remove from the scene's treasure indicators array if it exists
+            if (this.scene.userData.treasureIndicators) {
+                const index = this.scene.userData.treasureIndicators.indexOf(shipwreck.ship.treasureIndicator);
+                if (index !== -1) {
+                    this.scene.userData.treasureIndicators.splice(index, 1);
+                }
+            }
+            
+            shipwreck.ship.treasureIndicator = null;
+        }
+        
+        // Create a gold particle effect at the shipwreck position immediately
+        this.createLootEffect(shipwreck.position);
+        
+        // Start sinking animation immediately
+        this.startShipwreckSinkingAnimation(shipwreck);
+        
+        // Then, handle the server-side validation in the background
+        if (this.combatService && window.firebase && window.auth) {
             try {
-                console.log('Looting shipwreck via CombatService:', shipwreck.id);
+                console.log('Validating loot with server after local effects:', shipwreck.id);
                 
                 // Debug log the player's position
                 const playerPosition = this.playerShip ? this.playerShip.getPosition() : null;
                 console.log('Player position when looting:', playerPosition);
                 
-                // Update player position in Firebase before looting
-                if (window.firebase && window.auth && window.auth.currentUser && this.playerShip) {
+                // Update player position in Firebase before server validation
+                if (window.auth.currentUser && this.playerShip) {
                     try {
                         const playerPos = this.playerShip.getPosition();
                         const uid = window.auth.currentUser.uid;
-                        
-                        console.log('Updating player position in Firebase before looting:', {
-                            uid,
-                            position: {
-                                x: playerPos.x,
-                                y: playerPos.y,
-                                z: playerPos.z
-                            }
-                        });
                         
                         // Update player position in Firebase
                         await window.firebase.database().ref(`players/${uid}/position`).set({
@@ -695,96 +721,35 @@ class EnemyShipManager {
                             y: playerPos.y,
                             z: playerPos.z
                         });
-                        
-                        console.log('Player position updated in Firebase');
                     } catch (error) {
                         console.error('Error updating player position in Firebase:', error);
                     }
                 }
                 
-                // Debug log the shipwreck position
-                console.log('Shipwreck position:', shipwreck.position);
-                
-                // Calculate distance between player and shipwreck
-                if (this.playerShip && shipwreck.position) {
-                    const playerPos = this.playerShip.getPosition();
-                    const distance = playerPos.distanceTo(shipwreck.position);
-                    console.log('Distance to shipwreck:', distance, 'Lootable range:', this.lootableRange);
-                }
-                
-                // Call the server-side function to loot the shipwreck
+                // Call the server-side function to validate the loot
                 const result = await this.combatService.lootShipwreck(shipwreck.id);
                 
                 if (result.success) {
-                    console.log('Successfully looted shipwreck via server:', result);
-                    
-                    // Mark as looted locally
-                    shipwreck.looted = true;
-                    
-                    // Remove the treasure indicator if it exists
-                    if (shipwreck.ship && shipwreck.ship.treasureIndicator) {
-                        this.scene.remove(shipwreck.ship.treasureIndicator);
-                        
-                        // Also remove from the scene's treasure indicators array if it exists
-                        if (this.scene.userData.treasureIndicators) {
-                            const index = this.scene.userData.treasureIndicators.indexOf(shipwreck.ship.treasureIndicator);
-                            if (index !== -1) {
-                                this.scene.userData.treasureIndicators.splice(index, 1);
-                            }
-                        }
-                        
-                        shipwreck.ship.treasureIndicator = null;
-                    }
-                    
-                    // Create a gold particle effect at the shipwreck position
-                    this.createLootEffect(shipwreck.position);
-                    
-                    // Start sinking animation instead of immediately scheduling removal
-                    this.startShipwreckSinkingAnimation(shipwreck);
-                    
-                    // Return the loot received from the server
-                    return result.loot;
+                    console.log('Server confirmed successful loot:', result);
+                    // The visual effects are already handled, no need to do anything else
                 } else {
-                    console.error('Failed to loot shipwreck:', result.error);
-                    throw new Error(result.error || 'Failed to loot shipwreck');
+                    console.error('Server rejected loot attempt:', result.error);
+                    // This is rare, but in case server rejected the loot attempt,
+                    // we could show an error message to the player
+                    if (window.gameUI && window.gameUI.showMessage) {
+                        window.gameUI.showMessage('Server error: Failed to loot shipwreck', 'error');
+                    }
                 }
             } catch (error) {
-                console.error('Error looting shipwreck via CombatService:', error);
-                throw error;
+                console.error('Error validating loot with server:', error);
+                // We don't need to block the player experience due to server errors
             }
         } else {
-            // Fallback to local looting if combat service is unavailable
-            console.warn('CombatService unavailable, looting shipwreck locally');
-            
-            // Mark as looted
-            shipwreck.looted = true;
-            
-            // Get loot
-            const loot = { ...shipwreck.loot };
-            
-            // Create a gold particle effect at the shipwreck position
-            this.createLootEffect(shipwreck.position);
-            
-            // Remove the treasure indicator if it exists
-            if (shipwreck.ship && shipwreck.ship.treasureIndicator) {
-                this.scene.remove(shipwreck.ship.treasureIndicator);
-                
-                // Also remove from the scene's treasure indicators array if it exists
-                if (this.scene.userData.treasureIndicators) {
-                    const index = this.scene.userData.treasureIndicators.indexOf(shipwreck.ship.treasureIndicator);
-                    if (index !== -1) {
-                        this.scene.userData.treasureIndicators.splice(index, 1);
-                    }
-                }
-                
-                shipwreck.ship.treasureIndicator = null;
-            }
-            
-            // Start sinking animation instead of immediately scheduling removal
-            this.startShipwreckSinkingAnimation(shipwreck);
-            
-            return loot;
+            console.warn('CombatService unavailable, shipwreck looted locally only');
         }
+        
+        // Return the loot immediately for a responsive experience
+        return loot;
     }
     
     /**

@@ -219,15 +219,16 @@ class MultiplayerManager {
     /**
      * Update player position in Firebase
      * @param {Object} playerShip - The player's ship object
+     * @param {boolean} forceUpdate - Whether to force update regardless of time since last sync
      */
-    updatePlayerPosition(playerShip) {
+    updatePlayerPosition(playerShip, forceUpdate = false) {
         if (!this.playerRef) return;
         
         const now = Date.now();
         
         // Only update if it's been at least 1 second since the last update
-        // This prevents excessive database writes
-        if (now - this.lastSyncTime < 1000) return;
+        // or if forceUpdate is true
+        if (!forceUpdate && now - this.lastSyncTime < 1000) return;
         
         this.lastSyncTime = now;
         
@@ -431,12 +432,33 @@ class MultiplayerManager {
         // Get the ship object
         const shipObject = otherPlayerShip.getObject();
         
-        // Update last known position
-        otherPlayerShip.userData.lastPosition = new THREE.Vector3(
+        // Check if this is a respawn or significant position change (e.g. teleport)
+        const currentPos = shipObject.position;
+        const newPos = new THREE.Vector3(
             playerData.position.x,
             0, // Force y position to always be 0
             playerData.position.z
         );
+        
+        // Calculate distance between current position and new position
+        const distanceChange = currentPos.distanceTo(newPos);
+        
+        // If distance is large (over 10 units) or position is near origin (respawn point),
+        // immediately teleport the ship to the new position
+        const isNearOrigin = newPos.distanceTo(new THREE.Vector3(0, 0, 0)) < 2;
+        if (distanceChange > 10 || isNearOrigin) {
+            this.debug(`Teleporting ship for player ${playerData.displayName} to new position:`, newPos);
+            shipObject.position.copy(newPos);
+            
+            // If player was sunk and respawned, we should clear any movement data
+            if (isNearOrigin) {
+                otherPlayerShip.targetPosition = null;
+                otherPlayerShip.isMoving = false;
+            }
+        }
+        
+        // Update last known position
+        otherPlayerShip.userData.lastPosition = newPos;
         
         // Update rotation if provided
         if (playerData.rotation) {
