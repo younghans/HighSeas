@@ -41,9 +41,10 @@ class CombatService {
      * Process a combat action on the server
      * @param {string} targetId - ID of the target ship
      * @param {number} damage - Amount of damage dealt
+     * @param {Object} options - Additional options including damage seed
      * @returns {Promise<Object>} Result of the combat action
      */
-    async processCombatAction(targetId, damage) {
+    async processCombatAction(targetId, damage, options = {}) {
         if (!this.firebase) {
             console.error('Firebase not initialized');
             return { success: false, error: 'Firebase not initialized' };
@@ -55,6 +56,7 @@ class CombatService {
             return { 
                 success: true, 
                 damage: damage,
+                expectedDamage: damage, // Match the server format
                 newHealth: 0, // We don't know the actual health, so we'll let the client handle it
                 isSunk: false
             };
@@ -75,21 +77,43 @@ class CombatService {
         try {
             // Call the server function using the stored functions reference
             const processCombatAction = this.functions.httpsCallable('processCombatAction');
+            
+            // Log the combat request for debugging
+            console.log('Sending combat action to server:', {
+                targetId,
+                damage,
+                damageSeed: options.damageSeed,
+                missChance: options.missChance
+            });
+            
             const result = await processCombatAction({
                 targetId: targetId,
                 damage: damage,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                damageSeed: options.damageSeed,
+                missChance: options.missChance
             });
             
             // Update local cooldown time on successful attack
             this.lastAttackTime = now;
             
+            // Log the result for debugging
+            console.log('Server combat result:', result.data);
+            
             return result.data;
         } catch (error) {
-            console.error('Error processing combat action:', error);
+            // Get detailed error information
+            const errorCode = error.code || 'unknown';
+            const errorMessage = error.message || 'Unknown error';
+            const errorDetails = error.details || {};
+            
+            console.error(`Combat action error (${errorCode}):`, errorMessage);
+            if (Object.keys(errorDetails).length > 0) {
+                console.error('Error details:', errorDetails);
+            }
             
             // Check if this is a cooldown error and handle it gracefully
-            if (error.message && error.message.includes('cooldown')) {
+            if (errorMessage.includes('cooldown')) {
                 return { 
                     success: false, 
                     error: 'Attack cooldown in progress',
@@ -97,7 +121,13 @@ class CombatService {
                 };
             }
             
-            return { success: false, error: error.message };
+            // Format error for client feedback
+            return { 
+                success: false, 
+                error: errorMessage,
+                code: errorCode,
+                details: errorDetails
+            };
         }
     }
     

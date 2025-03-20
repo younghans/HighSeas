@@ -217,6 +217,24 @@ function resetGame() {
         islandManager = null;
     }
     
+    // Clean up the treasure animation loop if it exists
+    if (scene && scene.userData && scene.userData.treasureAnimationId) {
+        console.log('Cancelling treasure animation loop:', scene.userData.treasureAnimationId);
+        cancelAnimationFrame(scene.userData.treasureAnimationId);
+        scene.userData.treasureAnimationId = null;
+        
+        // Also clear the treasure indicators array
+        if (scene.userData.treasureIndicators) {
+            // Remove any remaining treasure indicators from the scene
+            scene.userData.treasureIndicators.forEach(indicator => {
+                if (indicator) {
+                    scene.remove(indicator);
+                }
+            });
+            scene.userData.treasureIndicators = [];
+        }
+    }
+    
     // Reset camera controls completely
     resetCameraControls();
     
@@ -399,7 +417,7 @@ function startGameWithShip() {
     // Create ship with custom speed but don't position it yet
     // The position will be set by the multiplayer system
     ship = new Sloop(scene, { 
-        speed: 50,
+        // speed: 50,
         // Set a default position that will be overridden by multiplayer
         position: new THREE.Vector3(0, 0, 0),
         // Add combat properties
@@ -696,6 +714,24 @@ function handleResetToMainMenu(event) {
     
     if (islandManager) {
         islandManager = null;
+    }
+    
+    // Clean up the treasure animation loop if it exists
+    if (scene && scene.userData && scene.userData.treasureAnimationId) {
+        console.log('Cancelling treasure animation loop:', scene.userData.treasureAnimationId);
+        cancelAnimationFrame(scene.userData.treasureAnimationId);
+        scene.userData.treasureAnimationId = null;
+        
+        // Also clear the treasure indicators array
+        if (scene.userData.treasureIndicators) {
+            // Remove any remaining treasure indicators from the scene
+            scene.userData.treasureIndicators.forEach(indicator => {
+                if (indicator) {
+                    scene.remove(indicator);
+                }
+            });
+            scene.userData.treasureIndicators = [];
+        }
     }
     
     // Reset camera controls completely

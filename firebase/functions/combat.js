@@ -18,13 +18,13 @@ exports.processCombatAction = functions.https.onCall(async (data, context) => {
     const uid = context.auth.uid;
     
     // Get required parameters
-    const { targetId, damage, timestamp } = data;
+    const { targetId, damage, timestamp, damageSeed, missChance } = data;
     
     // Validate parameters
-    if (!targetId || typeof damage !== 'number' || !timestamp) {
+    if (!targetId || typeof damage !== 'number') {
         throw new functions.https.HttpsError(
             'invalid-argument',
-            'Missing required parameters: targetId, damage, timestamp'
+            'Missing required parameters: targetId, damage'
         );
     }
     
@@ -136,9 +136,30 @@ exports.processCombatAction = functions.https.onCall(async (data, context) => {
             );
         }
         
+        // Calculate damage using seeded random if available
+        let expectedDamage = damage;
+        if (damageSeed !== undefined && attacker.cannonDamage) {
+            // Recreate the same seeded random function that the client used
+            const seededRandom = createSeededRandom(damageSeed);
+            
+            // Determine hit/miss the same way as the client
+            const isHit = seededRandom() >= (missChance || 0);
+            
+            // Calculate the same damage amount as the client
+            expectedDamage = isHit ? Math.floor(
+                attacker.cannonDamage.min + 
+                seededRandom() * (attacker.cannonDamage.max - attacker.cannonDamage.min)
+            ) : 0;
+            
+            // Verify the damage matches what the client sent
+            if (Math.abs(expectedDamage - damage) > 0.001) {
+                console.warn(`Client/server damage calculation mismatch for ${uid}: client=${damage}, server=${expectedDamage}`);
+            }
+        }
+        
         // Calculate new health for target
         const currentHealth = target.health || 100;
-        const newHealth = Math.max(0, currentHealth - damage);
+        const newHealth = Math.max(0, currentHealth - expectedDamage);
         
         // Update target health and attacker's last attack time
         const updates = {};
@@ -174,7 +195,8 @@ exports.processCombatAction = functions.https.onCall(async (data, context) => {
         // Return success with damage info
         return {
             success: true,
-            damage: damage,
+            damage: expectedDamage,
+            expectedDamage: expectedDamage, // Include expected damage for client verification
             newHealth: newHealth,
             isSunk: newHealth === 0
         };
@@ -187,6 +209,20 @@ exports.processCombatAction = functions.https.onCall(async (data, context) => {
         );
     }
 });
+
+/**
+ * Create a seeded random function for deterministic calculations
+ * @param {number} seed - Random seed
+ * @returns {function} Seeded random function that returns values between 0 and 1
+ */
+function createSeededRandom(seed) {
+    return function() {
+        // Simple multiply-with-carry algorithm
+        // Based on a simple implementation of Marsaglia's MWC algorithm
+        seed = (seed * 9301 + 49297) % 233280;
+        return seed / 233280;
+    };
+}
 
 /**
  * Loot a shipwreck

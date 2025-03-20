@@ -705,12 +705,17 @@ class BaseShip {
         // Set up animation
         if (!this.scene.userData.treasureIndicators) {
             this.scene.userData.treasureIndicators = [];
-            
-            // Set up animation loop if not already running
-            if (!this.scene.userData.treasureAnimationId) {
-                const animateTreasures = () => {
-                    const time = Date.now() * 0.001; // Convert to seconds
-                    
+        }
+        
+        // Add to animation list
+        this.scene.userData.treasureIndicators.push(treasureChest);
+        
+        // Make sure the animation loop is running
+        if (!this.scene.userData.treasureAnimationId) {
+            const animateTreasures = () => {
+                const time = Date.now() * 0.001; // Convert to seconds
+                
+                if (this.scene.userData.treasureIndicators && this.scene.userData.treasureIndicators.length > 0) {
                     // Animate all treasure indicators
                     this.scene.userData.treasureIndicators.forEach(indicator => {
                         if (indicator && indicator.userData) {
@@ -732,17 +737,18 @@ class BaseShip {
                         }
                     });
                     
-                    // Continue animation loop
+                    // Continue the animation loop
                     this.scene.userData.treasureAnimationId = requestAnimationFrame(animateTreasures);
-                };
-                
-                // Start animation loop
-                this.scene.userData.treasureAnimationId = requestAnimationFrame(animateTreasures);
-            }
+                } else {
+                    // No indicators left, clear the animation ID
+                    this.scene.userData.treasureAnimationId = null;
+                }
+            };
+            
+            // Start animation loop
+            this.scene.userData.treasureAnimationId = requestAnimationFrame(animateTreasures);
+            console.log('Started treasure animation loop');
         }
-        
-        // Add to animation list
-        this.scene.userData.treasureIndicators.push(treasureChest);
     }
     
     /**

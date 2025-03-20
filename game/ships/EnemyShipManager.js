@@ -1488,6 +1488,9 @@ class EnemyShipManager {
                 }
             }
         });
+        
+        // Make sure treasure animations are running if there are any treasure indicators
+        this.ensureTreasureAnimationLoop();
     }
     
     /**
@@ -1594,6 +1597,9 @@ class EnemyShipManager {
         
         // Add to shipwrecks array
         this.shipwrecks.push(shipwreckObj);
+        
+        // Make sure treasure animations are running if needed
+        this.ensureTreasureAnimationLoop();
         
         return shipwreckObj;
     }
@@ -1753,6 +1759,62 @@ class EnemyShipManager {
         
         // Load shipwrecks from Firebase for multiplayer synchronization
         this.loadShipwrecksFromFirebase();
+    }
+    
+    /**
+     * Ensure the treasure animation loop is running if there are treasure indicators
+     * This should be called after loading shipwrecks from Firebase
+     */
+    ensureTreasureAnimationLoop() {
+        // Only proceed if we have treasure indicators
+        if (this.scene && 
+            this.scene.userData && 
+            this.scene.userData.treasureIndicators && 
+            this.scene.userData.treasureIndicators.length > 0) {
+            
+            // Start the animation loop if it's not already running
+            if (!this.scene.userData.treasureAnimationId) {
+                console.log('Restarting treasure animation loop for', 
+                    this.scene.userData.treasureIndicators.length, 'indicators');
+                
+                const animateTreasures = () => {
+                    const time = Date.now() * 0.001; // Convert to seconds
+                    
+                    // Animate all treasure indicators
+                    this.scene.userData.treasureIndicators.forEach(indicator => {
+                        if (indicator && indicator.userData) {
+                            // Bob up and down
+                            indicator.position.y = indicator.userData.baseY + 
+                                Math.sin(time * indicator.userData.bobSpeed + indicator.userData.phase) * 
+                                indicator.userData.bobHeight;
+                            
+                            // Slowly rotate
+                            indicator.rotation.y += 0.02;
+                            
+                            // Make the glow pulse
+                            if (indicator.children && indicator.children[0]) {
+                                const glow = indicator.children[0];
+                                if (glow.material) {
+                                    glow.material.opacity = 0.3 + Math.sin(time * 2) * 0.2;
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Continue animation loop only if we have indicators
+                    if (this.scene.userData.treasureIndicators && 
+                        this.scene.userData.treasureIndicators.length > 0) {
+                        this.scene.userData.treasureAnimationId = requestAnimationFrame(animateTreasures);
+                    } else {
+                        // No indicators left, clear the animation ID
+                        this.scene.userData.treasureAnimationId = null;
+                    }
+                };
+                
+                // Start animation loop
+                this.scene.userData.treasureAnimationId = requestAnimationFrame(animateTreasures);
+            }
+        }
     }
 }
 

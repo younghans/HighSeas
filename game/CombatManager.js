@@ -18,7 +18,7 @@ class CombatManager {
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
         this.currentTarget = null;
-        this.cannonballSpeed = 65; // Units per second
+        this.cannonballSpeed = 60; // Units per second
         this.cannonballs = [];
         this.cannonballMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
         this.cannonballGeometry = new THREE.SphereGeometry(0.5, 8, 8);
@@ -226,85 +226,80 @@ class CombatManager {
         // Calculate miss chance based on orientation and distance
         const missChance = this.calculateMissChance(this.playerShip, this.currentTarget);
         
-        // Determine if shot is a hit or miss
-        const isHit = Math.random() >= missChance;
+        // Generate a deterministic seed for damage calculation
+        // This seed will be shared with the server to ensure both calculate the same damage
+        const damageSeed = Math.floor(Math.random() * 1000000);
         
-        // Calculate damage (0 for misses)
+        // Create a seeded random function for deterministic damage calculation
+        const seededRandom = this.createSeededRandom(damageSeed);
+        
+        // Determine if shot is a hit or miss using the seeded random
+        const isHit = seededRandom() >= missChance;
+        
+        // Calculate damage (0 for misses) using the seeded random
         const damage = isHit ? Math.floor(
             this.playerShip.cannonDamage.min + 
-            Math.random() * (this.playerShip.cannonDamage.max - this.playerShip.cannonDamage.min)
+            seededRandom() * (this.playerShip.cannonDamage.max - this.playerShip.cannonDamage.min)
         ) : 0;
         
-        // If we have a combat service, use it for server validation
-        if (this.combatService) {
+        // OPTIMISTIC UI: Always fire the cannonball immediately for visual feedback
+        // We'll apply damage on impact, but potentially adjust it later based on server response
+        const cannonballData = this.fireCannonball(this.playerShip, this.currentTarget, damage, !isHit);
+        
+        // Update last fired time
+        this.playerShip.lastFiredTime = Date.now();
+        
+        // Reset the cooldown indicator in UI
+        if (this.ui && this.ui.startCooldown) {
+            this.ui.startCooldown();
+        }
+        
+        // If we have a combat service, use it for server validation asynchronously
+        if (this.combatService && isHit) {
             try {
-                // Only process combat action if it's a hit
-                if (isHit) {
-                    // For server validation, we need to validate the hit on firing,
-                    // but we won't apply the damage to the ship until impact
-                    const result = await this.combatService.processCombatAction(
-                        this.currentTarget.id,
-                        damage
-                    );
-                    
-                    if (!result.success) {
+                // Server validation happens in parallel with cannonball animation
+                // Send the damage seed to the server so it can calculate the same damage
+                this.combatService.processCombatAction(
+                    this.currentTarget.id,
+                    damage,
+                    { 
+                        damageSeed: damageSeed,
+                        missChance: missChance 
+                    }
+                ).then(result => {
+                    if (result.success && cannonballData) {
+                        // Store server result to use when cannonball hits
+                        cannonballData.serverResult = result;
+                    } else if (!result.success) {
                         // Handle specific error cases
                         if (result.error && result.error.includes('cooldown')) {
                             console.log('Server cooldown in progress, waiting...');
-                            // Don't show error to user for cooldown issues
-                            return;
                         } else {
                             console.error('Combat action failed:', result.error);
-                            return;
                         }
                     }
-                    
-                    // Fire visual cannonball with server-validated result data
-                    this.fireCannonball(this.playerShip, this.currentTarget, damage, !isHit, result);
-                } else {
-                    // Fire visual cannonball for miss
-                    this.fireCannonball(this.playerShip, this.currentTarget, damage, !isHit);
-                }
-                
-                // Update last fired time
-                this.playerShip.lastFiredTime = Date.now();
-                
-                // Reset the cooldown indicator in UI
-                if (this.ui && this.ui.startCooldown) {
-                    this.ui.startCooldown();
-                }
-                
+                }).catch(error => {
+                    console.error('Error processing combat action:', error);
+                    console.log('Falling back to local combat logic for this shot');
+                });
             } catch (error) {
-                console.error('Error processing combat action:', error);
-                
-                // Try to use local combat logic as fallback
-                console.log('Falling back to local combat logic');
-                
-                // Fire visual cannonball (damage will be applied on impact)
-                this.fireCannonball(this.playerShip, this.currentTarget, damage, !isHit);
-                
-                // Update last fired time
-                this.playerShip.lastFiredTime = Date.now();
-                
-                // Reset the cooldown indicator in UI
-                if (this.ui && this.ui.startCooldown) {
-                    this.ui.startCooldown();
-                }
-            }
-        } else {
-            // No server validation, use local combat logic
-            
-            // Fire visual cannonball (damage will be applied on impact)
-            this.fireCannonball(this.playerShip, this.currentTarget, damage, !isHit);
-            
-            // Update last fired time
-            this.playerShip.lastFiredTime = Date.now();
-            
-            // Reset the cooldown indicator in UI
-            if (this.ui && this.ui.startCooldown) {
-                this.ui.startCooldown();
+                console.error('Error initiating combat action:', error);
             }
         }
+    }
+    
+    /**
+     * Create a seeded random function for deterministic calculations
+     * @param {number} seed - Random seed
+     * @returns {function} Seeded random function that returns values between 0 and 1
+     */
+    createSeededRandom(seed) {
+        return function() {
+            // Simple multiply-with-carry algorithm
+            // Based on a simple implementation of Marsaglia's MWC algorithm
+            seed = (seed * 9301 + 49297) % 233280;
+            return seed / 233280;
+        };
     }
     
     /**
@@ -314,10 +309,11 @@ class CombatManager {
      * @param {number} damage - Damage amount (0 for miss)
      * @param {boolean} isMiss - Whether this shot is a miss
      * @param {Object} serverResult - Optional server validation result
+     * @returns {Object} Cannonball user data for later reference
      */
     fireCannonball(source, target, damage, isMiss = false, serverResult = null) {
         // Skip if no scene
-        if (!this.scene) return;
+        if (!this.scene) return null;
         
         // Create cannonball mesh
         const cannonball = new THREE.Mesh(this.cannonballGeometry, this.cannonballMaterial);
@@ -386,7 +382,7 @@ class CombatManager {
         const maxArcHeight = Math.min(20, totalDistance * 0.12);
         
         // Add cannonball data
-        cannonball.userData = {
+        const userData = {
             direction: direction,
             speed: this.cannonballSpeed,
             damage: damage,
@@ -404,12 +400,17 @@ class CombatManager {
             totalDistance: totalDistance // Store total distance for arc calculation
         };
         
+        cannonball.userData = userData;
+        
         // Add to scene and cannonballs array
         this.scene.add(cannonball);
         this.cannonballs.push(cannonball);
         
         // Play cannon fire sound (if available)
         // TODO: Add sound effects
+        
+        // Return the userData for later reference
+        return userData;
     }
     
     /**
@@ -576,19 +577,39 @@ class CombatManager {
                 if (distanceToTarget < 2) {
                     // Apply damage now that the cannonball has hit
                     if (userData.damage > 0) {
-                        // If we have server validation result, use that
+                        // Store original health for debugging
+                        const originalHealth = userData.target.currentHealth;
+                        
+                        // Check if we have a pending or completed server validation result
                         if (userData.serverResult && userData.serverResult.success) {
+                            // Use server's validated result - this could either be:
+                            // 1. A result that was already received before impact, or
+                            // 2. A result that was attached to userData by the async server validation
+                            
                             // Update target health from server result
                             userData.target.currentHealth = userData.serverResult.newHealth;
+                            
+                            // Log any significant difference between client and server calculation
+                            if (Math.abs(originalHealth - userData.serverResult.expectedDamage - userData.serverResult.newHealth) > 1) {
+                                console.log('Health Discrepancy Detected:');
+                                console.log(`- Original client health: ${originalHealth}`);
+                                console.log(`- Client expected damage: ${userData.damage}`);
+                                console.log(`- Server expected damage: ${userData.serverResult.expectedDamage || 'unknown'}`);
+                                console.log(`- Server new health: ${userData.serverResult.newHealth}`);
+                                console.log(`- Difference: ${originalHealth - userData.damage - userData.serverResult.newHealth}`);
+                            }
                             
                             // If target was sunk, update its state
                             if (userData.serverResult.isSunk) {
                                 userData.target.sink();
                             }
-                        }
-                        // Otherwise apply damage directly
-                        else {
+                        } else {
+                            // No server result yet - apply optimistic damage
+                            // This is our optimistic UI update
                             userData.target.takeDamage(userData.damage);
+                            
+                            // If this target is another player's ship in multiplayer,
+                            // the server will correct our optimistic update if needed
                         }
                     }
                     
