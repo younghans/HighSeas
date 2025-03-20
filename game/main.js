@@ -134,6 +134,22 @@ function setupAuthListeners() {
             });
     });
     
+    // Add event listener for guest login button
+    document.getElementById('guestLoginButton').addEventListener('click', () => {
+        const usernameInput = document.getElementById('guestUsername');
+        const username = usernameInput.value.trim() || 'Guest';
+        
+        Auth.signInAsGuest(username)
+            .then(() => {
+                // Guest login successful, hide login menu
+                Auth.hideLoginMenu();
+            })
+            .catch(error => {
+                console.error('Guest login error:', error);
+                // You could show an error message here
+            });
+    });
+    
     // Add event listener for close login button
     document.getElementById('closeLoginButton').addEventListener('click', () => {
         Auth.hideLoginMenu();

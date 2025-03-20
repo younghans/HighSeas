@@ -40,24 +40,118 @@ function hideLoginMenu() {
 
 // Sign in with Google
 function signInWithGoogle() {
-  return auth.signInWithPopup(googleProvider)
+  // Check if the user is already signed in anonymously
+  const isAnonymous = currentUser && currentUser.isAnonymous;
+  
+  if (isAnonymous) {
+    // Link anonymous account with Google
+    return linkWithGoogle();
+  } else {
+    // Regular Google sign in
+    return auth.signInWithPopup(googleProvider)
+      .then((result) => {
+        // This gives you a Google Access Token
+        const credential = result.credential;
+        const token = credential.accessToken;
+        
+        // The signed-in user info
+        const user = result.user;
+        currentUser = user;
+        
+        console.log('User signed in:', user.displayName);
+        return user;
+      })
+      .catch((error) => {
+        // Handle Errors here
+        const errorCode = error.code;
+        const errorMessage = error.message;
+        console.error('Sign in error:', errorCode, errorMessage);
+        throw error;
+      });
+  }
+}
+
+// Link anonymous account with Google credentials
+function linkWithGoogle() {
+  return currentUser.linkWithPopup(googleProvider)
     .then((result) => {
-      // This gives you a Google Access Token
+      // Accounts successfully linked
       const credential = result.credential;
-      const token = credential.accessToken;
-      
-      // The signed-in user info
       const user = result.user;
       currentUser = user;
       
-      console.log('User signed in:', user.displayName);
+      console.log('Anonymous account upgraded to Google:', user.displayName);
+      
+      // Fire auth state change event to update UI components
+      const authChangeEvent = new Event('auth-state-changed');
+      document.dispatchEvent(authChangeEvent);
+      
       return user;
+    })
+    .catch((error) => {
+      // If account linking fails - typically because the email already exists
+      // We'll handle the merge by signing in with Google and then copying the anonymous data
+      if (error.code === 'auth/credential-already-in-use') {
+        console.log('Account with this email already exists, signing in with Google');
+        
+        // Save the anonymous user ID for data migration
+        const anonymousUserId = currentUser.uid;
+        
+        // Sign in with the existing Google account
+        return auth.signInWithCredential(error.credential)
+          .then(async (result) => {
+            const user = result.user;
+            currentUser = user;
+            
+            // Here you would merge data from the anonymous account
+            // This would need to be implemented in the app's main code or data layer
+            
+            // Dispatch a custom event to migrate user data
+            const migrationEvent = new CustomEvent('userAccountUpgraded', {
+              detail: {
+                anonymousUserId: anonymousUserId,
+                newUserId: user.uid
+              }
+            });
+            document.dispatchEvent(migrationEvent);
+            
+            // Fire auth state change event to update UI components
+            const authChangeEvent = new Event('auth-state-changed');
+            document.dispatchEvent(authChangeEvent);
+            
+            console.log('Signed in with existing Google account, migrating data:', anonymousUserId, 'to', user.uid);
+            return user;
+          });
+      } else {
+        console.error('Error linking accounts:', error);
+        throw error;
+      }
+    });
+}
+
+// Sign in as guest
+function signInAsGuest(username) {
+  const guestName = username || 'Guest';
+  
+  return auth.signInAnonymously()
+    .then((result) => {
+      // The signed-in guest user info
+      const user = result.user;
+      
+      // Update the user profile with the provided username
+      return user.updateProfile({
+        displayName: guestName
+      }).then(() => {
+        currentUser = auth.currentUser;
+        console.log('Guest signed in as:', guestName);
+        return currentUser;
+      });
     })
     .catch((error) => {
       // Handle Errors here
       const errorCode = error.code;
       const errorMessage = error.message;
-      console.error('Sign in error:', errorCode, errorMessage);
+      console.error('Guest sign in error:', errorCode, errorMessage);
       throw error;
     });
 }
@@ -101,6 +195,8 @@ function getCurrentUser() {
 // Create the Auth object with all exported functions
 const Auth = {
   signInWithGoogle,
+  linkWithGoogle,
+  signInAsGuest,
   signOut,
   showLoginMenu,
   hideLoginMenu,
