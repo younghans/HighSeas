@@ -901,16 +901,19 @@ function onMouseClick(event) {
                     const distance = playerPosition.distanceTo(clickedShipwreck.position);
                     
                     if (distance <= enemyShipManager.lootableRange) {
+                        // Get immediate reference to loot for optimistic UI update
+                        const immediateLocalLoot = clickedShipwreck.loot || { gold: 0, items: [] };
+                        
+                        // Show loot notification immediately - don't wait for promise
+                        if (gameUI) {
+                            // Show a more prominent notification with gold amount immediately
+                            gameUI.showNotification(`TREASURE FOUND! +${immediateLocalLoot.gold} gold`, 5000, 'success');
+                            console.log('Looting shipwreck:', immediateLocalLoot);
+                        }
+                        
                         // Shipwreck is in range, loot it (now async)
                         enemyShipManager.lootShipwreck(clickedShipwreck)
                             .then(loot => {
-                                // Show loot notification
-                                if (gameUI) {
-                                    // Show a more prominent notification with gold amount
-                                    gameUI.showNotification(`TREASURE FOUND! +${loot.gold} gold`, 5000, 'success');
-                                    console.log('Looted shipwreck:', loot);
-                                }
-                                
                                 // Update player inventory if multiplayer is enabled
                                 if (multiplayerManager) {
                                     multiplayerManager.updatePlayerInventory(loot);

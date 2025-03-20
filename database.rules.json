@@ -4,7 +4,11 @@
       ".read": "auth != null",
       "$uid": {
         ".read": "auth != null",
-        ".write": "auth != null && auth.uid === $uid"
+        ".write": "auth != null && auth.uid === $uid",
+        "gold": {
+          ".read": "auth != null",
+          ".write": false
+        }
       }
     },
     "shipwrecks": {

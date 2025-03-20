@@ -25,6 +25,7 @@ class GameUI {
         // Button references
         this.profileButton = null;
         this.inventoryButton = null;
+        this.goldButton = null;
         this.mapButton = null;
         
         // Menu references
@@ -133,12 +134,16 @@ class GameUI {
         // Create inventory button in bottom container
         this.createInventoryButton();
         
+        // Create gold button in bottom container
+        this.createGoldButton();
+        
         // Create map button in bottom container
         this.createMapButton();
         
         // Create menus
         this.createProfileMenu();
         this.createInventoryMenu();
+        this.createGoldMenu();
         this.createMapMenu();
         
         // Add event listener for game interactions to close top menus
@@ -153,6 +158,15 @@ class GameUI {
                 // Create a new profile menu
                 this.createProfileMenu();
             }
+            
+            // Load gold amount when auth state changes
+            this.loadGoldAmount();
+        });
+        
+        // Add event listener for gold updates
+        document.addEventListener('playerGoldUpdated', (event) => {
+            // Load the updated gold amount
+            this.loadGoldAmount();
         });
         
         // Hide UI initially
@@ -499,6 +513,80 @@ class GameUI {
     }
     
     /**
+     * Create gold button with coin icon and gold amount
+     */
+    createGoldButton() {
+        const goldButton = document.createElement('div');
+        goldButton.id = 'gold-button';
+        goldButton.style.width = 'auto';
+        goldButton.style.height = '40px';
+        goldButton.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        goldButton.style.color = 'white';
+        goldButton.style.display = 'flex';
+        goldButton.style.alignItems = 'center';
+        goldButton.style.justifyContent = 'center';
+        goldButton.style.cursor = 'pointer';
+        goldButton.style.borderRadius = '8px';
+        goldButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+        goldButton.style.transition = 'all 0.2s ease';
+        goldButton.style.userSelect = 'none';
+        goldButton.style.webkitUserSelect = 'none';
+        goldButton.style.padding = '0 10px';
+        
+        // Create coin icon using SVG
+        const iconContainer = document.createElement('div');
+        iconContainer.style.display = 'flex';
+        iconContainer.style.alignItems = 'center';
+        iconContainer.style.justifyContent = 'center';
+        iconContainer.style.marginRight = '8px';
+        
+        // Use SVG icon for gold coins (stack of coins)
+        iconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#FFD700" stroke="#E6B800" stroke-width="1">
+            <circle cx="12" cy="6" r="6"></circle>
+            <circle cx="12" cy="12" r="6"></circle>
+            <circle cx="12" cy="18" r="6"></circle>
+        </svg>`;
+        
+        // Create gold amount text
+        const goldText = document.createElement('span');
+        goldText.id = 'gold-amount';
+        goldText.textContent = '0';
+        goldText.style.fontSize = '14px';
+        goldText.style.fontWeight = 'bold';
+        goldText.style.color = '#FFD700';
+        
+        // Add icon and text to button
+        goldButton.appendChild(iconContainer);
+        goldButton.appendChild(goldText);
+        
+        goldButton.title = 'Gold';
+        
+        // Add hover effect
+        goldButton.addEventListener('mouseover', () => {
+            goldButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+            goldButton.style.transform = 'scale(1.05)';
+        });
+        
+        goldButton.addEventListener('mouseout', () => {
+            goldButton.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            goldButton.style.transform = 'scale(1)';
+        });
+        
+        // Add click handler to toggle gold menu
+        goldButton.addEventListener('click', (event) => {
+            // Prevent the click from propagating to document
+            event.stopPropagation();
+            this.toggleBottomMenu('gold');
+        });
+        
+        this.bottomButtonContainer.appendChild(goldButton);
+        this.goldButton = goldButton;
+        
+        // Load initial gold amount
+        this.loadGoldAmount();
+    }
+    
+    /**
      * Create map button with map icon
      */
     createMapButton() {
@@ -828,6 +916,76 @@ class GameUI {
     }
     
     /**
+     * Create gold menu
+     */
+    createGoldMenu() {
+        const goldMenu = document.createElement('div');
+        goldMenu.id = 'gold-menu';
+        goldMenu.className = 'game-menu';
+        goldMenu.style.width = '250px';
+        goldMenu.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+        goldMenu.style.color = 'white';
+        goldMenu.style.padding = '15px';
+        goldMenu.style.borderRadius = '8px';
+        goldMenu.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.5)';
+        goldMenu.style.display = 'none'; // Hidden by default
+        goldMenu.style.boxSizing = 'border-box'; // Add box-sizing to include padding in width calculation
+        
+        // Menu title
+        const title = document.createElement('h3');
+        title.textContent = 'Gold';
+        title.style.margin = '0 0 15px 0';
+        title.style.textAlign = 'center';
+        title.style.color = '#FFD700';
+        goldMenu.appendChild(title);
+        
+        // Gold amount display
+        const goldAmountContainer = document.createElement('div');
+        goldAmountContainer.style.display = 'flex';
+        goldAmountContainer.style.alignItems = 'center';
+        goldAmountContainer.style.justifyContent = 'center';
+        goldAmountContainer.style.marginBottom = '15px';
+        
+        // Gold icon
+        const goldIcon = document.createElement('div');
+        goldIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#FFD700" stroke="#E6B800" stroke-width="1">
+            <circle cx="12" cy="6" r="6"></circle>
+            <circle cx="12" cy="12" r="6"></circle>
+            <circle cx="12" cy="18" r="6"></circle>
+        </svg>`;
+        goldIcon.style.marginRight = '10px';
+        goldAmountContainer.appendChild(goldIcon);
+        
+        // Gold amount
+        const goldAmount = document.createElement('span');
+        goldAmount.id = 'gold-menu-amount';
+        goldAmount.textContent = '0';
+        goldAmount.style.fontSize = '24px';
+        goldAmount.style.fontWeight = 'bold';
+        goldAmount.style.color = '#FFD700';
+        goldAmountContainer.appendChild(goldAmount);
+        
+        goldMenu.appendChild(goldAmountContainer);
+        
+        // Description
+        const description = document.createElement('p');
+        description.textContent = 'Collect gold by looting shipwrecks and completing quests. Gold can be used to upgrade your ship and purchase items.';
+        description.style.textAlign = 'center';
+        description.style.color = 'rgba(255, 255, 255, 0.7)';
+        description.style.fontSize = '14px';
+        description.style.lineHeight = '1.4';
+        goldMenu.appendChild(description);
+        
+        // Add click handler to prevent clicks from closing the menu
+        goldMenu.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+        
+        this.bottomMenuContainer.appendChild(goldMenu);
+        this.goldMenu = goldMenu;
+    }
+    
+    /**
      * Create map menu (currently empty)
      */
     createMapMenu() {
@@ -897,11 +1055,12 @@ class GameUI {
     
     /**
      * Toggle menu visibility in the bottom container
-     * @param {string} menuType - Type of menu to toggle ('inventory' or 'map')
+     * @param {string} menuType - Type of menu to toggle ('inventory', 'gold', or 'map')
      */
     toggleBottomMenu(menuType) {
         // Hide all bottom menus first
         this.inventoryMenu.style.display = 'none';
+        this.goldMenu.style.display = 'none';
         this.mapMenu.style.display = 'none';
         
         // If we're toggling the currently active menu, just close it
@@ -916,6 +1075,10 @@ class GameUI {
         
         if (menuType === 'inventory') {
             this.inventoryMenu.style.display = 'block';
+        } else if (menuType === 'gold') {
+            this.goldMenu.style.display = 'block';
+            // Update gold amount when showing the menu
+            this.loadGoldAmount();
         } else if (menuType === 'map') {
             this.mapMenu.style.display = 'block';
         }
@@ -1260,6 +1423,53 @@ class GameUI {
         // Reset the circle to show full
         this.cannonCooldownFill.setAttribute('stroke-dashoffset', '0');
         this.cannonCooldownFill.setAttribute('stroke', '#4CAF50'); // Green
+    }
+    
+    /**
+     * Load gold amount from Firebase and update display
+     */
+    loadGoldAmount() {
+        // If we have access to Firebase auth and the user is logged in
+        if (this.auth && this.auth.getCurrentUser()) {
+            const uid = this.auth.getCurrentUser().uid;
+            
+            // Reference to the player's gold in Firebase
+            const goldRef = firebase.database().ref(`players/${uid}/gold`);
+            
+            // Get the gold amount
+            goldRef.once('value')
+                .then(snapshot => {
+                    // Get gold amount (default to 0 if it doesn't exist)
+                    const goldAmount = snapshot.exists() ? snapshot.val() : 0;
+                    
+                    // Update the gold displays
+                    this.updateGoldDisplay(goldAmount);
+                })
+                .catch(error => {
+                    console.error('Error loading gold amount:', error);
+                });
+        }
+    }
+    
+    /**
+     * Update gold display with the given amount
+     * @param {number} amount - The gold amount to display
+     */
+    updateGoldDisplay(amount) {
+        // Format gold amount with commas for thousands
+        const formattedAmount = amount.toLocaleString();
+        
+        // Update gold button
+        const goldButtonAmount = document.getElementById('gold-amount');
+        if (goldButtonAmount) {
+            goldButtonAmount.textContent = formattedAmount;
+        }
+        
+        // Update gold menu
+        const goldMenuAmount = document.getElementById('gold-menu-amount');
+        if (goldMenuAmount) {
+            goldMenuAmount.textContent = formattedAmount;
+        }
     }
 }
 

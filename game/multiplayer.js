@@ -151,7 +151,8 @@ class MultiplayerManager {
                     lastUpdated: firebase.database.ServerValue.TIMESTAMP,
                     isOnline: true,
                     health: 100, // Always reset health to full when joining
-                    isSunk: false // Always ensure player is not sunk when joining
+                    isSunk: false, // Always ensure player is not sunk when joining
+                    gold: existingPlayerData && existingPlayerData.gold ? existingPlayerData.gold : 0 // Initialize gold or preserve existing gold
                 };
                 
                 // Update the database with the player's data
@@ -803,6 +804,55 @@ class MultiplayerManager {
             })
             .catch(error => {
                 console.error('Error during data migration:', error);
+            });
+    }
+    
+    /**
+     * Update player inventory in Firebase
+     * @param {Object} loot - The loot object with gold and items
+     * @returns {Promise} Promise that resolves when update is complete
+     */
+    updatePlayerInventory(loot) {
+        if (!this.playerRef) return Promise.reject('Not connected');
+        if (!this.auth || !this.auth.getCurrentUser()) return Promise.reject('Not authenticated');
+        
+        this.debug(`Updating player inventory with loot:`, loot);
+        
+        // Get the current user ID
+        const uid = this.playerId;
+        
+        // Create a reference to the player's gold in Firebase
+        const goldRef = this.database.ref(`players/${uid}/gold`);
+        
+        // Update the gold value in Firebase
+        return goldRef.once('value')
+            .then(snapshot => {
+                // Get current gold amount (default to 0 if it doesn't exist)
+                const currentGold = snapshot.exists() ? snapshot.val() : 0;
+                const newGold = currentGold + loot.gold;
+                
+                this.debug(`Updating gold: ${currentGold} + ${loot.gold} = ${newGold}`);
+                
+                // Update the gold amount
+                return this.playerRef.update({
+                    gold: newGold,
+                    lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                });
+            })
+            .then(() => {
+                this.debug(`Successfully updated player gold`);
+                
+                // Trigger an event to update the UI
+                const goldUpdatedEvent = new CustomEvent('playerGoldUpdated', {
+                    detail: { gold: loot.gold }
+                });
+                document.dispatchEvent(goldUpdatedEvent);
+                
+                return true;
+            })
+            .catch(error => {
+                console.error('Error updating player gold:', error);
+                return false;
             });
     }
 }

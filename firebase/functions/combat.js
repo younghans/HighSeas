@@ -236,8 +236,8 @@ exports.lootShipwreck = functions.https.onCall(async (data, context) => {
             const defaultPlayerData = {
                 health: 100,
                 isSunk: false,
+                gold: 0,
                 inventory: {
-                    gold: 0,
                     items: {}
                 },
                 isOnline: true,
@@ -317,19 +317,18 @@ exports.lootShipwreck = functions.https.onCall(async (data, context) => {
         const loot = shipwreck.loot || { gold: 0, items: [] };
         console.log(`Shipwreck loot:`, loot);
         
-        // Update player inventory
-        const playerGold = player.inventory?.gold || 0;
-        const playerItems = player.inventory?.items || {};
+        // Update player gold
+        const playerGold = player.gold || 0;
         
         // Add gold to player
         const newGold = playerGold + loot.gold;
         
-        // Add items to player inventory
+        // Prepare updates
         const updates = {};
-        updates[`players/${uid}/inventory/gold`] = newGold;
+        updates[`players/${uid}/gold`] = newGold;
         
-        // Add each item to player inventory with unique IDs
-        if (loot.items && loot.items.length > 0) {
+        // Add each item to player inventory with unique IDs if inventory exists
+        if (loot.items && loot.items.length > 0 && player.inventory) {
             loot.items.forEach((item, index) => {
                 const itemId = `item-${Date.now()}-${index}`;
                 updates[`players/${uid}/inventory/items/${itemId}`] = item;
