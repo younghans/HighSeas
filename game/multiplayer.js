@@ -14,7 +14,12 @@ class MultiplayerManager {
         this.scene = options.scene;
         this.syncInterval = null;
         this.lastSyncTime = 0;
-        this.SYNC_INTERVAL = 2000; // Reduce to 2 seconds for more frequent updates
+        this.SYNC_INTERVAL = 3000; // Increase to 3 seconds to reduce network traffic
+        this.POSITION_CORRECTION_THRESHOLD = 3.0; // Only correct position if difference is > 3 units
+        this.TELEPORT_THRESHOLD = 50.0; // Teleport if difference is > 50 units
+        this.ROTATION_CORRECTION_THRESHOLD = 0.3; // Only correct rotation if difference is > 0.3 radians
+        this.DESTINATION_CHANGE_THRESHOLD = 5.0; // Update destination if difference is > 5 units
+        this.ARRIVAL_THRESHOLD = 0.5; // Consider arrived if < 0.5 units away
         this.debugMode = true; // Enable debug mode
         this.onPlayerPositionLoaded = options.onPlayerPositionLoaded || null;
         
@@ -433,8 +438,7 @@ class MultiplayerManager {
         // Get the ship object
         const shipObject = otherPlayerShip.getObject();
         
-        // Check if this is a respawn or significant position change (e.g. teleport)
-        const currentPos = shipObject.position;
+        // Create Vector3 for new position from playerData
         const newPos = new THREE.Vector3(
             playerData.position.x,
             0, // Force y position to always be 0
@@ -442,19 +446,39 @@ class MultiplayerManager {
         );
         
         // Calculate distance between current position and new position
-        const distanceChange = currentPos.distanceTo(newPos);
+        const distanceChange = shipObject.position.distanceTo(newPos);
         
-        // If distance is large (over 10 units) or position is near origin (respawn point),
-        // immediately teleport the ship to the new position
+        // Handle special cases: large position change or respawn
         const isNearOrigin = newPos.distanceTo(new THREE.Vector3(0, 0, 0)) < 2;
-        if (distanceChange > 10 || isNearOrigin) {
+        
+        if (distanceChange > this.TELEPORT_THRESHOLD || isNearOrigin || playerData.isSunk) {
+            // For large position changes or respawns, teleport immediately
             this.debug(`Teleporting ship for player ${playerData.displayName} to new position:`, newPos);
             shipObject.position.copy(newPos);
             
-            // If player was sunk and respawned, we should clear any movement data
-            if (isNearOrigin) {
+            // If player was sunk and respawned, clear any movement data
+            if (isNearOrigin || playerData.isSunk) {
                 otherPlayerShip.targetPosition = null;
                 otherPlayerShip.isMoving = false;
+            }
+        } else {
+            // For normal position updates:
+            // 1. If distance is small (ship is close to its reported position), don't do anything
+            // 2. If distance is moderate, set the target position to the reported position
+            
+            // Only adjust course if the difference is more than a small threshold
+            if (distanceChange > this.POSITION_CORRECTION_THRESHOLD) {
+                // Set a target position that's partway between current position and the reported position
+                // This creates smoother convergence instead of constantly chasing an exact point
+                
+                // Calculate the target position based on reported position and current position
+                const targetPos = newPos.clone();
+                
+                this.debug(`Setting course correction for ${playerData.displayName}, distance: ${distanceChange.toFixed(2)}`);
+                
+                // Set the ship to move to this position
+                otherPlayerShip.targetPosition = targetPos;
+                otherPlayerShip.isMoving = true;
             }
         }
         
@@ -464,39 +488,53 @@ class MultiplayerManager {
         // Update rotation if provided
         if (playerData.rotation) {
             const rotationY = playerData.rotation.y || 0;
-            shipObject.rotation.y = rotationY;
+            // Only update rotation directly if there's a significant difference
+            if (Math.abs(shipObject.rotation.y - rotationY) > this.ROTATION_CORRECTION_THRESHOLD) {
+                shipObject.rotation.y = rotationY;
+            }
             otherPlayerShip.userData.lastRotation = rotationY;
         }
         
-        // Update destination if available
+        // Update destination if available from playerData
         if (playerData.destination) {
-            otherPlayerShip.userData.destination = new THREE.Vector3(
+            const destinationPos = new THREE.Vector3(
                 playerData.destination.x,
                 0, // Force destination y to always be 0
                 playerData.destination.z
             );
             
-            // Set the ship's target position to enable wake particles
-            otherPlayerShip.targetPosition = otherPlayerShip.userData.destination;
-            otherPlayerShip.isMoving = true;
+            otherPlayerShip.userData.destination = destinationPos;
             
-            // If we have a new destination, we need to update the rotation to face it
-            const direction = new THREE.Vector3().subVectors(
-                otherPlayerShip.userData.destination,
-                shipObject.position
-            ).normalize();
-            
-            const newRotation = Math.atan2(direction.x, direction.z);
-            shipObject.rotation.y = newRotation;
-            otherPlayerShip.userData.lastRotation = newRotation;
+            // Only update the ship's actual target if it's significantly different
+            // or if the ship isn't already moving
+            if (!otherPlayerShip.isMoving || 
+                (otherPlayerShip.targetPosition && 
+                 otherPlayerShip.targetPosition.distanceTo(destinationPos) > this.DESTINATION_CHANGE_THRESHOLD)) {
+                
+                // Set the ship's target position to enable wake particles
+                otherPlayerShip.targetPosition = destinationPos;
+                otherPlayerShip.isMoving = true;
+                
+                // Update rotation to face direction of travel
+                const direction = new THREE.Vector3().subVectors(
+                    destinationPos,
+                    shipObject.position
+                ).normalize();
+                
+                shipObject.rotation.y = Math.atan2(direction.x, direction.z);
+                otherPlayerShip.userData.lastRotation = shipObject.rotation.y;
+            }
         } else {
-            otherPlayerShip.userData.destination = null;
-            otherPlayerShip.targetPosition = null;
-            otherPlayerShip.isMoving = false;
-            
-            // If no destination, maintain the last rotation
-            if (otherPlayerShip.userData.lastRotation !== undefined) {
-                shipObject.rotation.y = otherPlayerShip.userData.lastRotation;
+            // No destination in playerData but we might have an internal one for smoothing
+            // Let the ship continue to its correction target if we set one earlier
+            if (!otherPlayerShip.targetPosition) {
+                otherPlayerShip.userData.destination = null;
+                otherPlayerShip.isMoving = false;
+                
+                // If no destination, maintain the last rotation
+                if (otherPlayerShip.userData.lastRotation !== undefined) {
+                    shipObject.rotation.y = otherPlayerShip.userData.lastRotation;
+                }
             }
         }
     }
@@ -549,29 +587,20 @@ class MultiplayerManager {
             const shipObject = otherPlayerShip.getObject();
             if (!shipObject) return;
             
-            // If the ship has a destination, let the ship's update method handle movement
-            if (otherPlayerShip.userData.destination) {
-                // If we don't have a target position set yet, set it
-                if (!otherPlayerShip.targetPosition) {
-                    otherPlayerShip.targetPosition = otherPlayerShip.userData.destination.clone();
-                    otherPlayerShip.isMoving = true;
-                    
-                    // Update rotation to face direction of travel
-                    const direction = new THREE.Vector3().subVectors(
-                        otherPlayerShip.targetPosition,
-                        shipObject.position
-                    ).normalize();
-                    
-                    shipObject.rotation.y = Math.atan2(direction.x, direction.z);
-                    otherPlayerShip.userData.lastRotation = shipObject.rotation.y;
-                }
+            // If the ship has a target position, ensure it's moving
+            if (otherPlayerShip.targetPosition) {
+                // Make sure isMoving is true so the ship will sail toward the target
+                otherPlayerShip.isMoving = true;
                 
-                // Let the ship's own update method handle the movement
-                // This ensures consistent speed with the local player
-            } else if (otherPlayerShip.userData.lastRotation !== undefined) {
-                // If the ship has no destination but has a stored last rotation, maintain that rotation
-                shipObject.rotation.y = otherPlayerShip.userData.lastRotation;
-                otherPlayerShip.rotation.y = otherPlayerShip.userData.lastRotation;
+                // If we're very close to the target position, stop moving
+                // This prevents endless small adjustments
+                const distanceToTarget = shipObject.position.distanceTo(otherPlayerShip.targetPosition);
+                if (distanceToTarget < this.ARRIVAL_THRESHOLD) {
+                    otherPlayerShip.isMoving = false;
+                    otherPlayerShip.targetPosition = null;
+                    
+                    this.debug(`Ship for player ${playerData.displayName} reached target position`);
+                }
             }
             
             // Update the ship (this will update wake particles and handle movement)
