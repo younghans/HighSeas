@@ -748,47 +748,51 @@ class MultiplayerManager {
         const oldPlayerRef = this.database.ref(`players/${anonymousUserId}`);
         const newPlayerRef = this.database.ref(`players/${newUserId}`);
         
+        // Store the anonymous player data for later use
+        let anonymousPlayerData = null;
+        
         // First, get the anonymous player data
         oldPlayerRef.once('value')
             .then(snapshot => {
-                const oldPlayerData = snapshot.val();
-                if (!oldPlayerData) {
+                anonymousPlayerData = snapshot.val();
+                if (!anonymousPlayerData) {
                     this.debug('No data found for anonymous user');
-                    return;
+                    return Promise.reject('No data found for anonymous user');
                 }
                 
+                // Anonymous user is already set to offline in the auth.js file
                 // Check if new player data already exists
-                return newPlayerRef.once('value')
-                    .then(newSnapshot => {
-                        // If new player data doesn't exist, use anonymous data
-                        if (!newSnapshot.exists()) {
-                            this.debug('Transferring all data from anonymous account');
-                            
-                            // Update the ID field to match the new user ID
-                            const newData = {
-                                ...oldPlayerData,
-                                id: newUserId,
-                                // Update displayName if available from Google account
-                                displayName: this.auth.getCurrentUser().displayName || oldPlayerData.displayName,
-                                // Ensure online status
-                                isOnline: true,
-                                // Update timestamp
-                                lastUpdated: firebase.database.ServerValue.TIMESTAMP
-                            };
-                            
-                            // Write the data to the new user's location
-                            return newPlayerRef.set(newData);
-                        } else {
-                            // If existing player data is found, keep it and just update the online status
-                            this.debug('Existing Google account player data found - using existing data');
-                            
-                            // Only update the online status and timestamp, preserving all other data
-                            return newPlayerRef.update({
-                                isOnline: true,
-                                lastUpdated: firebase.database.ServerValue.TIMESTAMP
-                            });
-                        }
+                return newPlayerRef.once('value');
+            })
+            .then(newSnapshot => {
+                // If new player data doesn't exist, use anonymous data
+                if (!newSnapshot.exists() && anonymousPlayerData) {
+                    this.debug('Transferring all data from anonymous account');
+                    
+                    // Update the ID field to match the new user ID
+                    const newData = {
+                        ...anonymousPlayerData,
+                        id: newUserId,
+                        // Update displayName if available from Google account
+                        displayName: this.auth.getCurrentUser().displayName || anonymousPlayerData.displayName,
+                        // Ensure online status
+                        isOnline: true,
+                        // Update timestamp
+                        lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                    };
+                    
+                    // Write the data to the new user's location
+                    return newPlayerRef.set(newData);
+                } else {
+                    // If existing player data is found, keep it and just update the online status
+                    this.debug('Existing Google account player data found - using existing data');
+                    
+                    // Only update the online status and timestamp, preserving all other data
+                    return newPlayerRef.update({
+                        isOnline: true,
+                        lastUpdated: firebase.database.ServerValue.TIMESTAMP
                     });
+                }
             })
             .then(() => {
                 this.debug('Data migration complete');
@@ -796,10 +800,6 @@ class MultiplayerManager {
                 // Fire auth state change event to update UI components
                 const authChangeEvent = new Event('auth-state-changed');
                 document.dispatchEvent(authChangeEvent);
-                
-                // Optionally remove the anonymous user data
-                // We'll keep it for now as a backup
-                // return oldPlayerRef.remove();
             })
             .catch(error => {
                 console.error('Error during data migration:', error);
