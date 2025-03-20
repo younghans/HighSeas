@@ -131,11 +131,11 @@ class GameUI {
         // Create profile button in top container
         this.createProfileButton();
         
+        // Create gold button in bottom container (moved before inventory)
+        this.createGoldButton();
+        
         // Create inventory button in bottom container
         this.createInventoryButton();
-        
-        // Create gold button in bottom container
-        this.createGoldButton();
         
         // Create map button in bottom container
         this.createMapButton();
@@ -446,6 +446,79 @@ class GameUI {
     }
     
     /**
+     * Create gold button with coin icon and gold amount
+     */
+    createGoldButton() {
+        const goldButton = document.createElement('div');
+        goldButton.id = 'gold-button';
+        goldButton.style.width = 'auto';
+        goldButton.style.height = '40px';
+        goldButton.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        goldButton.style.color = 'white';
+        goldButton.style.display = 'flex';
+        goldButton.style.alignItems = 'center';
+        goldButton.style.justifyContent = 'center';
+        goldButton.style.cursor = 'pointer';
+        goldButton.style.borderRadius = '8px';
+        goldButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+        goldButton.style.transition = 'all 0.2s ease';
+        goldButton.style.userSelect = 'none';
+        goldButton.style.webkitUserSelect = 'none';
+        goldButton.style.padding = '0 10px';
+        
+        // Create coin icon using SVG
+        const iconContainer = document.createElement('div');
+        iconContainer.style.display = 'flex';
+        iconContainer.style.alignItems = 'center';
+        iconContainer.style.justifyContent = 'center';
+        iconContainer.style.marginRight = '8px';
+        
+        // Use SVG icon for gold coins (stack of coins)
+        iconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="20" viewBox="0 0 24 16" fill="#FFD700" stroke="#E6B800" stroke-width="1">
+            <circle cx="9" cy="8" r="7"></circle>
+            <circle cx="15" cy="8" r="7"></circle>
+        </svg>`;
+        
+        // Create gold amount text
+        const goldText = document.createElement('span');
+        goldText.id = 'gold-amount';
+        goldText.textContent = '0';
+        goldText.style.fontSize = '14px';
+        goldText.style.fontWeight = 'bold';
+        goldText.style.color = '#FFD700';
+        
+        // Add icon and text to button
+        goldButton.appendChild(iconContainer);
+        goldButton.appendChild(goldText);
+        
+        goldButton.title = 'Gold';
+        
+        // Add hover effect
+        goldButton.addEventListener('mouseover', () => {
+            goldButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+            goldButton.style.transform = 'scale(1.05)';
+        });
+        
+        goldButton.addEventListener('mouseout', () => {
+            goldButton.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            goldButton.style.transform = 'scale(1)';
+        });
+        
+        // Add click handler to toggle gold menu
+        goldButton.addEventListener('click', (event) => {
+            // Prevent the click from propagating to document
+            event.stopPropagation();
+            this.toggleBottomMenu('gold');
+        });
+        
+        this.bottomButtonContainer.appendChild(goldButton);
+        this.goldButton = goldButton;
+        
+        // Load initial gold amount
+        this.loadGoldAmount();
+    }
+    
+    /**
      * Create inventory button with backpack icon
      */
     createInventoryButton() {
@@ -496,80 +569,6 @@ class GameUI {
         
         this.bottomButtonContainer.appendChild(inventoryButton);
         this.inventoryButton = inventoryButton;
-    }
-    
-    /**
-     * Create gold button with coin icon and gold amount
-     */
-    createGoldButton() {
-        const goldButton = document.createElement('div');
-        goldButton.id = 'gold-button';
-        goldButton.style.width = 'auto';
-        goldButton.style.height = '40px';
-        goldButton.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-        goldButton.style.color = 'white';
-        goldButton.style.display = 'flex';
-        goldButton.style.alignItems = 'center';
-        goldButton.style.justifyContent = 'center';
-        goldButton.style.cursor = 'pointer';
-        goldButton.style.borderRadius = '8px';
-        goldButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
-        goldButton.style.transition = 'all 0.2s ease';
-        goldButton.style.userSelect = 'none';
-        goldButton.style.webkitUserSelect = 'none';
-        goldButton.style.padding = '0 10px';
-        
-        // Create coin icon using SVG
-        const iconContainer = document.createElement('div');
-        iconContainer.style.display = 'flex';
-        iconContainer.style.alignItems = 'center';
-        iconContainer.style.justifyContent = 'center';
-        iconContainer.style.marginRight = '8px';
-        
-        // Use SVG icon for gold coins (stack of coins)
-        iconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#FFD700" stroke="#E6B800" stroke-width="1">
-            <circle cx="12" cy="6" r="6"></circle>
-            <circle cx="12" cy="12" r="6"></circle>
-            <circle cx="12" cy="18" r="6"></circle>
-        </svg>`;
-        
-        // Create gold amount text
-        const goldText = document.createElement('span');
-        goldText.id = 'gold-amount';
-        goldText.textContent = '0';
-        goldText.style.fontSize = '14px';
-        goldText.style.fontWeight = 'bold';
-        goldText.style.color = '#FFD700';
-        
-        // Add icon and text to button
-        goldButton.appendChild(iconContainer);
-        goldButton.appendChild(goldText);
-        
-        goldButton.title = 'Gold';
-        
-        // Add hover effect
-        goldButton.addEventListener('mouseover', () => {
-            goldButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-            goldButton.style.transform = 'scale(1.05)';
-        });
-        
-        goldButton.addEventListener('mouseout', () => {
-            goldButton.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-            goldButton.style.transform = 'scale(1)';
-        });
-        
-        // Add click handler to toggle gold menu
-        goldButton.addEventListener('click', (event) => {
-            // Prevent the click from propagating to document
-            event.stopPropagation();
-            this.toggleBottomMenu('gold');
-        });
-        
-        this.bottomButtonContainer.appendChild(goldButton);
-        this.goldButton = goldButton;
-        
-        // Load initial gold amount
-        this.loadGoldAmount();
     }
     
     /**
@@ -869,10 +868,9 @@ class GameUI {
         
         // Gold icon
         const goldIcon = document.createElement('div');
-        goldIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#FFD700" stroke="#E6B800" stroke-width="1">
-            <circle cx="12" cy="6" r="6"></circle>
-            <circle cx="12" cy="12" r="6"></circle>
-            <circle cx="12" cy="18" r="6"></circle>
+        goldIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="32" viewBox="0 0 24 16" fill="#FFD700" stroke="#E6B800" stroke-width="1">
+            <circle cx="9" cy="8" r="7"></circle>
+            <circle cx="15" cy="8" r="7"></circle>
         </svg>`;
         goldIcon.style.marginRight = '10px';
         goldAmountContainer.appendChild(goldIcon);

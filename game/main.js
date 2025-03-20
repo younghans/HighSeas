@@ -112,9 +112,14 @@ function initWorldOnly() {
 function setupAuthListeners() {
     // Add auth state listener
     Auth.addAuthStateListener((user) => {
-        if (user && gameStarted) {
-            // If user is logged in and game has started flag is true, start the game
-            startGameWithShip();
+        if (user) {
+            // If user is logged in, always hide the login menu first
+            Auth.hideLoginMenu();
+            
+            // Then start the game if game has started flag is true
+            if (gameStarted) {
+                startGameWithShip();
+            }
         } else if (!user && gameStarted) {
             // If user logged out and game was started, reset the game
             resetGame();

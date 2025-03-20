@@ -5,7 +5,6 @@
       "$uid": {
         ".read": "auth != null",
         ".write": "auth != null && auth.uid === $uid",
-        ".validate": "!newData.hasChild('gold') || newData.child('gold').val() === data.child('gold').val()",
         "gold": {
           ".read": "auth != null",
           ".write": false
