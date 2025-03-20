@@ -18,7 +18,7 @@ class CombatManager {
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
         this.currentTarget = null;
-        this.cannonballSpeed = 50; // Units per second
+        this.cannonballSpeed = 65; // Units per second
         this.cannonballs = [];
         this.cannonballMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
         this.cannonballGeometry = new THREE.SphereGeometry(0.5, 8, 8);
@@ -322,14 +322,14 @@ class CombatManager {
         // Create cannonball mesh
         const cannonball = new THREE.Mesh(this.cannonballGeometry, this.cannonballMaterial);
         
-        // Set initial position (slightly above source ship)
+        // Set initial position at the source ship's water level (bottom)
         const sourcePos = source.getPosition().clone();
-        sourcePos.y += 2; // Raise above the deck
+        // No longer adding height - we'll start at water level
         cannonball.position.copy(sourcePos);
         
-        // Calculate direction to target
+        // Calculate direction to target's water level
         const targetPos = target.getPosition().clone();
-        targetPos.y += 2; // Aim above the deck
+        // No longer adding height - aiming at water level
         
         // For hits, predict where the target will be when the cannonball arrives
         let predictedTargetPos = targetPos.clone();
@@ -375,10 +375,15 @@ class CombatManager {
             adjustedTargetPos = predictedTargetPos;
         }
         
-        // Calculate direction
+        // Calculate direct line direction (without arc)
         const direction = new THREE.Vector3()
             .subVectors(adjustedTargetPos, sourcePos)
             .normalize();
+        
+        // Calculate total distance for arc height calculation
+        const totalDistance = sourcePos.distanceTo(adjustedTargetPos);
+        // Maximum arc height will be proportional to distance
+        const maxArcHeight = Math.min(20, totalDistance * 0.12);
         
         // Add cannonball data
         cannonball.userData = {
@@ -393,7 +398,10 @@ class CombatManager {
             hasHit: false,
             initialTargetPos: targetPos.clone(), // Store initial target position
             predictedPos: predictedTargetPos.clone(), // Store predicted position for debugging
-            serverResult: serverResult // Store server validation result if available
+            serverResult: serverResult, // Store server validation result if available
+            sourcePos: sourcePos.clone(), // Store starting position for arc calculation
+            maxArcHeight: maxArcHeight, // Store maximum arc height
+            totalDistance: totalDistance // Store total distance for arc calculation
         };
         
         // Add to scene and cannonballs array
@@ -402,188 +410,6 @@ class CombatManager {
         
         // Play cannon fire sound (if available)
         // TODO: Add sound effects
-    }
-    
-    /**
-     * Create hit effect at the impact point
-     * @param {THREE.Vector3} position - Position of the impact
-     */
-    createHitEffect(position) {
-        // Create explosion geometry
-        const particleCount = 30; // Increased from 20 to 30
-        const particles = new THREE.Group();
-        
-        // Create individual particles
-        for (let i = 0; i < particleCount; i++) {
-            // Create particle geometry - mix of shapes for more variety
-            const size = 0.2 + Math.random() * 0.4; // Slightly larger particles
-            
-            // Use different geometries for variety
-            let geometry;
-            const shapeType = Math.floor(Math.random() * 3);
-            if (shapeType === 0) {
-                geometry = new THREE.BoxGeometry(size, size, size);
-            } else if (shapeType === 1) {
-                geometry = new THREE.SphereGeometry(size * 0.6, 6, 6);
-            } else {
-                geometry = new THREE.TetrahedronGeometry(size * 0.7);
-            }
-            
-            // Create particle material with more varied colors
-            const colorChoice = Math.random();
-            let color;
-            if (colorChoice < 0.4) {
-                color = 0xFF5500; // Orange
-            } else if (colorChoice < 0.7) {
-                color = 0xFF0000; // Red
-            } else if (colorChoice < 0.9) {
-                color = 0xFFCC00; // Yellow
-            } else {
-                color = 0x333333; // Dark smoke
-            }
-            
-            const material = new THREE.MeshBasicMaterial({
-                color: color,
-                transparent: true,
-                opacity: 0.9
-            });
-            
-            // Create particle mesh
-            const particle = new THREE.Mesh(geometry, material);
-            
-            // Position at impact point with slight random offset
-            particle.position.copy(position).add(
-                new THREE.Vector3(
-                    (Math.random() - 0.5) * 1.5,
-                    (Math.random() - 0.5) * 1.5,
-                    (Math.random() - 0.5) * 1.5
-                )
-            );
-            
-            // Add random velocity - more explosive
-            const velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 15,
-                Math.random() * 8,
-                (Math.random() - 0.5) * 15
-            );
-            
-            // Add particle data
-            particle.userData = {
-                velocity: velocity,
-                lifetime: 0,
-                maxLifetime: 0.5 + Math.random() * 0.7, // Longer lifetime for some particles
-                rotationSpeed: new THREE.Vector3(
-                    Math.random() * 10,
-                    Math.random() * 10,
-                    Math.random() * 10
-                )
-            };
-            
-            // Add to group
-            particles.add(particle);
-        }
-        
-        // Add smoke particles
-        for (let i = 0; i < 10; i++) {
-            const size = 0.5 + Math.random() * 0.8;
-            const geometry = new THREE.SphereGeometry(size, 8, 8);
-            const material = new THREE.MeshBasicMaterial({
-                color: 0x888888,
-                transparent: true,
-                opacity: 0.4 + Math.random() * 0.2
-            });
-            
-            const smoke = new THREE.Mesh(geometry, material);
-            smoke.position.copy(position).add(
-                new THREE.Vector3(
-                    (Math.random() - 0.5) * 2,
-                    Math.random() * 1,
-                    (Math.random() - 0.5) * 2
-                )
-            );
-            
-            // Slower velocity for smoke
-            const velocity = new THREE.Vector3(
-                (Math.random() - 0.5) * 5,
-                2 + Math.random() * 3,
-                (Math.random() - 0.5) * 5
-            );
-            
-            smoke.userData = {
-                velocity: velocity,
-                lifetime: 0,
-                maxLifetime: 1 + Math.random() * 1, // Longer lifetime for smoke
-                isSmoke: true,
-                initialSize: size,
-                growFactor: 1.2 + Math.random() * 0.5 // Smoke expands
-            };
-            
-            particles.add(smoke);
-        }
-        
-        // Add to scene
-        this.scene.add(particles);
-        
-        // Set up animation
-        const animateExplosion = (delta) => {
-            let allExpired = true;
-            
-            // Update all particles
-            for (let i = particles.children.length - 1; i >= 0; i--) {
-                const particle = particles.children[i];
-                
-                // Update lifetime
-                particle.userData.lifetime += delta;
-                
-                // Check if expired
-                if (particle.userData.lifetime >= particle.userData.maxLifetime) {
-                    // Remove particle
-                    particles.remove(particle);
-                    particle.geometry.dispose();
-                    particle.material.dispose();
-                } else {
-                    // Update position
-                    particle.position.add(particle.userData.velocity.clone().multiplyScalar(delta));
-                    
-                    // Apply gravity (less for smoke)
-                    if (particle.userData.isSmoke) {
-                        particle.userData.velocity.y -= 2 * delta;
-                        
-                        // Smoke grows as it rises
-                        const growScale = 1 + (particle.userData.lifetime / particle.userData.maxLifetime) * particle.userData.growFactor;
-                        particle.scale.set(growScale, growScale, growScale);
-                    } else {
-                        // Regular particles
-                        particle.userData.velocity.y -= 9.8 * delta;
-                        
-                        // Add rotation to particles
-                        particle.rotation.x += particle.userData.rotationSpeed.x * delta;
-                        particle.rotation.y += particle.userData.rotationSpeed.y * delta;
-                        particle.rotation.z += particle.userData.rotationSpeed.z * delta;
-                    }
-                    
-                    // Fade out
-                    const fadeProgress = particle.userData.lifetime / particle.userData.maxLifetime;
-                    particle.material.opacity = particle.userData.isSmoke ? 
-                        0.6 * (1 - Math.pow(fadeProgress, 2)) : // Quadratic fade for smoke
-                        0.9 * (1 - fadeProgress); // Linear fade for debris
-                    
-                    allExpired = false;
-                }
-            }
-            
-            // Remove group if all particles expired
-            if (allExpired) {
-                this.scene.remove(particles);
-                return;
-            }
-            
-            // Continue animation
-            requestAnimationFrame(() => animateExplosion(Math.min(1/60, delta)));
-        };
-        
-        // Start animation
-        animateExplosion(1/60);
     }
     
     /**
@@ -661,7 +487,7 @@ class CombatManager {
             // For hit shots, update trajectory to track moving targets
             if (!userData.isMiss && !userData.hasHit && userData.target && userData.target.isMoving) {
                 const currentTargetPos = userData.target.getPosition().clone();
-                currentTargetPos.y += 2; // Aim at deck level
+                // No longer adding height - we aim at water level
                 
                 // Calculate how far along the cannonball's lifetime we are (0-1)
                 const age = now - userData.createdAt;
@@ -689,19 +515,52 @@ class CombatManager {
                 }
             }
             
-            // Move cannonball
+            // Move cannonball forward along XZ plane
             const moveAmount = userData.speed * delta;
+            
+            // Calculate what percentage of the journey we've completed (in terms of XZ plane distance)
+            const startPos = userData.sourcePos;
+            const targetPos = userData.targetPosition;
+            
+            // Calculate XZ plane positions (ignoring Y/height)
+            const currentXZ = new THREE.Vector2(cannonball.position.x, cannonball.position.z);
+            const startXZ = new THREE.Vector2(startPos.x, startPos.z);
+            const targetXZ = new THREE.Vector2(targetPos.x, targetPos.z);
+            
+            // Calculate total XZ distance and current progress
+            const totalDistanceXZ = startXZ.distanceTo(targetXZ);
+            const currentDistanceXZ = startXZ.distanceTo(currentXZ);
+            const progressXZ = Math.min(1.0, currentDistanceXZ / totalDistanceXZ);
+            
+            // Move along XZ plane
             cannonball.position.add(
-                userData.direction.clone().multiplyScalar(moveAmount)
+                new THREE.Vector3(
+                    userData.direction.x * moveAmount,
+                    0, // Don't apply Y movement here
+                    userData.direction.z * moveAmount
+                )
             );
             
-            // Add slight arc to cannonball trajectory
-            const age = now - userData.createdAt;
-            const lifePercent = age / this.cannonballLifetime;
+            // Update progress after movement
+            const newCurrentXZ = new THREE.Vector2(cannonball.position.x, cannonball.position.z);
+            const newCurrentDistanceXZ = startXZ.distanceTo(newCurrentXZ);
+            const newProgressXZ = Math.min(1.0, newCurrentDistanceXZ / totalDistanceXZ);
             
-            // Parabolic arc (up then down)
-            const heightOffset = Math.sin(lifePercent * Math.PI) * 5;
-            cannonball.position.y = userData.source.getPosition().y + 2 + heightOffset;
+            // Apply arc trajectory based on journey progress
+            // Sine wave creates a nice arc that peaks in the middle of the journey
+            const arcHeight = Math.sin(newProgressXZ * Math.PI) * userData.maxArcHeight;
+            
+            // For the second half of the journey, gradually sink below water level if it's a miss
+            let finalHeight = startPos.y + arcHeight;
+            if (userData.isMiss && newProgressXZ > 0.5) {
+                // Calculate how far we are into the second half (0 to 1)
+                const sinkProgress = (newProgressXZ - 0.5) * 2; // 0 at midpoint, 1 at end
+                // Apply a quadratic curve to sink faster toward the end
+                const sinkAmount = sinkProgress * sinkProgress * 3; // Sink up to 3 units below water
+                finalHeight -= sinkAmount;
+            }
+            
+            cannonball.position.y = finalHeight;
             
             // For misses, check if we've passed the target position
             if (userData.isMiss && !userData.hasHit) {
@@ -714,7 +573,7 @@ class CombatManager {
             // For hits, check if we've reached the target ship
             else if (!userData.isMiss && !userData.hasHit && userData.target && !userData.target.isSunk) {
                 const distanceToTarget = cannonball.position.distanceTo(userData.target.getPosition());
-                if (distanceToTarget < 8) {
+                if (distanceToTarget < 2) {
                     // Apply damage now that the cannonball has hit
                     if (userData.damage > 0) {
                         // If we have server validation result, use that
@@ -745,6 +604,7 @@ class CombatManager {
             }
             
             // Check if cannonball has expired
+            const age = now - userData.createdAt;
             if (age > this.cannonballLifetime || 
                 (userData.isMiss && userData.hasHit && age > this.cannonballLifetime * 0.6)) {
                 cannonballsToRemove.push(cannonball);
@@ -1077,6 +937,188 @@ class CombatManager {
         
         // Immediately reset the player ship without delay
         this.resetPlayerShip();
+    }
+
+    /**
+     * Create hit effect at the impact point
+     * @param {THREE.Vector3} position - Position of the impact
+     */
+    createHitEffect(position) {
+        // Create explosion geometry
+        const particleCount = 30; // Increased from 20 to 30
+        const particles = new THREE.Group();
+        
+        // Create individual particles
+        for (let i = 0; i < particleCount; i++) {
+            // Create particle geometry - mix of shapes for more variety
+            const size = 0.2 + Math.random() * 0.4; // Slightly larger particles
+            
+            // Use different geometries for variety
+            let geometry;
+            const shapeType = Math.floor(Math.random() * 3);
+            if (shapeType === 0) {
+                geometry = new THREE.BoxGeometry(size, size, size);
+            } else if (shapeType === 1) {
+                geometry = new THREE.SphereGeometry(size * 0.6, 6, 6);
+            } else {
+                geometry = new THREE.TetrahedronGeometry(size * 0.7);
+            }
+            
+            // Create particle material with more varied colors
+            const colorChoice = Math.random();
+            let color;
+            if (colorChoice < 0.4) {
+                color = 0xFF5500; // Orange
+            } else if (colorChoice < 0.7) {
+                color = 0xFF0000; // Red
+            } else if (colorChoice < 0.9) {
+                color = 0xFFCC00; // Yellow
+            } else {
+                color = 0x333333; // Dark smoke
+            }
+            
+            const material = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.9
+            });
+            
+            // Create particle mesh
+            const particle = new THREE.Mesh(geometry, material);
+            
+            // Position at impact point with slight random offset
+            particle.position.copy(position).add(
+                new THREE.Vector3(
+                    (Math.random() - 0.5) * 1.5,
+                    (Math.random() - 0.5) * 1.5,
+                    (Math.random() - 0.5) * 1.5
+                )
+            );
+            
+            // Add random velocity - more explosive
+            const velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 15,
+                Math.random() * 8,
+                (Math.random() - 0.5) * 15
+            );
+            
+            // Add particle data
+            particle.userData = {
+                velocity: velocity,
+                lifetime: 0,
+                maxLifetime: 0.5 + Math.random() * 0.7, // Longer lifetime for some particles
+                rotationSpeed: new THREE.Vector3(
+                    Math.random() * 10,
+                    Math.random() * 10,
+                    Math.random() * 10
+                )
+            };
+            
+            // Add to group
+            particles.add(particle);
+        }
+        
+        // Add smoke particles
+        for (let i = 0; i < 10; i++) {
+            const size = 0.5 + Math.random() * 0.8;
+            const geometry = new THREE.SphereGeometry(size, 8, 8);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0x888888,
+                transparent: true,
+                opacity: 0.4 + Math.random() * 0.2
+            });
+            
+            const smoke = new THREE.Mesh(geometry, material);
+            smoke.position.copy(position).add(
+                new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    Math.random() * 1,
+                    (Math.random() - 0.5) * 2
+                )
+            );
+            
+            // Slower velocity for smoke
+            const velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 5,
+                2 + Math.random() * 3,
+                (Math.random() - 0.5) * 5
+            );
+            
+            smoke.userData = {
+                velocity: velocity,
+                lifetime: 0,
+                maxLifetime: 1 + Math.random() * 1, // Longer lifetime for smoke
+                isSmoke: true,
+                initialSize: size,
+                growFactor: 1.2 + Math.random() * 0.5 // Smoke expands
+            };
+            
+            particles.add(smoke);
+        }
+        
+        // Add to scene
+        this.scene.add(particles);
+        
+        // Set up animation
+        const animateExplosion = (delta) => {
+            let allExpired = true;
+            
+            // Update all particles
+            for (let i = particles.children.length - 1; i >= 0; i--) {
+                const particle = particles.children[i];
+                
+                // Update lifetime
+                particle.userData.lifetime += delta;
+                
+                // Check if expired
+                if (particle.userData.lifetime >= particle.userData.maxLifetime) {
+                    // Remove particle
+                    particles.remove(particle);
+                    particle.geometry.dispose();
+                    particle.material.dispose();
+                } else {
+                    // Update position
+                    particle.position.add(particle.userData.velocity.clone().multiplyScalar(delta));
+                    
+                    // Apply gravity (less for smoke)
+                    if (particle.userData.isSmoke) {
+                        particle.userData.velocity.y -= 2 * delta;
+                        
+                        // Smoke grows as it rises
+                        const growScale = 1 + (particle.userData.lifetime / particle.userData.maxLifetime) * particle.userData.growFactor;
+                        particle.scale.set(growScale, growScale, growScale);
+                    } else {
+                        // Regular particles
+                        particle.userData.velocity.y -= 9.8 * delta;
+                        
+                        // Add rotation to particles
+                        particle.rotation.x += particle.userData.rotationSpeed.x * delta;
+                        particle.rotation.y += particle.userData.rotationSpeed.y * delta;
+                        particle.rotation.z += particle.userData.rotationSpeed.z * delta;
+                    }
+                    
+                    // Fade out
+                    const fadeProgress = particle.userData.lifetime / particle.userData.maxLifetime;
+                    particle.material.opacity = particle.userData.isSmoke ? 
+                        0.6 * (1 - Math.pow(fadeProgress, 2)) : // Quadratic fade for smoke
+                        0.9 * (1 - fadeProgress); // Linear fade for debris
+                    
+                    allExpired = false;
+                }
+            }
+            
+            // Remove group if all particles expired
+            if (allExpired) {
+                this.scene.remove(particles);
+                return;
+            }
+            
+            // Continue animation
+            requestAnimationFrame(() => animateExplosion(Math.min(1/60, delta)));
+        };
+        
+        // Start animation
+        animateExplosion(1/60);
     }
 }
 
