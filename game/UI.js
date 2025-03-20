@@ -149,20 +149,6 @@ class GameUI {
         // Add event listener for game interactions to close top menus
         document.addEventListener('click', this.handleGameInteraction.bind(this));
         
-        // Add event listener for auth state changes to update UI
-        document.addEventListener('auth-state-changed', () => {
-            // Rebuild the profile menu when auth state changes
-            if (this.profileMenu && this.topMenuContainer) {
-                // Remove the old profile menu
-                this.topMenuContainer.removeChild(this.profileMenu);
-                // Create a new profile menu
-                this.createProfileMenu();
-            }
-            
-            // Load gold amount when auth state changes
-            this.loadGoldAmount();
-        });
-        
         // Add event listener for gold updates
         document.addEventListener('playerGoldUpdated', (event) => {
             // Load the updated gold amount
@@ -769,101 +755,36 @@ class GameUI {
         
         profileMenu.appendChild(mainMenuButton);
         
-        // Check if user is anonymous to determine what buttons to show
-        const isAnonymous = this.auth && this.auth.getCurrentUser() && this.auth.getCurrentUser().isAnonymous;
+        // Logout button - shown for all users (both anonymous and Google)
+        const logoutButton = document.createElement('button');
+        logoutButton.id = 'profile-logout-button';
+        logoutButton.textContent = 'Logout';
+        logoutButton.style.padding = '8px 12px';
+        logoutButton.style.backgroundColor = '#f44336';
+        logoutButton.style.color = 'white';
+        logoutButton.style.border = 'none';
+        logoutButton.style.borderRadius = '4px';
+        logoutButton.style.cursor = 'pointer';
+        logoutButton.style.width = '100%';
+        logoutButton.style.boxSizing = 'border-box';
         
-        // Login with Google button (only for anonymous users)
-        if (isAnonymous) {
-            const loginWithGoogleButton = document.createElement('button');
-            loginWithGoogleButton.id = 'profile-google-login-button';
-            loginWithGoogleButton.textContent = 'Login with Google';
-            loginWithGoogleButton.style.padding = '8px 12px';
-            loginWithGoogleButton.style.backgroundColor = '#4285F4';
-            loginWithGoogleButton.style.color = 'white';
-            loginWithGoogleButton.style.border = 'none';
-            loginWithGoogleButton.style.borderRadius = '4px';
-            loginWithGoogleButton.style.cursor = 'pointer';
-            loginWithGoogleButton.style.width = '100%';
-            loginWithGoogleButton.style.marginBottom = '10px';
-            loginWithGoogleButton.style.boxSizing = 'border-box';
-            
-            // Add hover effect
-            loginWithGoogleButton.addEventListener('mouseover', () => {
-                loginWithGoogleButton.style.backgroundColor = '#3367D6';
-            });
-            
-            loginWithGoogleButton.addEventListener('mouseout', () => {
-                loginWithGoogleButton.style.backgroundColor = '#4285F4';
-            });
-            
-            // Add click handler to login with Google
-            loginWithGoogleButton.addEventListener('click', (event) => {
-                // Prevent the click from propagating to document
-                event.stopPropagation();
-                
-                // Close the profile menu
-                this.closeTopMenu();
-                
-                // Show loading notification
-                this.showNotification('Logging in with Google...', 'info');
-                
-                // Call Google login
-                if (this.auth) {
-                    this.auth.signInWithGoogle()
-                        .then(() => {
-                            console.log('Successfully logged in with Google');
-                            this.showNotification('Successfully logged in with Google!', 'success');
-                            
-                            // Rebuild the profile menu to reflect the new authentication state
-                            // First, remove the old profile menu
-                            while (this.profileMenu.firstChild) {
-                                this.profileMenu.removeChild(this.profileMenu.firstChild);
-                            }
-                            
-                            // Then rebuild by calling createProfileMenu again
-                            this.topMenuContainer.removeChild(this.profileMenu);
-                            this.createProfileMenu();
-                        })
-                        .catch(error => {
-                            console.error('Error logging in with Google:', error);
-                            this.showNotification('Failed to log in with Google. Please try again.', 'error');
-                        });
-                }
-            });
-            
-            profileMenu.appendChild(loginWithGoogleButton);
-        } else {
-            // Logout button (only for non-anonymous users)
-            const logoutButton = document.createElement('button');
-            logoutButton.id = 'profile-logout-button';
-            logoutButton.textContent = 'Logout';
-            logoutButton.style.padding = '8px 12px';
+        // Add hover effect
+        logoutButton.addEventListener('mouseover', () => {
+            logoutButton.style.backgroundColor = '#d32f2f';
+        });
+        
+        logoutButton.addEventListener('mouseout', () => {
             logoutButton.style.backgroundColor = '#f44336';
-            logoutButton.style.color = 'white';
-            logoutButton.style.border = 'none';
-            logoutButton.style.borderRadius = '4px';
-            logoutButton.style.cursor = 'pointer';
-            logoutButton.style.width = '100%';
-            logoutButton.style.boxSizing = 'border-box';
-            
-            // Add hover effect
-            logoutButton.addEventListener('mouseover', () => {
-                logoutButton.style.backgroundColor = '#d32f2f';
-            });
-            
-            logoutButton.addEventListener('mouseout', () => {
-                logoutButton.style.backgroundColor = '#f44336';
-            });
-            
-            // Add click handler to logout
-            logoutButton.addEventListener('click', (event) => {
-                // Prevent the click from propagating to document
-                event.stopPropagation();
-                this.logout();
-            });
-            
-            profileMenu.appendChild(logoutButton);
-        }
+        });
+        
+        // Add click handler to logout
+        logoutButton.addEventListener('click', (event) => {
+            // Prevent the click from propagating to document
+            event.stopPropagation();
+            this.logout();
+        });
+        
+        profileMenu.appendChild(logoutButton);
         
         // Add click handler to prevent clicks from closing the menu
         profileMenu.addEventListener('click', (event) => {

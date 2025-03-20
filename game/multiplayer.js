@@ -27,10 +27,6 @@ class MultiplayerManager {
         this.updatePlayerShip = this.updatePlayerShip.bind(this);
         this.removePlayerShip = this.removePlayerShip.bind(this);
         this.loadPlayerPosition = this.loadPlayerPosition.bind(this);
-        this.migratePlayerData = this.migratePlayerData.bind(this);
-        
-        // Listen for account upgrade events
-        document.addEventListener('userAccountUpgraded', this.migratePlayerData);
     }
     
     /**
@@ -730,81 +726,6 @@ class MultiplayerManager {
             console.error('Error updating player health:', error);
             return false;
         });
-    }
-    
-    /**
-     * Migrate player data from anonymous account to Google account
-     * @param {Event} event - The userAccountUpgraded event with anonymousUserId and newUserId
-     */
-    migratePlayerData(event) {
-        if (!event.detail || !event.detail.anonymousUserId || !event.detail.newUserId) {
-            this.debug('Invalid migration event data');
-            return;
-        }
-        
-        const { anonymousUserId, newUserId } = event.detail;
-        this.debug(`Migrating player data from ${anonymousUserId} to ${newUserId}`);
-        
-        // References to the old and new player data
-        const oldPlayerRef = this.database.ref(`players/${anonymousUserId}`);
-        const newPlayerRef = this.database.ref(`players/${newUserId}`);
-        
-        // Store the anonymous player data for later use
-        let anonymousPlayerData = null;
-        
-        // First, get the anonymous player data
-        oldPlayerRef.once('value')
-            .then(snapshot => {
-                anonymousPlayerData = snapshot.val();
-                if (!anonymousPlayerData) {
-                    this.debug('No data found for anonymous user');
-                    return Promise.reject('No data found for anonymous user');
-                }
-                
-                // Anonymous user is already set to offline in the auth.js file
-                // Check if new player data already exists
-                return newPlayerRef.once('value');
-            })
-            .then(newSnapshot => {
-                // If new player data doesn't exist, use anonymous data
-                if (!newSnapshot.exists() && anonymousPlayerData) {
-                    this.debug('Transferring all data from anonymous account');
-                    
-                    // Update the ID field to match the new user ID
-                    const newData = {
-                        ...anonymousPlayerData,
-                        id: newUserId,
-                        // Update displayName if available from Google account
-                        displayName: this.auth.getCurrentUser().displayName || anonymousPlayerData.displayName,
-                        // Ensure online status
-                        isOnline: true,
-                        // Update timestamp
-                        lastUpdated: firebase.database.ServerValue.TIMESTAMP
-                    };
-                    
-                    // Write the data to the new user's location
-                    return newPlayerRef.set(newData);
-                } else {
-                    // If existing player data is found, keep it and just update the online status
-                    this.debug('Existing Google account player data found - using existing data');
-                    
-                    // Only update the online status and timestamp, preserving all other data
-                    return newPlayerRef.update({
-                        isOnline: true,
-                        lastUpdated: firebase.database.ServerValue.TIMESTAMP
-                    });
-                }
-            })
-            .then(() => {
-                this.debug('Data migration complete');
-                
-                // Fire auth state change event to update UI components
-                const authChangeEvent = new Event('auth-state-changed');
-                document.dispatchEvent(authChangeEvent);
-            })
-            .catch(error => {
-                console.error('Error during data migration:', error);
-            });
     }
     
     /**

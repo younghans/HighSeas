@@ -20,33 +20,21 @@ After enabling Anonymous Authentication, you can test guest login:
 4. Click "Play as Guest"
 5. The game should start with the guest username
 
-## Guest to Google Account Upgrade
-
-Guest users can upgrade to a permanent Google account while preserving their gameplay data:
-
-1. While playing as a guest, click on the profile icon in the top-right corner
-2. In the profile menu, you'll see a "Login with Google" button (only shown for guest users)
-3. Click "Login with Google"
-4. Complete the Google authentication process
-5. Your guest account data will be transferred to your Google account (if no existing player data is found)
-6. You'll now be logged in with your Google account
-
 ## How It Works
 
-Guest login uses Firebase's Anonymous Authentication feature. When a user logs in as a guest:
+This game supports two authentication methods:
 
-1. They are assigned a temporary anonymous user ID
-2. Their username is stored in the Firebase user profile
-3. Their data is stored in the players collection, just like regular users
-4. All guest data persists between sessions as long as they use the same browser
+1. **Google Authentication**: Users can sign in with their Google accounts
+2. **Anonymous Authentication**: Users can play as guests without creating an account
 
-When a guest user upgrades to a Google account:
+Both authentication methods are treated the same way within the game:
+- Each user gets their own player record in the database
+- Player data (position, inventory, etc.) is stored and retrieved the same way
+- Both types of users can access the same game features
+- Both can save their username and log out
 
-1. The system attempts to link the anonymous account with the Google account
-2. If the Google account already exists, the system will:
-   - Sign in with the Google account
-   - Check if player data already exists for that Google account
-   - If player data exists: Use the existing player data (preserving progress)
-   - If no player data exists: Migrate data from the anonymous account to the Google account
+The only difference is how users initially authenticate:
+- Google users log in with their Google account
+- Guest users provide a username and play anonymously
 
-Note that if a guest clears their browser data or uses a different browser before upgrading, they will get a new anonymous user ID and lose access to their previous guest account. 
+Note that if a guest clears their browser data or uses a different browser, they will get a new anonymous user ID and won't be able to access their previous guest account. 

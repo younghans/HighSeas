@@ -914,10 +914,12 @@ function onMouseClick(event) {
                         // Shipwreck is in range, loot it (now async)
                         enemyShipManager.lootShipwreck(clickedShipwreck)
                             .then(loot => {
-                                // Update player inventory if multiplayer is enabled
-                                if (multiplayerManager) {
-                                    multiplayerManager.updatePlayerInventory(loot);
-                                }
+                                // The server already updated the gold in the database, just trigger a UI update
+                                // Trigger a gold update event to refresh the UI display
+                                const goldUpdatedEvent = new CustomEvent('playerGoldUpdated', {
+                                    detail: { gold: loot.gold }
+                                });
+                                document.dispatchEvent(goldUpdatedEvent);
                             })
                             .catch(error => {
                                 // Handle looting errors
