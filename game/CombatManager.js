@@ -27,6 +27,7 @@ class CombatManager {
         this.autoFireInterval = null;
         this.isResetting = false;
         this.debugArrows = [];
+        this.showDebugClickBoxes = true; // Show debug click boxes by default
         
         // Bind methods
         this.handleMouseClick = this.handleMouseClick.bind(this);
@@ -35,9 +36,15 @@ class CombatManager {
         this.update = this.update.bind(this);
         this.fireCannonball = this.fireCannonball.bind(this);
         this.resetPlayerShip = this.resetPlayerShip.bind(this);
+        this.toggleDebugClickBoxes = this.toggleDebugClickBoxes.bind(this);
         
         // Initialize event listeners
         this.initEventListeners();
+        
+        // Show debug click boxes by default in development
+        if (this.enemyShipManager) {
+            this.toggleDebugClickBoxes(this.showDebugClickBoxes);
+        }
     }
     
     /**
@@ -72,6 +79,39 @@ class CombatManager {
         
         // Get all enemy ships
         const enemyShips = this.enemyShipManager.getEnemyShips();
+        
+        // First try to detect clicks on the clickable spheres
+        // Create an array of clickable spheres for raycasting
+        const clickableSpheres = [];
+        const shipByClickSphere = new Map(); // Map to track which ship owns which clickable sphere
+        
+        for (const ship of enemyShips) {
+            if (ship.isSunk) continue; // Skip sunk ships
+            
+            const clickSphere = ship.getClickBoxSphere ? ship.getClickBoxSphere() : null;
+            if (clickSphere) {
+                clickableSpheres.push(clickSphere);
+                shipByClickSphere.set(clickSphere, ship);
+            }
+        }
+        
+        // Check for intersections with clickable spheres first
+        if (clickableSpheres.length > 0) {
+            const sphereIntersects = this.raycaster.intersectObjects(clickableSpheres);
+            
+            if (sphereIntersects.length > 0) {
+                // Find the ship that owns this clickable sphere
+                const clickedSphere = sphereIntersects[0].object;
+                const clickedShip = shipByClickSphere.get(clickedSphere);
+                
+                if (clickedShip && !clickedShip.isSunk) {
+                    this.setTarget(clickedShip);
+                    return true; // Indicate that we handled the click
+                }
+            }
+        }
+        
+        // If no clickable sphere was hit, fall back to the old mesh-based detection
         const shipObjects = enemyShips.map(ship => ship.getObject()).filter(obj => obj !== null);
         
         // Check for intersections with enemy ships
@@ -814,6 +854,16 @@ class CombatManager {
                 if (!ship.healthBarContainer) {
                     ship.createHealthBar();
                 }
+                
+                // Create click box sphere if it doesn't exist
+                if (!ship.clickBoxSphere && typeof ship.createClickBoxSphere === 'function') {
+                    ship.createClickBoxSphere();
+                }
+                
+                // Apply current debug click box setting
+                if (typeof ship.setDebugClickBoxVisible === 'function') {
+                    ship.setDebugClickBoxVisible(this.showDebugClickBoxes);
+                }
             }
         }
     }
@@ -942,6 +992,16 @@ class CombatManager {
     initializeEnemyShip(enemyShip) {
         if (enemyShip && !enemyShip.healthBarContainer) {
             enemyShip.createHealthBar();
+        }
+        
+        // Create click box sphere if it doesn't exist
+        if (enemyShip && !enemyShip.clickBoxSphere && typeof enemyShip.createClickBoxSphere === 'function') {
+            enemyShip.createClickBoxSphere();
+            
+            // Apply current debug click box setting
+            if (typeof enemyShip.setDebugClickBoxVisible === 'function') {
+                enemyShip.setDebugClickBoxVisible(this.showDebugClickBoxes);
+            }
         }
     }
     
@@ -1140,6 +1200,31 @@ class CombatManager {
         
         // Start animation
         animateExplosion(1/60);
+    }
+    
+    /**
+     * Toggle visibility of debug click boxes on all ships
+     * @param {boolean} visible - Whether debug click boxes should be visible
+     */
+    toggleDebugClickBoxes(visible) {
+        this.showDebugClickBoxes = visible;
+        
+        // Update player ship if it exists
+        if (this.playerShip && typeof this.playerShip.setDebugClickBoxVisible === 'function') {
+            this.playerShip.setDebugClickBoxVisible(visible);
+        }
+        
+        // Update all enemy ships if they exist
+        if (this.enemyShipManager) {
+            const enemyShips = this.enemyShipManager.getEnemyShips();
+            for (const ship of enemyShips) {
+                if (typeof ship.setDebugClickBoxVisible === 'function') {
+                    ship.setDebugClickBoxVisible(visible);
+                }
+            }
+        }
+        
+        console.log(`Debug click boxes are now ${visible ? 'visible' : 'hidden'}`);
     }
 }
 

@@ -217,6 +217,15 @@ class Sloop extends BaseShip {
         
         // Ensure the internal position matches the mesh position
         this.position.copy(this.shipMesh.position);
+        
+        // Set the ship dimensions explicitly for accurate click box creation
+        this.shipDimensions = {
+            length: hullLength,
+            width: hullWidth
+        };
+        
+        // Create the clickable sphere around the ship
+        this.createClickBoxSphere();
     }
 }
 

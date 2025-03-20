@@ -6,6 +6,9 @@ import WakeParticleSystem from './WakeParticleSystem.js';
  * This class provides common functionality for all ships
  */
 class BaseShip {
+    // Class constant for ship height estimate (used for clickable sphere positioning)
+    static SHIP_HEIGHT_ESTIMATE = 3; // Average height from water level to top of ship (excluding mast)
+    
     /**
      * Create a new ship
      * @param {THREE.Scene} scene - The scene to add the ship to
@@ -39,6 +42,11 @@ class BaseShip {
         // Store wake particle options for later initialization
         this.wakeParticleOptions = options.wakeParticleOptions || {};
         this.wakeParticleSystem = null;
+        
+        // Click box properties
+        this.clickBoxSphere = null;
+        this.shipDimensions = { length: 10, width: 5 }; // Default dimensions, will be updated by subclasses
+        this.showDebugClickBox = options.showDebugClickBox || true; // Show debug sphere by default for development
         
         // Store initial position if provided in options
         if (options.position) {
@@ -139,6 +147,15 @@ class BaseShip {
                 // Apply new position
                 this.shipMesh.position.copy(newPosition);
                 
+                // Update click box sphere position
+                if (this.clickBoxSphere) {
+                    // Copy the horizontal position from the ship
+                    this.clickBoxSphere.position.x = this.shipMesh.position.x;
+                    this.clickBoxSphere.position.z = this.shipMesh.position.z;
+                    // Maintain the vertical offset (don't copy Y directly)
+                    this.clickBoxSphere.position.y = this.shipMesh.position.y + BaseShip.SHIP_HEIGHT_ESTIMATE / 2;
+                }
+                
                 // Update internal position to match mesh position
                 this.position.copy(this.shipMesh.position);
                 
@@ -161,6 +178,12 @@ class BaseShip {
                 if (this.shipMesh.position.y !== 0) {
                     this.shipMesh.position.y = 0;
                     this.position.y = 0;
+                    
+                    // Update click box sphere position
+                    if (this.clickBoxSphere) {
+                        // Maintain the vertical offset
+                        this.clickBoxSphere.position.y = BaseShip.SHIP_HEIGHT_ESTIMATE / 2;
+                    }
                 }
             }
         }
@@ -178,6 +201,12 @@ class BaseShip {
             // Ensure Y position stays at water level
             if (this.shipMesh.position.y !== 0) {
                 this.shipMesh.position.y = 0;
+                
+                // Update click box sphere position
+                if (this.clickBoxSphere) {
+                    // Maintain the vertical offset
+                    this.clickBoxSphere.position.y = BaseShip.SHIP_HEIGHT_ESTIMATE / 2;
+                }
             }
         }
     }
@@ -202,6 +231,15 @@ class BaseShip {
         this.position.copy(position);
         if (this.shipMesh) {
             this.shipMesh.position.copy(position);
+        }
+        
+        // Update click box sphere position
+        if (this.clickBoxSphere) {
+            // Copy horizontal position
+            this.clickBoxSphere.position.x = position.x;
+            this.clickBoxSphere.position.z = position.z;
+            // Maintain vertical offset
+            this.clickBoxSphere.position.y = position.y + BaseShip.SHIP_HEIGHT_ESTIMATE / 2;
         }
     }
     
@@ -275,6 +313,14 @@ class BaseShip {
                     this.healthBarContainer.style.display = 'none';
                 }
             }
+        }
+        
+        // Hide the clickable sphere when ship is sunk
+        if (this.clickBoxSphere) {
+            this.scene.remove(this.clickBoxSphere);
+            if (this.clickBoxSphere.geometry) this.clickBoxSphere.geometry.dispose();
+            if (this.clickBoxSphere.material) this.clickBoxSphere.material.dispose();
+            this.clickBoxSphere = null;
         }
         
         // If this ship is being targeted by the player via combat manager, clear the target
@@ -411,6 +457,14 @@ class BaseShip {
         this.healthBarBackground = null;
         this.healthBarForeground = null;
         
+        // Remove clickable sphere since we'll be creating a new one
+        if (this.clickBoxSphere) {
+            this.scene.remove(this.clickBoxSphere);
+            if (this.clickBoxSphere.geometry) this.clickBoxSphere.geometry.dispose();
+            if (this.clickBoxSphere.material) this.clickBoxSphere.material.dispose();
+            this.clickBoxSphere = null;
+        }
+        
         // Remove old ship mesh and any associated effects
         if (this.shipMesh) {
             console.log('Removing old ship mesh from scene');
@@ -479,6 +533,9 @@ class BaseShip {
                 `Sail: 0x${this.sailColor.toString(16)}`);
                 
             this.createShip();
+            
+            // Create clickable sphere after ship mesh is created
+            this.createClickBoxSphere();
             
             // Initialize new wake particle system after ship mesh is created
             this.initWakeParticleSystem();
@@ -842,6 +899,90 @@ class BaseShip {
         
         // Make health bar always face the camera
         this.healthBarContainer.lookAt(camera.position);
+    }
+    
+    /**
+     * Create the clickable sphere around the ship
+     * This should be called after the ship mesh has been created and sized
+     */
+    createClickBoxSphere() {
+        if (!this.shipMesh || !this.scene) return;
+        
+        // First, estimate ship dimensions if not explicitly set
+        if (!this.shipDimensions.length || !this.shipDimensions.width) {
+            this.estimateShipDimensions();
+        }
+        
+        // Calculate radius based on the larger of length or width, with a 100% increase (200% size)
+        const maxDimension = Math.max(this.shipDimensions.length, this.shipDimensions.width);
+        const radius = maxDimension; // 1.0 = 2.0/2 (200% size, divide by 2 for radius)
+        
+        // Create sphere geometry and material
+        const geometry = new THREE.SphereGeometry(radius, 16, 16);
+        const material = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            transparent: true,
+            opacity: this.showDebugClickBox ? 0.3 : 0, // Visible for debug, invisible for production
+            depthWrite: false
+        });
+        
+        // Create mesh
+        this.clickBoxSphere = new THREE.Mesh(geometry, material);
+        
+        // Position at ship's center
+        this.clickBoxSphere.position.copy(this.shipMesh.position);
+        
+        // Raise the sphere to the center of the ship vertically
+        this.clickBoxSphere.position.y += BaseShip.SHIP_HEIGHT_ESTIMATE / 2;
+        
+        // Add to scene
+        this.scene.add(this.clickBoxSphere);
+        
+        console.log(`Created click box sphere for ship with radius ${radius} (200% of max dimension ${maxDimension}), centered at height ${this.clickBoxSphere.position.y}`);
+    }
+    
+    /**
+     * Estimate the ship's dimensions based on its mesh
+     * This method analyzes the ship mesh to determine length and width
+     */
+    estimateShipDimensions() {
+        if (!this.shipMesh) return;
+        
+        // Create a new bounding box
+        const boundingBox = new THREE.Box3().setFromObject(this.shipMesh);
+        
+        // Calculate dimensions (assuming ship forward is along Z axis)
+        const size = new THREE.Vector3();
+        boundingBox.getSize(size);
+        
+        // Update ship dimensions
+        this.shipDimensions = {
+            length: size.z, // Length along Z axis
+            width: size.x   // Width along X axis
+        };
+        
+        console.log(`Estimated ship dimensions: length=${this.shipDimensions.length}, width=${this.shipDimensions.width}`);
+    }
+    
+    /**
+     * Toggle the visibility of the debug click box sphere
+     * @param {boolean} visible - Whether to show the debug sphere
+     */
+    setDebugClickBoxVisible(visible) {
+        this.showDebugClickBox = visible;
+        
+        if (this.clickBoxSphere && this.clickBoxSphere.material) {
+            this.clickBoxSphere.material.opacity = visible ? 0.3 : 0;
+            this.clickBoxSphere.material.needsUpdate = true;
+        }
+    }
+    
+    /**
+     * Get the clickable sphere for raycasting
+     * @returns {THREE.Mesh} The clickable sphere mesh
+     */
+    getClickBoxSphere() {
+        return this.clickBoxSphere;
     }
 }
 
