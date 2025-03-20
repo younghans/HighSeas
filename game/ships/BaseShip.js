@@ -147,15 +147,6 @@ class BaseShip {
                 // Apply new position
                 this.shipMesh.position.copy(newPosition);
                 
-                // Update click box sphere position
-                if (this.clickBoxSphere) {
-                    // Copy the horizontal position from the ship
-                    this.clickBoxSphere.position.x = this.shipMesh.position.x;
-                    this.clickBoxSphere.position.z = this.shipMesh.position.z;
-                    // Maintain the vertical offset (don't copy Y directly)
-                    this.clickBoxSphere.position.y = this.shipMesh.position.y + BaseShip.SHIP_HEIGHT_ESTIMATE / 2;
-                }
-                
                 // Update internal position to match mesh position
                 this.position.copy(this.shipMesh.position);
                 
@@ -178,12 +169,6 @@ class BaseShip {
                 if (this.shipMesh.position.y !== 0) {
                     this.shipMesh.position.y = 0;
                     this.position.y = 0;
-                    
-                    // Update click box sphere position
-                    if (this.clickBoxSphere) {
-                        // Maintain the vertical offset
-                        this.clickBoxSphere.position.y = BaseShip.SHIP_HEIGHT_ESTIMATE / 2;
-                    }
                 }
             }
         }
@@ -201,12 +186,6 @@ class BaseShip {
             // Ensure Y position stays at water level
             if (this.shipMesh.position.y !== 0) {
                 this.shipMesh.position.y = 0;
-                
-                // Update click box sphere position
-                if (this.clickBoxSphere) {
-                    // Maintain the vertical offset
-                    this.clickBoxSphere.position.y = BaseShip.SHIP_HEIGHT_ESTIMATE / 2;
-                }
             }
         }
     }
@@ -231,15 +210,6 @@ class BaseShip {
         this.position.copy(position);
         if (this.shipMesh) {
             this.shipMesh.position.copy(position);
-        }
-        
-        // Update click box sphere position
-        if (this.clickBoxSphere) {
-            // Copy horizontal position
-            this.clickBoxSphere.position.x = position.x;
-            this.clickBoxSphere.position.z = position.z;
-            // Maintain vertical offset
-            this.clickBoxSphere.position.y = position.y + BaseShip.SHIP_HEIGHT_ESTIMATE / 2;
         }
     }
     
@@ -317,10 +287,7 @@ class BaseShip {
         
         // Hide the clickable sphere when ship is sunk
         if (this.clickBoxSphere) {
-            this.scene.remove(this.clickBoxSphere);
-            if (this.clickBoxSphere.geometry) this.clickBoxSphere.geometry.dispose();
-            if (this.clickBoxSphere.material) this.clickBoxSphere.material.dispose();
-            this.clickBoxSphere = null;
+            this.clickBoxSphere.visible = false;
         }
         
         // If this ship is being targeted by the player via combat manager, clear the target
@@ -457,13 +424,9 @@ class BaseShip {
         this.healthBarBackground = null;
         this.healthBarForeground = null;
         
-        // Remove clickable sphere since we'll be creating a new one
-        if (this.clickBoxSphere) {
-            this.scene.remove(this.clickBoxSphere);
-            if (this.clickBoxSphere.geometry) this.clickBoxSphere.geometry.dispose();
-            if (this.clickBoxSphere.material) this.clickBoxSphere.material.dispose();
-            this.clickBoxSphere = null;
-        }
+        // We don't need to explicitly remove the clickable sphere since it's a child of the ship mesh
+        // and will be removed with it automatically
+        this.clickBoxSphere = null;
         
         // Remove old ship mesh and any associated effects
         if (this.shipMesh) {
@@ -929,14 +892,12 @@ class BaseShip {
         // Create mesh
         this.clickBoxSphere = new THREE.Mesh(geometry, material);
         
-        // Position at ship's center
-        this.clickBoxSphere.position.copy(this.shipMesh.position);
+        // Position the sphere at the center of the ship vertically
+        this.clickBoxSphere.position.y = BaseShip.SHIP_HEIGHT_ESTIMATE / 2;
         
-        // Raise the sphere to the center of the ship vertically
-        this.clickBoxSphere.position.y += BaseShip.SHIP_HEIGHT_ESTIMATE / 2;
-        
-        // Add to scene
-        this.scene.add(this.clickBoxSphere);
+        // Add the sphere as a child of the ship mesh rather than directly to the scene
+        // This way it moves with the ship and gets removed when the ship is removed
+        this.shipMesh.add(this.clickBoxSphere);
         
         console.log(`Created click box sphere for ship with radius ${radius} (200% of max dimension ${maxDimension}), centered at height ${this.clickBoxSphere.position.y}`);
     }
@@ -983,6 +944,74 @@ class BaseShip {
      */
     getClickBoxSphere() {
         return this.clickBoxSphere;
+    }
+    
+    /**
+     * Clean up all resources used by this ship
+     * Called when the ship is being completely removed
+     */
+    cleanup() {
+        console.log('Cleaning up ship resources');
+        
+        // Clean up wake particle system
+        if (this.wakeParticleSystem) {
+            if (typeof this.wakeParticleSystem.cleanup === 'function') {
+                this.wakeParticleSystem.cleanup();
+            } else if (typeof this.wakeParticleSystem.dispose === 'function') {
+                this.wakeParticleSystem.dispose();
+            }
+            this.wakeParticleSystem = null;
+        }
+        
+        // Clean up ship mesh (which includes the clickable sphere as a child)
+        if (this.shipMesh) {
+            if (this.scene && this.scene.remove) {
+                this.scene.remove(this.shipMesh);
+            }
+            
+            // Process all children recursively to properly dispose of geometries and materials
+            if (this.shipMesh.type === 'Group' || this.shipMesh.children) {
+                this.shipMesh.traverse(child => {
+                    if (child.isMesh) {
+                        // Dispose of geometry
+                        if (child.geometry) {
+                            child.geometry.dispose();
+                        }
+                        
+                        // Dispose of materials (could be an array or single material)
+                        if (child.material) {
+                            if (Array.isArray(child.material)) {
+                                child.material.forEach(mat => {
+                                    if (mat) mat.dispose();
+                                });
+                            } else {
+                                child.material.dispose();
+                            }
+                        }
+                    }
+                });
+            } else {
+                // Handle the case where shipMesh is a single mesh
+                if (this.shipMesh.geometry) {
+                    this.shipMesh.geometry.dispose();
+                }
+                
+                if (this.shipMesh.material) {
+                    if (Array.isArray(this.shipMesh.material)) {
+                        this.shipMesh.material.forEach(mat => {
+                            if (mat) mat.dispose(); 
+                        });
+                    } else {
+                        this.shipMesh.material.dispose();
+                    }
+                }
+            }
+            
+            this.shipMesh = null;
+            this.clickBoxSphere = null; // Clear reference since it's removed with shipMesh
+        }
+        
+        console.log('Ship cleanup complete');
     }
 }
 

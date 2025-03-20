@@ -540,8 +540,8 @@ class MultiplayerManager {
     }
     
     /**
-     * Remove a ship for another player
-     * @param {string} playerId - Player ID
+     * Remove a player's ship from the scene
+     * @param {string} playerId - The ID of the player to remove
      */
     removePlayerShip(playerId) {
         // Get the ship
@@ -556,15 +556,26 @@ class MultiplayerManager {
                 document.body.removeChild(otherPlayerShip.userData.nametag);
             }
             
-            // Clean up wake particle system if it exists
-            if (otherPlayerShip.wakeParticleSystem) {
-                otherPlayerShip.wakeParticleSystem.dispose();
-            }
-            
-            // Remove ship from scene
-            const shipObject = otherPlayerShip.getObject();
-            if (shipObject) {
-                this.scene.remove(shipObject);
+            // Call the ship's cleanup method to properly remove all resources
+            if (typeof otherPlayerShip.cleanup === 'function') {
+                otherPlayerShip.cleanup();
+            } else {
+                // Fallback to old cleanup if the method doesn't exist
+                
+                // Clean up wake particle system if it exists
+                if (otherPlayerShip.wakeParticleSystem) {
+                    if (typeof otherPlayerShip.wakeParticleSystem.cleanup === 'function') {
+                        otherPlayerShip.wakeParticleSystem.cleanup();
+                    } else if (typeof otherPlayerShip.wakeParticleSystem.dispose === 'function') {
+                        otherPlayerShip.wakeParticleSystem.dispose();
+                    }
+                }
+                
+                // Remove ship from scene
+                const shipObject = otherPlayerShip.getObject();
+                if (shipObject) {
+                    this.scene.remove(shipObject);
+                }
             }
             
             // Remove from map

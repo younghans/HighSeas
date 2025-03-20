@@ -88,7 +88,7 @@ class CombatManager {
         for (const ship of enemyShips) {
             if (ship.isSunk) continue; // Skip sunk ships
             
-            const clickSphere = ship.getClickBoxSphere ? ship.getClickBoxSphere() : null;
+            const clickSphere = ship.clickBoxSphere;
             if (clickSphere) {
                 clickableSpheres.push(clickSphere);
                 shipByClickSphere.set(clickSphere, ship);
@@ -97,12 +97,13 @@ class CombatManager {
         
         // Check for intersections with clickable spheres first
         if (clickableSpheres.length > 0) {
-            const sphereIntersects = this.raycaster.intersectObjects(clickableSpheres);
+            const sphereIntersects = this.raycaster.intersectObjects(clickableSpheres, true);
             
             if (sphereIntersects.length > 0) {
                 // Find the ship that owns this clickable sphere
                 const clickedSphere = sphereIntersects[0].object;
-                const clickedShip = shipByClickSphere.get(clickedSphere);
+                const clickedShip = shipByClickSphere.get(clickedSphere) || 
+                                   shipByClickSphere.get(clickedSphere.parent);
                 
                 if (clickedShip && !clickedShip.isSunk) {
                     this.setTarget(clickedShip);
@@ -914,6 +915,9 @@ class CombatManager {
             clearInterval(this.autoFireInterval);
             this.autoFireInterval = null;
         }
+        
+        // Hide all debug click boxes first
+        this.toggleDebugClickBoxes(false);
         
         // Remove all cannonballs
         if (this.scene) {

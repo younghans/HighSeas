@@ -1515,6 +1515,11 @@ class EnemyShipManager {
             type: shipType
         });
         
+        // Explicitly hide the clickable sphere since this is a shipwreck
+        if (tempShip.clickBoxSphere) {
+            tempShip.clickBoxSphere.visible = false;
+        }
+        
         // Get the ship mesh
         const shipMesh = tempShip.getObject();
         
@@ -1530,7 +1535,8 @@ class EnemyShipManager {
             getPosition: () => position.clone(),
             getObject: () => shipMesh,
             shipMesh: shipMesh,
-            type: shipType
+            type: shipType,
+            isSunk: true // Explicitly mark as sunk to ensure it's skipped in click handling
         };
         
         // Position the ship
