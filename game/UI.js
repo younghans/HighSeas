@@ -70,6 +70,7 @@ class GameUI {
         this.bottomUIContainer.style.zIndex = '1000';
         this.bottomUIContainer.style.transition = 'all 0.3s ease';
         this.bottomUIContainer.style.boxSizing = 'border-box';
+        this.bottomUIContainer.style.touchAction = 'none';
         document.body.appendChild(this.bottomUIContainer);
         
         // Create bottom menu container (positioned above buttons)
@@ -79,6 +80,7 @@ class GameUI {
         this.bottomMenuContainer.style.display = 'none'; // Hidden by default
         this.bottomMenuContainer.style.width = '250px'; // Set explicit width
         this.bottomMenuContainer.style.boxSizing = 'border-box';
+        this.bottomMenuContainer.style.touchAction = 'none';
         this.bottomUIContainer.appendChild(this.bottomMenuContainer);
         
         // Create bottom button container
@@ -88,6 +90,7 @@ class GameUI {
         this.bottomButtonContainer.style.flexDirection = 'row';
         this.bottomButtonContainer.style.gap = '10px';
         this.bottomButtonContainer.style.zIndex = '1000';
+        this.bottomButtonContainer.style.touchAction = 'none';
         this.bottomUIContainer.appendChild(this.bottomButtonContainer);
         
         // Create top UI container
@@ -102,6 +105,7 @@ class GameUI {
         this.topUIContainer.style.zIndex = '1000';
         this.topUIContainer.style.transition = 'all 0.3s ease';
         this.topUIContainer.style.boxSizing = 'border-box';
+        this.topUIContainer.style.touchAction = 'none';
         document.body.appendChild(this.topUIContainer);
         
         // Create top button container
@@ -634,7 +638,8 @@ class GameUI {
         profileMenu.style.borderRadius = '8px';
         profileMenu.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.5)';
         profileMenu.style.display = 'none'; // Hidden by default
-        profileMenu.style.boxSizing = 'border-box'; // Add box-sizing to include padding in width calculation
+        profileMenu.style.boxSizing = 'border-box';
+        profileMenu.style.touchAction = 'none';
         
         // Menu title
         const title = document.createElement('h3');
@@ -808,7 +813,8 @@ class GameUI {
         inventoryMenu.style.borderRadius = '8px';
         inventoryMenu.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.5)';
         inventoryMenu.style.display = 'none'; // Hidden by default
-        inventoryMenu.style.boxSizing = 'border-box'; // Add box-sizing to include padding in width calculation
+        inventoryMenu.style.boxSizing = 'border-box';
+        inventoryMenu.style.touchAction = 'none';
         
         // Menu title
         const title = document.createElement('h3');
@@ -849,7 +855,8 @@ class GameUI {
         goldMenu.style.borderRadius = '8px';
         goldMenu.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.5)';
         goldMenu.style.display = 'none'; // Hidden by default
-        goldMenu.style.boxSizing = 'border-box'; // Add box-sizing to include padding in width calculation
+        goldMenu.style.boxSizing = 'border-box';
+        goldMenu.style.touchAction = 'none';
         
         // Menu title
         const title = document.createElement('h3');
@@ -918,7 +925,8 @@ class GameUI {
         mapMenu.style.borderRadius = '8px';
         mapMenu.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.5)';
         mapMenu.style.display = 'none'; // Hidden by default
-        mapMenu.style.boxSizing = 'border-box'; // Add box-sizing to include padding in width calculation
+        mapMenu.style.boxSizing = 'border-box';
+        mapMenu.style.touchAction = 'none';
         
         // Menu title
         const title = document.createElement('h3');

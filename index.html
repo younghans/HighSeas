@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
     <title>High Seas</title>
     <!-- Google Fonts - Pirata One for pirate-themed text -->
     <link href="https://fonts.googleapis.com/css2?family=Pirata+One&display=swap" rel="stylesheet">
@@ -118,6 +118,10 @@
             transform: rotate(-2deg);
             position: relative;
             animation: wave 6s ease-in-out infinite;
+            max-width: 100%;
+            padding: 0 70px;
+            box-sizing: border-box;
+            text-align: center;
         }
         
         @keyframes wave {
@@ -358,6 +362,44 @@
         
         #buildingManagerUI button:hover {
             background-color: #5a8dac;
+        }
+
+        /* Add responsive styles for mobile */
+        @media screen and (max-width: 768px) {
+            #mainMenu h1 {
+                font-size: 3rem;
+                padding: 0 50px;
+            }
+            
+            #mainMenu h1::before,
+            #mainMenu h1::after {
+                font-size: 2rem;
+                left: -40px;
+            }
+            
+            #mainMenu h1::after {
+                right: -40px;
+                left: auto;
+            }
+        }
+
+        /* Even smaller screens */
+        @media screen and (max-width: 480px) {
+            #mainMenu h1 {
+                font-size: 2.5rem;
+                padding: 0 40px;
+            }
+            
+            #mainMenu h1::before,
+            #mainMenu h1::after {
+                font-size: 1.5rem;
+                left: -30px;
+            }
+            
+            #mainMenu h1::after {
+                right: -30px;
+                left: auto;
+            }
         }
     </style>
 </head>
