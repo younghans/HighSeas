@@ -47,7 +47,7 @@ class CombatService {
     async processCombatAction(targetId, damage, options = {}) {
         if (!this.firebase) {
             console.error('Firebase not initialized');
-            return { success: false, error: 'Firebase not initialized' };
+            return { success: false, error: 'Firebase not initialized', actionId: options.actionId };
         }
         
         if (!this.functions) {
@@ -58,7 +58,8 @@ class CombatService {
                 damage: damage,
                 expectedDamage: damage, // Match the server format
                 newHealth: 0, // We don't know the actual health, so we'll let the client handle it
-                isSunk: false
+                isSunk: false,
+                actionId: options.actionId // Include the actionId in the response
             };
         }
         
@@ -70,7 +71,8 @@ class CombatService {
             return { 
                 success: false, 
                 error: 'Attack cooldown in progress',
-                cooldownRemaining: this.COOLDOWN_PERIOD - (now - this.lastAttackTime)
+                cooldownRemaining: this.COOLDOWN_PERIOD - (now - this.lastAttackTime),
+                actionId: options.actionId // Include the actionId in the cooldown response
             };
         }
         
@@ -83,7 +85,8 @@ class CombatService {
                 targetId,
                 damage,
                 damageSeed: options.damageSeed,
-                missChance: options.missChance
+                missChance: options.missChance,
+                actionId: options.actionId
             });
             
             const result = await processCombatAction({
@@ -91,7 +94,8 @@ class CombatService {
                 damage: damage,
                 timestamp: Date.now(),
                 damageSeed: options.damageSeed,
-                missChance: options.missChance
+                missChance: options.missChance,
+                actionId: options.actionId // Send the actionId to the server
             });
             
             // Update local cooldown time on successful attack
@@ -100,7 +104,13 @@ class CombatService {
             // Log the result for debugging
             console.log('Server combat result:', result.data);
             
-            return result.data;
+            // Ensure the response includes the actionId
+            const response = {...result.data};
+            if (!response.actionId) {
+                response.actionId = options.actionId;
+            }
+            
+            return response;
         } catch (error) {
             // Get detailed error information
             const errorCode = error.code || 'unknown';
@@ -117,7 +127,8 @@ class CombatService {
                 return { 
                     success: false, 
                     error: 'Attack cooldown in progress',
-                    cooldownRemaining: this.COOLDOWN_PERIOD
+                    cooldownRemaining: this.COOLDOWN_PERIOD,
+                    actionId: options.actionId // Include actionId in error responses
                 };
             }
             
@@ -126,7 +137,8 @@ class CombatService {
                 success: false, 
                 error: errorMessage,
                 code: errorCode,
-                details: errorDetails
+                details: errorDetails,
+                actionId: options.actionId // Include actionId in error responses
             };
         }
     }

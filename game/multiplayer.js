@@ -22,6 +22,10 @@ class MultiplayerManager {
         this.ARRIVAL_THRESHOLD = 0.5; // Consider arrived if < 0.5 units away
         this.debugMode = true; // Enable debug mode
         this.onPlayerPositionLoaded = options.onPlayerPositionLoaded || null;
+        this.combatManager = null; // Will be set later
+        
+        // Add reference to combat events
+        this.combatEventsRef = this.database.ref('combatEvents');
         
         // Bind methods
         this.updatePlayerPosition = this.updatePlayerPosition.bind(this);
@@ -32,6 +36,7 @@ class MultiplayerManager {
         this.updatePlayerShip = this.updatePlayerShip.bind(this);
         this.removePlayerShip = this.removePlayerShip.bind(this);
         this.loadPlayerPosition = this.loadPlayerPosition.bind(this);
+        this.handleCombatEvent = this.handleCombatEvent.bind(this);
     }
     
     /**
@@ -169,6 +174,9 @@ class MultiplayerManager {
                         this.playersRef.on('child_changed', this.handlePlayerChanged);
                         this.playersRef.on('child_removed', this.handlePlayerRemoved);
                         
+                        // Listen for combat events
+                        this.combatEventsRef.on('child_added', this.handleCombatEvent);
+                        
                         // Start periodic sync
                         this.startPeriodicSync(playerShip);
                         
@@ -289,25 +297,65 @@ class MultiplayerManager {
     }
     
     /**
-     * Handle when a player's data changes
+     * Handle player data changes
      * @param {Object} snapshot - Firebase data snapshot
      */
     handlePlayerChanged(snapshot) {
         const playerData = snapshot.val();
+        const playerId = snapshot.key;
         
-        // Don't update ourselves
-        if (playerData.id === this.playerId) return;
+        // Skip if this is the current player's data
+        if (this.playerId === playerId) return;
         
-        this.debug(`Player data updated: ${playerData.displayName} (${playerData.id})`, {
-            position: playerData.position,
-            destination: playerData.destination
-        });
+        // Store updated player data
+        this.otherPlayers.set(playerId, playerData);
         
-        // Update player data
-        this.otherPlayers.set(playerData.id, playerData);
+        // Get the player ship
+        const otherPlayerShip = this.otherPlayerShips.get(playerId);
         
-        // Update ship for this player
-        this.updatePlayerShip(playerData);
+        // If player is offline, remove their ship
+        if (!playerData.isOnline) {
+            this.debug(`Player went offline: ${playerData.displayName || playerId}`);
+            this.removePlayerShip(playerId);
+            return;
+        }
+        
+        // If ship exists, update it
+        if (otherPlayerShip) {
+            // Update health if it changed
+            if (playerData.health !== undefined && otherPlayerShip.currentHealth !== playerData.health) {
+                this.debug(`Updating health for player ${playerData.displayName || playerId}: ${otherPlayerShip.currentHealth} → ${playerData.health}`);
+                otherPlayerShip.currentHealth = playerData.health;
+                
+                // Update health bar if it exists
+                if (typeof otherPlayerShip.updateHealthBar === 'function' && otherPlayerShip.healthBarContainer) {
+                    otherPlayerShip.updateHealthBar();
+                    
+                    // Make health bar visible when damaged
+                    if (typeof otherPlayerShip.setHealthBarVisible === 'function') {
+                        otherPlayerShip.setHealthBarVisible(true);
+                    }
+                }
+                
+                // If health is 0, sink the ship
+                if (playerData.health <= 0 && !otherPlayerShip.isSunk) {
+                    this.debug(`Player ${playerData.displayName || playerId} has been sunk`);
+                    
+                    // Call sink method if available
+                    if (typeof otherPlayerShip.sink === 'function') {
+                        otherPlayerShip.sink();
+                    } else {
+                        // Simple fallback if sink method doesn't exist
+                        otherPlayerShip.isSunk = true;
+                    }
+                }
+            }
+            
+            this.updatePlayerShip(playerData);
+        } else {
+            // If ship doesn't exist but player is online, create it
+            this.createPlayerShip(playerData);
+        }
     }
     
     /**
@@ -348,6 +396,28 @@ class MultiplayerManager {
             // Add custom options for multiplayer ships
             isMultiplayerShip: true
         });
+        
+        // Set ship ID to player ID for targeting
+        otherPlayerShip.id = playerData.id;
+        
+        // Set ship type for combat
+        otherPlayerShip.type = 'player';
+        
+        // Set health for PvP combat
+        otherPlayerShip.maxHealth = playerData.maxHealth || 100;
+        otherPlayerShip.currentHealth = playerData.health || otherPlayerShip.maxHealth;
+        otherPlayerShip.cannonRange = 50; // Same as player ship
+        otherPlayerShip.cannonDamage = { min: 5, max: 15 }; // Standard damage
+        
+        // Create a click box for targeting
+        if (typeof otherPlayerShip.createClickBoxSphere === 'function') {
+            otherPlayerShip.createClickBoxSphere();
+        }
+        
+        // Create a health bar
+        if (typeof otherPlayerShip.createHealthBar === 'function') {
+            otherPlayerShip.createHealthBar();
+        }
         
         // Get the ship object
         const shipObject = otherPlayerShip.getObject();
@@ -722,6 +792,12 @@ class MultiplayerManager {
             this.debug('Removed Firebase event listeners');
         }
         
+        // Stop listening for combat events
+        if (this.combatEventsRef) {
+            this.combatEventsRef.off('child_added', this.handleCombatEvent);
+            this.debug('Removed combat event listeners');
+        }
+        
         // Stop periodic sync
         this.stopPeriodicSync();
         
@@ -815,6 +891,249 @@ class MultiplayerManager {
                 console.error('Error updating player gold:', error);
                 return false;
             });
+    }
+    
+    /**
+     * Set the reference to the CombatManager
+     * @param {CombatManager} combatManager - The combat manager instance
+     */
+    setCombatManager(combatManager) {
+        this.combatManager = combatManager;
+        this.debug('CombatManager reference set in MultiplayerManager');
+    }
+    
+    /**
+     * Broadcast a cannonball fired by the local player
+     * @param {object} cannonballData - Data about the fired cannonball
+     * @returns {Promise} Promise that resolves when the event is saved
+     */
+    broadcastCannonballFired(source, target, damage, isMiss) {
+        // Enhanced validation with detailed logging
+        if (!this.playerId) {
+            console.error('[COMBAT:BROADCAST] Missing playerId:', this.playerId);
+            return Promise.reject('Missing playerId');
+        }
+        
+        if (!source) {
+            console.error('[COMBAT:BROADCAST] Missing source ship');
+            return Promise.reject('Missing source ship');
+        }
+        
+        if (!target) {
+            console.error('[COMBAT:BROADCAST] Missing target ship');
+            return Promise.reject('Missing target ship');
+        }
+        
+        // Debug log all source properties
+        console.log('[COMBAT:BROADCAST] Source ship details:', {
+            id: source.id || 'UNDEFINED',
+            type: source.type || 'UNDEFINED',
+            position: source.getPosition ? source.getPosition().toArray() : 'UNDEFINED',
+            hasGetPosition: typeof source.getPosition === 'function'
+        });
+        
+        // Debug log all target properties
+        console.log('[COMBAT:BROADCAST] Target ship details:', {
+            id: target.id || 'UNDEFINED',
+            type: target.type || 'UNDEFINED',
+            position: target.getPosition ? target.getPosition().toArray() : 'UNDEFINED',
+            hasGetPosition: typeof target.getPosition === 'function'
+        });
+        
+        // Ensure source.id is defined and not null
+        const sourceId = source.id || this.playerId;
+        if (!sourceId) {
+            console.error('[COMBAT:BROADCAST] Unable to determine valid sourceId');
+            return Promise.reject('Invalid source ID');
+        }
+        
+        // Ensure target.id is defined and not null
+        const targetId = target.id;
+        if (!targetId) {
+            console.error('[COMBAT:BROADCAST] Target ID is undefined');
+            return Promise.reject('Invalid target ID');
+        }
+        
+        this.debug(`Broadcasting cannonball fired from ${sourceId} to ${targetId} with damage ${damage}`);
+        
+        // Safely get positions with fallbacks
+        let sourcePosition = { x: 0, y: 0, z: 0 };
+        let targetPosition = { x: 0, y: 0, z: 0 };
+        
+        if (source.getPosition && typeof source.getPosition === 'function') {
+            const pos = source.getPosition();
+            sourcePosition = {
+                x: pos.x,
+                y: pos.y,
+                z: pos.z
+            };
+        } else {
+            console.warn('[COMBAT:BROADCAST] Source getPosition not available, using default position');
+        }
+        
+        if (target.getPosition && typeof target.getPosition === 'function') {
+            const pos = target.getPosition();
+            targetPosition = {
+                x: pos.x,
+                y: pos.y,
+                z: pos.z
+            };
+        } else {
+            console.warn('[COMBAT:BROADCAST] Target getPosition not available, using default position');
+        }
+        
+        // Create a new entry in the combatEvents node
+        const eventData = {
+            type: 'cannonball',
+            sourceId: sourceId,
+            targetId: targetId,
+            sourcePosition: sourcePosition,
+            targetPosition: targetPosition,
+            damage: damage || 0,
+            isMiss: !!isMiss,
+            timestamp: firebase.database.ServerValue.TIMESTAMP
+        };
+        
+        // Log the final event data being sent
+        console.log('[COMBAT:BROADCAST] Sending event data:', JSON.stringify(eventData));
+        
+        return this.combatEventsRef.push(eventData)
+            .then(() => {
+                this.debug('Cannonball event broadcast successful');
+                return true;
+            })
+            .catch(error => {
+                console.error('[COMBAT:BROADCAST] Error broadcasting cannonball event:', error);
+                return false;
+            });
+    }
+    
+    /**
+     * Handle combat events from other players
+     * @param {Object} snapshot - Firebase data snapshot
+     */
+    handleCombatEvent(snapshot) {
+        const eventData = snapshot.val();
+        const eventId = snapshot.key;
+        
+        // Skip processing if no event data
+        if (!eventData) {
+            console.warn('[COMBAT:EVENT] Received empty combat event');
+            return;
+        }
+        
+        // Check event timestamp - skip if too old (> 10 seconds)
+        const now = Date.now();
+        if (eventData.timestamp && now - eventData.timestamp > 10000) {
+            console.log('[COMBAT:EVENT] Skipping outdated combat event', {
+                eventId,
+                age: (now - eventData.timestamp) / 1000 + 's'
+            });
+            
+            // Remove old event
+            this.combatEventsRef.child(eventId).remove()
+                .catch(error => console.error('[COMBAT:EVENT] Error removing old combat event:', error));
+            return;
+        }
+        
+        // Only process if it's a cannonball event
+        if (eventData.type !== 'cannonball') {
+            console.log('[COMBAT:EVENT] Ignoring non-cannonball event:', eventData.type);
+            return;
+        }
+        
+        // Skip if this is our own event
+        if (eventData.sourceId === this.playerId) {
+            console.log('[COMBAT:EVENT] Ignoring our own combat event');
+            // Clean up our own processed event
+            this.combatEventsRef.child(eventId).remove()
+                .catch(error => console.error('[COMBAT:EVENT] Error removing our combat event:', error));
+            return;
+        }
+        
+        console.log('[COMBAT:EVENT] Received combat event:', {
+            type: eventData.type,
+            sourceId: eventData.sourceId,
+            targetId: eventData.targetId,
+            timestamp: new Date(eventData.timestamp).toISOString(),
+            damage: eventData.damage,
+            isMiss: eventData.isMiss
+        });
+        
+        // Process cannonball event
+        if (eventData.type === 'cannonball') {
+            // Check if we are the target
+            const isTargetingMe = eventData.targetId === this.playerId;
+            
+            // Find the source ship (another player)
+            const sourceShip = this.otherPlayerShips.get(eventData.sourceId);
+            
+            // If we can't find the source ship, log and return
+            if (!sourceShip) {
+                console.error('[COMBAT:EVENT] Cannot find source ship for cannonball event:', {
+                    sourceId: eventData.sourceId,
+                    knownPlayers: Array.from(this.otherPlayerShips.keys())
+                });
+                // Don't remove the event yet, we might be able to process it later when ships are loaded
+                return;
+            }
+            
+            // Find the target ship
+            let targetShip = null;
+            
+            if (isTargetingMe) {
+                // We are the target, so find our player ship
+                targetShip = window.playerShip; // Access the global player ship
+                
+                if (!targetShip) {
+                    console.error('[COMBAT:EVENT] Cannot find local player ship for cannonball target');
+                    return;
+                }
+                
+                console.log('[COMBAT:EVENT] We are being targeted! Damage:', eventData.damage);
+            } else {
+                // Target is another player, find their ship
+                targetShip = this.otherPlayerShips.get(eventData.targetId);
+                
+                if (!targetShip) {
+                    console.error('[COMBAT:EVENT] Cannot find target ship for cannonball event:', {
+                        targetId: eventData.targetId,
+                        knownPlayers: Array.from(this.otherPlayerShips.keys())
+                    });
+                    return;
+                }
+            }
+            
+            // Now that we have both source and target ships, visualize the cannonball
+            if (this.combatManager) {
+                console.log('[COMBAT:EVENT] Visualizing cannonball from', eventData.sourceId, 'to', eventData.targetId);
+                
+                // Use the combat manager to fire a visual cannonball
+                try {
+                    const cannonballData = this.combatManager.fireCannonball(
+                        sourceShip,
+                        targetShip,
+                        eventData.damage,
+                        eventData.isMiss
+                    );
+                    
+                    console.log('[COMBAT:EVENT] Successfully visualized cannonball');
+                    
+                    // If we're the target, update our health locally when the cannonball hits
+                    if (isTargetingMe && !eventData.isMiss) {
+                        console.log('[COMBAT:EVENT] We will take damage when cannonball hits:', eventData.damage);
+                    }
+                } catch (error) {
+                    console.error('[COMBAT:EVENT] Error visualizing cannonball:', error);
+                }
+            } else {
+                console.error('[COMBAT:EVENT] Cannot visualize cannonball - Combat Manager not available');
+            }
+            
+            // Clean up the processed event
+            this.combatEventsRef.child(eventId).remove()
+                .catch(error => console.error('[COMBAT:EVENT] Error removing processed combat event:', error));
+        }
     }
 }
 

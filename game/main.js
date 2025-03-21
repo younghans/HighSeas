@@ -417,7 +417,7 @@ function startGameWithShip() {
     // Create ship with custom speed but don't position it yet
     // The position will be set by the multiplayer system
     ship = new Sloop(scene, { 
-        // speed: 50,
+        speed: 50,
         // Set a default position that will be overridden by multiplayer
         position: new THREE.Vector3(0, 0, 0),
         // Add combat properties
@@ -426,6 +426,9 @@ function startGameWithShip() {
         cannonDamage: { min: 8, max: 25 },
         cannonCooldown: 1500 // 1.5 seconds between shots
     });
+    
+    // Make ship available globally for multiplayer combat interactions
+    window.playerShip = ship;
     
     console.log('Ship created with initial position:', ship.getPosition());
     
@@ -1181,11 +1184,32 @@ function initMultiplayer() {
         }
     });
     
+    // Explicitly attach the multiplayer manager to the window object for global access
+    window.multiplayerManager = multiplayerManager;
+    
     // Initialize multiplayer with player's ship
     multiplayerManager.init(ship)
         .then(success => {
             if (success) {
                 console.log('Multiplayer initialized successfully');
+                
+                // IMPORTANT: Set the player ship ID to match the authenticated user ID
+                if (ship && Auth.isAuthenticated()) {
+                    ship.id = multiplayerManager.playerId;
+                    ship.type = 'player';
+                    console.log('Set player ship ID:', ship.id);
+                }
+                
+                // Connect the multiplayer manager to the combat manager if available
+                if (combatManager) {
+                    console.log('Connecting MultiplayerManager to CombatManager');
+                    multiplayerManager.setCombatManager(combatManager);
+                }
+                
+                // Connect the combat manager to the multiplayer manager if available
+                if (combatManager && typeof combatManager.setMultiplayerManager === 'function') {
+                    combatManager.setMultiplayerManager(multiplayerManager);
+                }
                 
                 // Initialize the EnemyShipManager with Firebase for multiplayer synchronization
                 if (enemyShipManager && typeof enemyShipManager.initializeWithFirebase === 'function') {

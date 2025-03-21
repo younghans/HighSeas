@@ -18,6 +18,14 @@
     "enemyShips": {
       ".read": "auth != null",
       ".write": "auth != null"
+    },
+    "combatEvents": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": "timestamp",
+      "$eventId": {
+        ".validate": "!data.exists() || newData.child('timestamp').val() >= (data.child('timestamp').val() - 30000)"
+      }
     }
   }
 } 

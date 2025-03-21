@@ -8,10 +8,13 @@ const admin = require('firebase-admin');
 exports.processCombatAction = functions.https.onCall(async (data, context) => {
     // Ensure user is authenticated
     if (!context.auth) {
-        throw new functions.https.HttpsError(
-            'unauthenticated',
-            'You must be logged in to perform combat actions'
-        );
+        // Return structured error response for authentication failure
+        return {
+            success: false,
+            error: 'You must be logged in to perform combat actions',
+            code: 'unauthenticated',
+            actionId: data.actionId
+        };
     }
     
     // Get user ID
@@ -22,18 +25,24 @@ exports.processCombatAction = functions.https.onCall(async (data, context) => {
     
     // Validate parameters
     if (!targetId || typeof damage !== 'number') {
-        throw new functions.https.HttpsError(
-            'invalid-argument',
-            'Missing required parameters: targetId, damage'
-        );
+        // Return structured error response for missing parameters
+        return {
+            success: false,
+            error: 'Missing required parameters: targetId, damage',
+            code: 'invalid-argument',
+            actionId: data.actionId
+        };
     }
     
     // Validate damage is within reasonable limits
     if (damage < 0 || damage > 50) {
-        throw new functions.https.HttpsError(
-            'invalid-argument',
-            'Damage value is outside acceptable range (0-50)'
-        );
+        // Return structured error response for invalid damage value
+        return {
+            success: false,
+            error: 'Damage value is outside acceptable range (0-50)',
+            code: 'invalid-argument',
+            actionId: data.actionId
+        };
     }
     
     try {
@@ -44,10 +53,13 @@ exports.processCombatAction = functions.https.onCall(async (data, context) => {
         
         // Validate attacker exists and is not sunk
         if (!attacker || attacker.isSunk) {
-            throw new functions.https.HttpsError(
-                'failed-precondition',
-                'Attacker ship is invalid or sunk'
-            );
+            // Return structured error response for invalid attacker
+            return {
+                success: false,
+                error: 'Attacker ship is invalid or sunk',
+                code: 'failed-precondition',
+                actionId: data.actionId
+            };
         }
         
         // Check if target is an AI ship (for player vs AI combat)
@@ -86,19 +98,25 @@ exports.processCombatAction = functions.https.onCall(async (data, context) => {
                 // Save this AI ship to the database for future reference
                 await targetRef.set(target);
             } else {
-                throw new functions.https.HttpsError(
-                    'not-found',
-                    'Target ship not found'
-                );
+                // Return structured error response for target not found
+                return {
+                    success: false,
+                    error: 'Target ship not found',
+                    code: 'not-found',
+                    actionId: data.actionId
+                };
             }
         }
         
         // For player vs player combat, validate both players are online
         if (!isAITarget && (!target.isOnline || target.isSunk)) {
-            throw new functions.https.HttpsError(
-                'failed-precondition',
-                'Target player is offline or sunk'
-            );
+            // Return structured error response for offline or sunk target
+            return {
+                success: false,
+                error: 'Target player is offline or sunk',
+                code: 'failed-precondition',
+                actionId: data.actionId
+            };
         }
         
         // Validate distance between ships
@@ -119,10 +137,15 @@ exports.processCombatAction = functions.https.onCall(async (data, context) => {
         
         // Skip distance check for AI targets for now
         if (!isAITarget && distance > MAX_COMBAT_RANGE) {
-            throw new functions.https.HttpsError(
-                'failed-precondition',
-                'Target is out of range'
-            );
+            // Return structured error response for out of range target
+            return {
+                success: false,
+                error: 'Target is out of range',
+                code: 'failed-precondition',
+                actionId: data.actionId,
+                distance: distance,
+                maxRange: MAX_COMBAT_RANGE
+            };
         }
         
         // Validate cooldown period
@@ -130,10 +153,13 @@ exports.processCombatAction = functions.https.onCall(async (data, context) => {
         const COOLDOWN_PERIOD = 2000; // 2 seconds between shots
         
         if (attacker.lastAttackTime && (now - attacker.lastAttackTime < COOLDOWN_PERIOD)) {
-            throw new functions.https.HttpsError(
-                'resource-exhausted',
-                'Attack cooldown in progress'
-            );
+            // Return a structured error response instead of throwing an exception
+            return {
+                success: false,
+                error: 'Attack cooldown in progress',
+                cooldownRemaining: COOLDOWN_PERIOD - (now - attacker.lastAttackTime),
+                actionId: data.actionId // Include the actionId in the response
+            };
         }
         
         // Calculate damage using seeded random if available
@@ -195,6 +221,7 @@ exports.processCombatAction = functions.https.onCall(async (data, context) => {
         // Return success with damage info
         return {
             success: true,
+            actionId: data.actionId, // Include the actionId in the response
             damage: expectedDamage,
             expectedDamage: expectedDamage, // Include expected damage for client verification
             newHealth: newHealth,
@@ -202,11 +229,14 @@ exports.processCombatAction = functions.https.onCall(async (data, context) => {
         };
     } catch (error) {
         console.error('Error processing combat action:', error);
-        throw new functions.https.HttpsError(
-            'internal',
-            'Error processing combat action',
-            error.message
-        );
+        
+        // Return a structured error response instead of throwing an exception
+        return {
+            success: false,
+            actionId: data.actionId, // Include the actionId in the response
+            error: error.message || 'Error processing combat action',
+            code: error.code || 'internal'
+        };
     }
 });
 

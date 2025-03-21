@@ -46,7 +46,7 @@ class BaseShip {
         // Click box properties
         this.clickBoxSphere = null;
         this.shipDimensions = { length: 10, width: 5 }; // Default dimensions, will be updated by subclasses
-        this.showDebugClickBox = options.showDebugClickBox || true; // Show debug sphere by default for development
+        this.showDebugClickBox = options.showDebugClickBox || false; // Show debug sphere by default for development
         
         // Store initial position if provided in options
         if (options.position) {
