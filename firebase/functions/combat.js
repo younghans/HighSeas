@@ -151,13 +151,14 @@ exports.processCombatAction = functions.https.onCall(async (data, context) => {
         // Validate cooldown period
         const now = Date.now();
         const COOLDOWN_PERIOD = 2000; // 2 seconds between shots
+        const NETWORK_GRACE_PERIOD = 300; // 150ms grace period to account for network latency
         
-        if (attacker.lastAttackTime && (now - attacker.lastAttackTime < COOLDOWN_PERIOD)) {
+        if (attacker.lastAttackTime && (now - attacker.lastAttackTime < (COOLDOWN_PERIOD - NETWORK_GRACE_PERIOD))) {
             // Return a structured error response instead of throwing an exception
             return {
                 success: false,
                 error: 'Attack cooldown in progress',
-                cooldownRemaining: COOLDOWN_PERIOD - (now - attacker.lastAttackTime),
+                cooldownRemaining: (COOLDOWN_PERIOD - NETWORK_GRACE_PERIOD) - (now - attacker.lastAttackTime),
                 actionId: data.actionId // Include the actionId in the response
             };
         }

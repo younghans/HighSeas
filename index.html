@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>High Seas</title>
+    <!-- Google Fonts - Pirata One for pirate-themed text -->
+    <link href="https://fonts.googleapis.com/css2?family=Pirata+One&display=swap" rel="stylesheet">
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -109,25 +111,90 @@
         #mainMenu h1 {
             font-size: 5rem;
             color: #fff;
-            text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.8), 0 0 20px #ff9d00, 0 0 30px rgba(255, 0, 0, 0.5);
             margin-bottom: 2rem;
+            font-family: 'Pirata One', 'Brush Script MT', cursive;
+            letter-spacing: 3px;
+            transform: rotate(-2deg);
+            position: relative;
+            animation: wave 6s ease-in-out infinite;
+        }
+        
+        @keyframes wave {
+            0%, 100% { transform: rotate(-2deg) translateY(0px); }
+            25% { transform: rotate(-1deg) translateY(-10px); }
+            50% { transform: rotate(-2deg) translateY(0px); }
+            75% { transform: rotate(-3deg) translateY(10px); }
+        }
+        
+        #mainMenu h1::before {
+            content: "☠️";
+            font-size: 3rem;
+            position: absolute;
+            left: -60px;
+            top: 20px;
+            animation: skullBob 3s ease-in-out infinite;
+        }
+        
+        #mainMenu h1::after {
+            content: "☠️";
+            font-size: 3rem;
+            position: absolute;
+            right: -60px;
+            top: 20px;
+            animation: skullBob 3s ease-in-out infinite reverse;
+        }
+        
+        @keyframes skullBob {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(10deg); }
         }
 
         #playButton {
             padding: 15px 50px;
             font-size: 1.5rem;
-            background-color: #4a6d8c;
+            background-color: #8B4513;
+            background-image: none;
+            position: relative;
+            overflow: hidden;
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
             transition: all 0.3s;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            border: 2px solid #FFD700;
+            text-transform: uppercase;
+            font-family: 'Pirata One', cursive;
+            letter-spacing: 2px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+            z-index: 1;
+        }
+        
+        #playButton::before {
+            content: "";
+            position: absolute;
+            top: -150%;
+            left: -150%;
+            width: 400%;
+            height: 400%;
+            background-image: url('https://www.transparenttextures.com/patterns/dark-wood.png');
+            background-repeat: repeat;
+            background-size: 60px;
+            transform: rotate(-45deg);
+            z-index: -1;
+            opacity: 1;
+            filter: sepia(70%) brightness(110%);
         }
 
         #playButton:hover {
-            background-color: #5a8dac;
+            background-color: #A0522D;
             transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
+        }
+        
+        #playButton:hover::before {
+            filter: sepia(80%) brightness(120%);
         }
 
         /* Login Menu Styles */
@@ -188,9 +255,52 @@
             background-color: #888;
         }
 
+        #creativeButton {
+            margin-top: 15px;
+            padding: 15px 50px;
+            font-size: 1.5rem;
+            background-color: #8B4513;
+            background-image: none;
+            position: relative;
+            overflow: hidden;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            border: 2px solid #FFD700;
+            text-transform: uppercase;
+            font-family: 'Pirata One', cursive;
+            letter-spacing: 2px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+            z-index: 1;
+        }
+        
+        #creativeButton::before {
+            content: "";
+            position: absolute;
+            top: -150%;
+            left: -150%;
+            width: 400%;
+            height: 400%;
+            background-image: url('https://www.transparenttextures.com/patterns/dark-wood.png');
+            background-repeat: repeat;
+            background-size: 60px;
+            transform: rotate(-35deg);
+            z-index: -1;
+            opacity: 1;
+            filter: sepia(70%) brightness(110%);
+        }
+
         #creativeButton:hover {
-            background-color: #39a1f4;
+            background-color: #A0522D;
             transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
+        }
+        
+        #creativeButton:hover::before {
+            filter: sepia(80%) brightness(120%);
         }
 
         #buildingUI {
@@ -256,8 +366,8 @@
     <div id="mainMenu">
         <h1>High Seas</h1>
         <button id="playButton">Play</button>
-        <a href="game/creative.html" style="text-decoration: none;">
-            <button id="creativeButton" style="margin-top: 15px; padding: 15px 50px; font-size: 1.5rem; background-color: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; transition: all 0.3s; box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);">Creative</button>
+        <a href="creative" style="text-decoration: none;">
+            <button id="creativeButton">Creative</button>
         </a>
     </div>
 

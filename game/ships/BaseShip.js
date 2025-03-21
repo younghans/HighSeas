@@ -333,11 +333,36 @@ class BaseShip {
     
     /**
      * Check if the ship can fire cannons (cooldown check)
+     * @param {Object} options - Optional parameters for cooldown check
+     * @param {number} options.serverLastAttackTime - Last server confirmed attack time
+     * @param {number} options.additionalBuffer - Additional buffer time in ms
      * @returns {boolean} True if the ship can fire
      */
-    canFire() {
+    canFire(options = {}) {
         const now = Date.now();
-        return now - this.lastFiredTime >= this.cannonCooldown;
+        const clientReady = now - this.lastFiredTime >= this.cannonCooldown;
+        
+        // If server timing info is provided, check that as well
+        if (options.serverLastAttackTime) {
+            const buffer = options.additionalBuffer || 400; // Increased default buffer to 400ms
+            const serverReady = now - options.serverLastAttackTime >= this.cannonCooldown + buffer;
+            
+            // Only report ready if both client and server cooldowns are complete
+            if (!serverReady) {
+                if (clientReady) {
+                    // Only log when client is ready but server isn't
+                    console.log('[DEBUG:CANFIRE] Server cooldown preventing fire:', {
+                        clientCooldownElapsed: now - this.lastFiredTime,
+                        clientCooldownPeriod: this.cannonCooldown,
+                        serverCooldownElapsed: now - options.serverLastAttackTime,
+                        serverTimeRemaining: this.cannonCooldown + buffer - (now - options.serverLastAttackTime)
+                    });
+                }
+                return false;
+            }
+        }
+        
+        return clientReady;
     }
     
     /**

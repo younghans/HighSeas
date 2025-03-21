@@ -191,13 +191,73 @@ class CombatManager {
             // Fire immediately
             this.fireAtCurrentTarget();
             
-            // Set up auto-fire interval with a buffer to prevent server cooldown issues
-            // Add a small buffer (150ms) to ensure we never request before server cooldown is up
-            const safeInterval = this.playerShip.cannonCooldown + 150;
+            // Instead of using setInterval, use requestAnimationFrame for smoother, more consistent timing
+            // and to prevent shots bunching up when tab is inactive
+            this._lastServerAttackTime = this._lastServerAttackTime || 0;
+            this._nextFireTime = Date.now() + this.playerShip.cannonCooldown;
             
-            this.autoFireInterval = setInterval(() => {
-                this.fireAtCurrentTarget();
-            }, safeInterval);
+            // Clear any existing autofire frame
+            if (this._autoFireFrame) {
+                cancelAnimationFrame(this._autoFireFrame);
+            }
+            
+            const autoFireCheck = () => {
+                if (!this.isSpacePressed) return;
+                
+                const now = Date.now();
+                const clientCooldownReady = now - this.playerShip.lastFiredTime >= this.playerShip.cannonCooldown;
+                
+                // Log auto-fire timing info
+                if (now >= this._nextFireTime) {
+                    console.log('[DEBUG:AUTOFIRE] Ready to fire check:', {
+                        currentTime: now,
+                        scheduledFireTime: this._nextFireTime,
+                        clientLastFired: this.playerShip.lastFiredTime,
+                        clientCooldownElapsed: now - this.playerShip.lastFiredTime,
+                        clientCooldownValue: this.playerShip.cannonCooldown,
+                        clientCooldownReady: clientCooldownReady,
+                        serverLastAttack: this._lastServerAttackTime,
+                        serverElapsedTime: this._lastServerAttackTime ? now - this._lastServerAttackTime : 'N/A',
+                        serverLastResponse: this._lastServerResponseTime || 'never'
+                    });
+                }
+                
+                // If it's time to fire the next shot
+                if (now >= this._nextFireTime && clientCooldownReady) {
+                    // Track server cooldown carefully to avoid rapid rejections
+                    const serverBufferTime = 400; // Increased buffer from 200ms to 400ms
+                    const serverReady = !this._lastServerAttackTime || 
+                        now - this._lastServerAttackTime >= this.playerShip.cannonCooldown + serverBufferTime;
+                        
+                    if (serverReady) {
+                        // Time to fire!
+                        this.fireAtCurrentTarget();
+                        
+                        // Update next fire time based on client cooldown
+                        this._nextFireTime = now + this.playerShip.cannonCooldown;
+                    } else {
+                        // Server not ready yet - wait until it should be
+                        const serverReadyTime = this._lastServerAttackTime + this.playerShip.cannonCooldown + serverBufferTime;
+                        this._nextFireTime = serverReadyTime;
+                        
+                        console.log('[DEBUG:AUTOFIRE] Waiting for server cooldown:', {
+                            serverLastAttack: this._lastServerAttackTime,
+                            serverCooldownValue: this.playerShip.cannonCooldown,
+                            serverReadyTime: serverReadyTime,
+                            currentTime: now,
+                            waitTime: serverReadyTime - now
+                        });
+                    }
+                }
+                
+                // Continue the loop as long as space is pressed
+                if (this.isSpacePressed) {
+                    this._autoFireFrame = requestAnimationFrame(autoFireCheck);
+                }
+            };
+            
+            // Start the animation frame loop
+            this._autoFireFrame = requestAnimationFrame(autoFireCheck);
         }
     }
     
@@ -210,10 +270,10 @@ class CombatManager {
         if (event.code === 'Space') {
             this.isSpacePressed = false;
             
-            // Clear auto-fire interval
-            if (this.autoFireInterval) {
-                clearInterval(this.autoFireInterval);
-                this.autoFireInterval = null;
+            // Cancel animation frame instead of interval
+            if (this._autoFireFrame) {
+                cancelAnimationFrame(this._autoFireFrame);
+                this._autoFireFrame = null;
             }
         }
     }
@@ -304,8 +364,28 @@ class CombatManager {
             return;
         }
         
-        // Check if player can fire (cooldown)
-        if (!this.playerShip.canFire()) {
+        const now = Date.now();
+        const clientCooldownElapsed = now - this.playerShip.lastFiredTime;
+        const clientCannonCooldown = this.playerShip.cannonCooldown;
+        const serverLastAttackTime = this._lastServerAttackTime || 0;
+        const serverCooldownElapsed = now - serverLastAttackTime;
+        
+        console.log('[DEBUG:COOLDOWN] Firing attempt:', {
+            clientLastFired: this.playerShip.lastFiredTime,
+            clientCooldownValue: clientCannonCooldown,
+            clientCooldownElapsed: clientCooldownElapsed,
+            clientReadyToFire: clientCooldownElapsed >= clientCannonCooldown,
+            serverLastAttack: serverLastAttackTime,
+            serverCooldownElapsed: serverCooldownElapsed,
+            currentTimestamp: now,
+            timeSinceLastServerAttack: this._lastServerAttackTime ? `${now - this._lastServerAttackTime}ms` : 'never'
+        });
+        
+        // Check if player can fire (cooldown) with server timing info
+        if (!this.playerShip.canFire({
+            serverLastAttackTime: this._lastServerAttackTime,
+            additionalBuffer: 400 // Increased to 400ms buffer to avoid server rejection
+        })) {
             console.log('[COMBAT] Cannon on cooldown', `Last fired: ${Date.now() - this.playerShip.lastFiredTime}ms ago`);
             return;
         }
@@ -543,14 +623,35 @@ class CombatManager {
                         action.serverDamage = result.damage || damage;
                         action.serverResult = result;
                         
+                        // Gather timing info for logging
+                        const now = Date.now();
+                        const responseTime = now - action.timestamp;
+                        
                         console.log(`[ACTION:${action.id}] Server confirmed action:`, {
                             id: action.id,
                             clientDamage: action.clientDamage,
                             serverDamage: result.damage || damage,
                             newHealth: result.newHealth,
                             isSunk: result.isSunk,
-                            responseTime: Date.now() - action.timestamp,
-                            alreadyHit: action.cannonballRef.hasHit
+                            responseTime: responseTime,
+                            alreadyHit: action.cannonballRef.hasHit,
+                            clientFireTime: action.timestamp,
+                            clientCooldownSetting: this.playerShip.cannonCooldown
+                        });
+                        
+                        // Important: Use the action timestamp instead of current time
+                        // This ensures we're tracking when the server actually registered the shot
+                        // rather than when we received the response
+                        this._lastServerAttackTime = action.timestamp;
+                        this._lastServerResponseTime = now;
+                        
+                        console.log('[DEBUG:COOLDOWN] Server accepted shot:', {
+                            clientFiredAt: action.timestamp,
+                            serverAcceptedAt: this._lastServerAttackTime,
+                            responseReceivedAt: now,
+                            responseDelay: responseTime,
+                            nextClientFireTime: action.timestamp + this.playerShip.cannonCooldown,
+                            nextServerReadyTime: this._lastServerAttackTime + this.playerShip.cannonCooldown
                         });
                         
                         this.confirmedActions.set(result.actionId, action);
@@ -565,12 +666,51 @@ class CombatManager {
                         action.status = 'rejected';
                         action.error = result.error;
                         
-                        console.warn(`[ACTION:${action.id}] Server rejected action:`, {
-                            id: action.id,
-                            reason: result.error,
-                            responseTime: Date.now() - action.timestamp,
-                            alreadyHit: action.cannonballRef.hasHit
-                        });
+                        const responseTime = Date.now() - action.timestamp;
+                        
+                        // Add detailed timing info for debugging cooldown issues
+                        if (result.error === 'Attack cooldown in progress') {
+                            const now = Date.now();
+                            
+                            // If we have cooldown remaining info from server, use it to calibrate our timing
+                            if (result.cooldownRemaining) {
+                                // Calculate when the server thinks the last attack happened
+                                // Server cooldown (2000ms) - remaining time = elapsed time since last attack
+                                const serverElapsedTime = this.playerShip.cannonCooldown - result.cooldownRemaining;
+                                const calculatedServerAttackTime = now - serverElapsedTime;
+                                
+                                // Update our tracking of server's last attack time
+                                // This helps synchronize for future shots
+                                if (!this._lastServerAttackTime || calculatedServerAttackTime > this._lastServerAttackTime) {
+                                    console.log('[DEBUG:SERVER_SYNC] Updating server attack time from rejection:', {
+                                        oldServerAttackTime: this._lastServerAttackTime ? new Date(this._lastServerAttackTime).toISOString() : 'none',
+                                        newServerAttackTime: new Date(calculatedServerAttackTime).toISOString(),
+                                        serverCooldownRemaining: result.cooldownRemaining,
+                                        serverElapsedSinceAttack: serverElapsedTime
+                                    });
+                                    
+                                    this._lastServerAttackTime = calculatedServerAttackTime;
+                                }
+                            }
+                            
+                            console.warn(`[ACTION:${action.id}] Server rejected cooldown:`, {
+                                id: action.id,
+                                reason: result.error,
+                                responseTime: responseTime,
+                                alreadyHit: action.cannonballRef.hasHit,
+                                serverRemaining: result.cooldownRemaining || 'unknown',
+                                timeSinceLastServerAttack: this._lastServerAttackTime ? (now - this._lastServerAttackTime) : 'unknown',
+                                clientElapsed: now - this.playerShip.lastFiredTime,
+                                clientCooldown: this.playerShip.cannonCooldown
+                            });
+                        } else {
+                            console.warn(`[ACTION:${action.id}] Server rejected action:`, {
+                                id: action.id,
+                                reason: result.error,
+                                responseTime: responseTime,
+                                alreadyHit: action.cannonballRef.hasHit
+                            });
+                        }
                         
                         // If cannonball already hit, rollback the damage
                         if (action.cannonballRef.hasHit) {

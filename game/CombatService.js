@@ -34,7 +34,7 @@ class CombatService {
         
         // Track last attack time locally to prevent rapid firing
         this.lastAttackTime = 0;
-        this.COOLDOWN_PERIOD = 2000; // 2 seconds between shots (match server)
+        this.COOLDOWN_PERIOD = 1500; // Changed to 1500ms to match server cooldown
     }
     
     /**
@@ -65,14 +65,29 @@ class CombatService {
         
         // Check local cooldown to prevent unnecessary server calls
         const now = Date.now();
-        if (now - this.lastAttackTime < this.COOLDOWN_PERIOD) {
-            console.log('Attack on cooldown, waiting...');
+        const timeSinceLastAttack = now - this.lastAttackTime;
+        
+        // Only check the exact cooldown time without any buffer
+        // This is much less aggressive and will only block attempts that would definitely be rejected
+        if (timeSinceLastAttack < this.COOLDOWN_PERIOD) {
+            console.debug('[COMBAT SERVICE] Local cooldown check failed:', {
+                lastAttackTime: this.lastAttackTime,
+                now: now,
+                timeSinceLastAttack: timeSinceLastAttack,
+                requiredCooldown: this.COOLDOWN_PERIOD,
+                remainingCooldown: this.COOLDOWN_PERIOD - timeSinceLastAttack,
+                actionId: options.actionId,
+                timestamp: now
+            });
+            
             // Return a cooldown response instead of throwing an error
             return { 
                 success: false, 
                 error: 'Attack cooldown in progress',
-                cooldownRemaining: this.COOLDOWN_PERIOD - (now - this.lastAttackTime),
-                actionId: options.actionId // Include the actionId in the cooldown response
+                cooldownRemaining: this.COOLDOWN_PERIOD - timeSinceLastAttack,
+                actionId: options.actionId, // Include the actionId in the cooldown response
+                source: 'client-cooldown', // Identify this as a client rejection
+                timestamp: now
             };
         }
         
@@ -98,9 +113,6 @@ class CombatService {
                 actionId: options.actionId // Send the actionId to the server
             });
             
-            // Update local cooldown time on successful attack
-            this.lastAttackTime = now;
-            
             // Log the result for debugging
             console.log('Server combat result:', result.data);
             
@@ -108,6 +120,44 @@ class CombatService {
             const response = {...result.data};
             if (!response.actionId) {
                 response.actionId = options.actionId;
+            }
+            
+            // If successful, update last attack time
+            if (response.success) {
+                // Update local cooldown time
+                this.lastAttackTime = now;
+                console.log('[COMBAT SERVICE] Updated lastAttackTime after successful attack:', this.lastAttackTime);
+            } 
+            // If failed due to cooldown
+            else if (response.error === 'Attack cooldown in progress') {
+                // Calculate when we can fire again based on server's cooldownRemaining
+                if (response.cooldownRemaining) {
+                    // Compute the server's lastAttackTime by working backwards from cooldownRemaining
+                    const serverImpliedLastAttackTime = now - (this.COOLDOWN_PERIOD - response.cooldownRemaining);
+                    
+                    // Add a larger buffer (300ms) to be absolutely sure we avoid future server rejections
+                    const adjustedLastAttackTime = serverImpliedLastAttackTime + 300;
+                    
+                    // Always update local time to server time to prevent desync
+                    // This ensures we stay synchronized with the server's cooldown timer
+                    this.lastAttackTime = adjustedLastAttackTime;
+                    console.log('[COMBAT SERVICE] Forcefully synced lastAttackTime with server implied time:', {
+                        originalLastAttackTime: this.lastAttackTime,
+                        serverImplied: serverImpliedLastAttackTime,
+                        withBuffer: adjustedLastAttackTime,
+                        cooldownRemaining: response.cooldownRemaining
+                    });
+                    
+                    // Analyze if our delta is significantly off from server
+                    const cooldownTimeDifference = adjustedLastAttackTime - this.lastAttackTime;
+                    if (Math.abs(cooldownTimeDifference) > 200) {
+                        console.warn('[COMBAT SERVICE] Large cooldown time difference detected:', {
+                            difference: cooldownTimeDifference,
+                            serverImplied: serverImpliedLastAttackTime,
+                            clientTime: this.lastAttackTime
+                        });
+                    }
+                }
             }
             
             return response;
