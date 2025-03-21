@@ -322,6 +322,23 @@ class MultiplayerManager {
         
         // If ship exists, update it
         if (otherPlayerShip) {
+            // Check if player has respawned (was sunk but now has health)
+            const hasRespawned = otherPlayerShip.isSunk && 
+                                playerData.health !== undefined && 
+                                playerData.health > 0;
+            
+            if (hasRespawned) {
+                // Player has respawned - recreate their ship from scratch
+                this.debug(`Player ${playerData.displayName || playerId} has respawned - recreating ship`);
+                
+                // Remove the old ship
+                this.removePlayerShip(playerId);
+                
+                // Create a new ship
+                this.createPlayerShip(playerData);
+                return;
+            }
+            
             // Update health if it changed
             if (playerData.health !== undefined && otherPlayerShip.currentHealth !== playerData.health) {
                 this.debug(`Updating health for player ${playerData.displayName || playerId}: ${otherPlayerShip.currentHealth} → ${playerData.health}`);
@@ -521,6 +538,24 @@ class MultiplayerManager {
         // Handle special cases: large position change or respawn
         const isNearOrigin = newPos.distanceTo(new THREE.Vector3(0, 0, 0)) < 2;
         
+        // Check for respawn scenario - was previously sunk and now has positive health near origin
+        const hasRespawned = otherPlayerShip.isSunk && 
+                           playerData.health !== undefined && 
+                           playerData.health > 0 &&
+                           isNearOrigin;
+        
+        if (hasRespawned) {
+            // Player has respawned - recreate their ship from scratch
+            this.debug(`Player ${playerData.displayName} has respawned at origin - recreating ship`);
+            
+            // Remove the old ship
+            this.removePlayerShip(playerData.id);
+            
+            // Create a new ship
+            this.createPlayerShip(playerData);
+            return;
+        }
+        
         if (distanceChange > this.TELEPORT_THRESHOLD || isNearOrigin || playerData.isSunk) {
             // For large position changes or respawns, teleport immediately
             this.debug(`Teleporting ship for player ${playerData.displayName} to new position:`, newPos);
@@ -651,6 +686,31 @@ class MultiplayerManager {
             // Remove from map
             this.otherPlayerShips.delete(playerId);
         }
+    }
+    
+    /**
+     * Force respawn a player's ship
+     * @param {string} playerId - The ID of the player whose ship to respawn
+     * @returns {boolean} - True if the ship was respawned, false if player data couldn't be found
+     */
+    respawnPlayerShip(playerId) {
+        // Get the player data
+        const playerData = this.otherPlayers.get(playerId);
+        
+        if (!playerData) {
+            this.debug(`Cannot respawn ship for player ${playerId}: player data not found`);
+            return false;
+        }
+        
+        this.debug(`Force respawning ship for player: ${playerData.displayName} (${playerId})`);
+        
+        // Remove the existing ship if it exists
+        this.removePlayerShip(playerId);
+        
+        // Create a new ship with fresh state
+        this.createPlayerShip(playerData);
+        
+        return true;
     }
     
     /**

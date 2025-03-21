@@ -568,7 +568,9 @@ class BaseShip {
                     requestAnimationFrame(animateCapsizing);
                 } else {
                     // If this is the player ship, notify CombatManager to schedule respawn
-                    if (!this.isEnemy && window.combatManager) {
+                    // Check if this ship is the player ship by comparing with playerShip reference in combatManager
+                    if (window.combatManager && this === window.combatManager.playerShip) {
+                        console.log('Player ship sunk, scheduling respawn');
                         // Signal combat manager to start respawn timer
                         window.combatManager.schedulePlayerRespawn();
                     } 
