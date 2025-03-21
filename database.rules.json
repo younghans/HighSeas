@@ -26,6 +26,29 @@
       "$eventId": {
         ".validate": "!data.exists() || newData.child('timestamp').val() >= (data.child('timestamp').val() - 30000)"
       }
+    },
+    "chat": {
+      "messages": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        ".indexOn": "timestamp",
+        "$messageId": {
+          ".validate": "newData.hasChildren(['playerName', 'message', 'timestamp'])",
+          "playerName": {
+            ".validate": "newData.isString() && newData.val().length <= 50"
+          },
+          "message": {
+            ".validate": "newData.isString() && newData.val().length <= 500"
+          },
+          "timestamp": {
+            ".validate": "newData.isNumber()"
+          }
+        }
+      }
+    },
+    "profanityList": {
+      ".read": "auth != null",
+      ".write": false
     }
   }
 } 

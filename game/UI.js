@@ -14,6 +14,9 @@ class GameUI {
         this.playerShip = options.playerShip || null;
         this.combatManager = options.combatManager || null;
         
+        // Initialize ChatManager
+        this.chatManager = new ChatManager();
+        
         // UI elements
         this.bottomUIContainer = null;
         this.topUIContainer = null;
@@ -58,6 +61,24 @@ class GameUI {
      * Initialize UI elements
      */
     init() {
+        // Create bottom-left UI container
+        this.bottomLeftUIContainer = document.createElement('div');
+        this.bottomLeftUIContainer.id = 'game-ui-bottom-left-container';
+        this.bottomLeftUIContainer.style.position = 'absolute';
+        this.bottomLeftUIContainer.style.bottom = '20px';
+        this.bottomLeftUIContainer.style.left = '20px';
+        this.bottomLeftUIContainer.style.display = 'flex';
+        this.bottomLeftUIContainer.style.flexDirection = 'column';
+        this.bottomLeftUIContainer.style.alignItems = 'flex-start';
+        this.bottomLeftUIContainer.style.zIndex = '1000';
+        this.bottomLeftUIContainer.style.transition = 'all 0.3s ease';
+        this.bottomLeftUIContainer.style.boxSizing = 'border-box';
+        this.bottomLeftUIContainer.style.touchAction = 'none';
+        document.body.appendChild(this.bottomLeftUIContainer);
+
+        // Create chat button
+        this.createChatButton();
+
         // Create bottom UI container
         this.bottomUIContainer = document.createElement('div');
         this.bottomUIContainer.id = 'game-ui-bottom-container';
@@ -157,6 +178,19 @@ class GameUI {
         document.addEventListener('playerGoldUpdated', (event) => {
             // Load the updated gold amount
             this.loadGoldAmount();
+        });
+        
+        // Create chat interface
+        this.createChatInterface();
+        
+        // Add keyboard event listener for chat toggle
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.repeat && this.isVisible) {
+                // Only toggle if not currently typing in chat input
+                if (!document.activeElement || document.activeElement.id !== 'chat-input') {
+                    this.toggleChat();
+                }
+            }
         });
         
         // Hide UI initially
@@ -1176,6 +1210,7 @@ class GameUI {
     show() {
         this.bottomUIContainer.style.display = 'flex';
         this.topUIContainer.style.display = 'flex';
+        this.bottomLeftUIContainer.style.display = 'flex'; // Show bottom-left container
         this.isVisible = true;
         
         // Only show cannon cooldown indicator if there's a current target
@@ -1191,6 +1226,11 @@ class GameUI {
         } else if (this.targetInfoContainer) {
             this.targetInfoContainer.style.display = 'none';
         }
+        
+        // Keep chat window hidden by default
+        if (this.chatContainer) {
+            this.chatContainer.style.display = 'none';
+        }
     }
     
     /**
@@ -1199,6 +1239,7 @@ class GameUI {
     hide() {
         this.bottomUIContainer.style.display = 'none';
         this.topUIContainer.style.display = 'none';
+        this.bottomLeftUIContainer.style.display = 'none'; // Hide bottom-left container
         this.isVisible = false;
         // Also close any open menus
         this.bottomMenuContainer.style.display = 'none';
@@ -1211,6 +1252,10 @@ class GameUI {
         }
         if (this.targetInfoContainer) {
             this.targetInfoContainer.style.display = 'none';
+        }
+        
+        if (this.chatContainer) {
+            this.chatContainer.style.display = 'none';
         }
         
         // Clear any current target
@@ -1415,6 +1460,200 @@ class GameUI {
         if (goldMenuAmount) {
             goldMenuAmount.textContent = formattedAmount;
         }
+    }
+    
+    /**
+     * Create chat button with chat bubble icon
+     */
+    createChatButton() {
+        const chatButton = document.createElement('div');
+        chatButton.id = 'chat-button';
+        chatButton.style.width = '40px';
+        chatButton.style.height = '40px';
+        chatButton.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        chatButton.style.color = 'white';
+        chatButton.style.display = 'flex';
+        chatButton.style.alignItems = 'center';
+        chatButton.style.justifyContent = 'center';
+        chatButton.style.cursor = 'pointer';
+        chatButton.style.borderRadius = '8px';
+        chatButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+        chatButton.style.transition = 'all 0.2s ease';
+        chatButton.style.userSelect = 'none';
+        chatButton.style.webkitUserSelect = 'none';
+        chatButton.style.touchAction = 'none';
+        
+        // Chat bubble SVG icon
+        chatButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>`;
+        
+        chatButton.title = 'Chat (Enter)';
+        
+        // Add hover effect
+        chatButton.addEventListener('mouseover', () => {
+            chatButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+            chatButton.style.transform = 'scale(1.05)';
+        });
+        
+        chatButton.addEventListener('mouseout', () => {
+            chatButton.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            chatButton.style.transform = 'scale(1)';
+        });
+        
+        // Add click handler to toggle chat
+        chatButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            this.toggleChat();
+        });
+        
+        this.bottomLeftUIContainer.appendChild(chatButton);
+        this.chatButton = chatButton;
+    }
+    
+    /**
+     * Toggle chat visibility
+     */
+    toggleChat() {
+        if (this.chatContainer) {
+            const isVisible = this.chatContainer.style.display !== 'none';
+            this.chatContainer.style.display = isVisible ? 'none' : 'flex';
+            
+            // When opening chat
+            if (!isVisible) {
+                // Focus the input
+                const chatInput = document.getElementById('chat-input');
+                if (chatInput) {
+                    chatInput.focus();
+                }
+                
+                // Scroll messages to bottom
+                const messagesContainer = document.getElementById('chat-messages');
+                if (messagesContainer) {
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
+            }
+        }
+    }
+    
+    /**
+     * Create chat interface
+     */
+    createChatInterface() {
+        // Create style element for chat scrollbar
+        const style = document.createElement('style');
+        style.textContent = `
+            #chat-messages::-webkit-scrollbar {
+                width: 8px;
+            }
+            
+            #chat-messages::-webkit-scrollbar-track {
+                background: rgba(0, 0, 0, 0.3);
+                border-radius: 4px;
+            }
+            
+            #chat-messages::-webkit-scrollbar-thumb {
+                background-color: rgba(255, 255, 255, 0.3);
+                border-radius: 4px;
+            }
+            
+            #chat-messages::-webkit-scrollbar-thumb:hover {
+                background-color: rgba(255, 255, 255, 0.4);
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Create chat container
+        const chatContainer = document.createElement('div');
+        chatContainer.id = 'game-chat-container';
+        chatContainer.style.position = 'absolute';
+        chatContainer.style.left = '20px';
+        chatContainer.style.bottom = '70px';
+        chatContainer.style.width = '300px';
+        chatContainer.style.height = '175px';
+        chatContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        chatContainer.style.borderRadius = '5px';
+        chatContainer.style.display = 'none'; // Hidden by default
+        chatContainer.style.flexDirection = 'column';
+        chatContainer.style.zIndex = '1000';
+        document.body.appendChild(chatContainer);
+
+        // Create messages container
+        const messagesContainer = document.createElement('div');
+        messagesContainer.id = 'chat-messages';
+        messagesContainer.style.flex = '1';
+        messagesContainer.style.overflow = 'auto';
+        messagesContainer.style.padding = '10px 10px 5px 10px';
+        messagesContainer.style.color = 'white';
+        messagesContainer.style.fontSize = '14px';
+        messagesContainer.style.scrollbarWidth = 'thin';
+        messagesContainer.style.scrollbarColor = 'rgba(255, 255, 255, 0.3) rgba(0, 0, 0, 0.3)';
+        chatContainer.appendChild(messagesContainer);
+
+        // Create input container
+        const inputContainer = document.createElement('div');
+        inputContainer.style.display = 'flex';
+        inputContainer.style.padding = '5px 10px';
+        inputContainer.style.borderTop = '1px solid rgba(255, 255, 255, 0.2)';
+        chatContainer.appendChild(inputContainer);
+
+        // Create chat input
+        const chatInput = document.createElement('input');
+        chatInput.id = 'chat-input'; // Added ID for keyboard event handling
+        chatInput.type = 'text';
+        chatInput.placeholder = 'Type your message...';
+        chatInput.style.flex = '1';
+        chatInput.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+        chatInput.style.border = 'none';
+        chatInput.style.borderRadius = '3px';
+        chatInput.style.padding = '5px 10px';
+        chatInput.style.color = 'white';
+        chatInput.style.marginRight = '5px';
+        inputContainer.appendChild(chatInput);
+
+        // Create send button
+        const sendButton = document.createElement('button');
+        sendButton.textContent = 'Send';
+        sendButton.style.backgroundColor = '#4CAF50';
+        sendButton.style.color = 'white';
+        sendButton.style.border = 'none';
+        sendButton.style.borderRadius = '3px';
+        sendButton.style.padding = '5px 15px';
+        sendButton.style.cursor = 'pointer';
+        inputContainer.appendChild(sendButton);
+
+        // Handle sending messages
+        const sendMessage = () => {
+            const message = chatInput.value.trim();
+            if (message) {
+                // Get the current user's display name or fallback to 'Sailor'
+                const user = this.auth.getCurrentUser();
+                const playerName = user?.displayName || 'Sailor';
+                this.chatManager.sendMessage(playerName, message);
+                chatInput.value = '';
+            }
+        };
+
+        // Event listeners
+        sendButton.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Set up message display callback
+        this.chatManager.setMessageCallback((message) => {
+            const messageElement = document.createElement('div');
+            messageElement.style.marginBottom = '5px';
+            messageElement.innerHTML = `<strong>${message.playerName}:</strong> ${message.message}`;
+            messagesContainer.appendChild(messageElement);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        });
+
+        // Store chat elements
+        this.chatContainer = chatContainer;
+        this.chatInput = chatInput;
     }
 }
 
