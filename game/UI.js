@@ -181,6 +181,7 @@ class GameUI {
         this.targetInfoContainer.style.boxSizing = 'border-box';
         this.targetInfoContainer.style.zIndex = '1000';
         this.targetInfoContainer.style.display = 'none'; // Hidden by default
+        this.targetInfoContainer.style.touchAction = 'none';
         document.body.appendChild(this.targetInfoContainer);
         
         // Create target label
@@ -191,6 +192,7 @@ class GameUI {
         targetLabel.style.fontWeight = 'bold';
         targetLabel.style.marginBottom = '5px';
         targetLabel.style.textAlign = 'center';
+        targetLabel.style.touchAction = 'none';
         this.targetInfoContainer.appendChild(targetLabel);
         
         // Create distance text
@@ -200,6 +202,7 @@ class GameUI {
         this.targetDistanceText.style.fontSize = '10px';
         this.targetDistanceText.style.textAlign = 'center';
         this.targetDistanceText.style.marginTop = '5px';
+        this.targetDistanceText.style.touchAction = 'none';
         this.targetInfoContainer.appendChild(this.targetDistanceText);
         
         // Create in range indicator
@@ -210,6 +213,7 @@ class GameUI {
         this.targetRangeIndicator.style.fontWeight = 'bold';
         this.targetRangeIndicator.style.textAlign = 'center';
         this.targetRangeIndicator.style.marginTop = '5px';
+        this.targetRangeIndicator.style.touchAction = 'none';
         this.targetInfoContainer.appendChild(this.targetRangeIndicator);
         
         // Create buttons container
@@ -233,6 +237,7 @@ class GameUI {
         fireButton.style.cursor = 'pointer';
         fireButton.style.marginRight = '5px';
         fireButton.style.transition = 'background-color 0.2s';
+        fireButton.style.touchAction = 'none';
         
         // Add hover effect
         fireButton.addEventListener('mouseover', () => {
@@ -285,6 +290,7 @@ class GameUI {
         disengageButton.style.cursor = 'pointer';
         disengageButton.style.marginLeft = '5px';
         disengageButton.style.transition = 'background-color 0.2s';
+        disengageButton.style.touchAction = 'none';
         
         // Add hover effect
         disengageButton.addEventListener('mouseover', () => {
@@ -419,6 +425,7 @@ class GameUI {
         profileButton.style.transition = 'all 0.2s ease';
         profileButton.style.userSelect = 'none';
         profileButton.style.webkitUserSelect = 'none';
+        profileButton.style.touchAction = 'none';
         
         // Use SVG icon for profile
         profileButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white">
@@ -469,6 +476,7 @@ class GameUI {
         goldButton.style.userSelect = 'none';
         goldButton.style.webkitUserSelect = 'none';
         goldButton.style.padding = '0 10px';
+        goldButton.style.touchAction = 'none';
         
         // Create coin icon using SVG
         const iconContainer = document.createElement('div');
@@ -490,6 +498,7 @@ class GameUI {
         goldText.style.fontSize = '14px';
         goldText.style.fontWeight = 'bold';
         goldText.style.color = '#FFD700';
+        goldText.style.touchAction = 'none';
         
         // Add icon and text to button
         goldButton.appendChild(iconContainer);
@@ -541,6 +550,7 @@ class GameUI {
         inventoryButton.style.transition = 'all 0.2s ease';
         inventoryButton.style.userSelect = 'none';
         inventoryButton.style.webkitUserSelect = 'none';
+        inventoryButton.style.touchAction = 'none';
         
         // Use SVG icon for inventory (treasure chest)
         inventoryButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -594,6 +604,7 @@ class GameUI {
         mapButton.style.transition = 'all 0.2s ease';
         mapButton.style.userSelect = 'none';
         mapButton.style.webkitUserSelect = 'none';
+        mapButton.style.touchAction = 'none';
         
         // Use SVG icon for map - old-style square map with tattered edges
         mapButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -652,12 +663,14 @@ class GameUI {
         // Username section
         const usernameSection = document.createElement('div');
         usernameSection.style.marginBottom = '15px';
-        usernameSection.style.width = '100%'; // Ensure section takes full width of parent
+        usernameSection.style.width = '100%';
+        usernameSection.style.touchAction = 'none';
         
         const usernameLabel = document.createElement('label');
         usernameLabel.textContent = 'Username:';
         usernameLabel.style.display = 'block';
         usernameLabel.style.marginBottom = '5px';
+        usernameLabel.style.touchAction = 'none';
         usernameSection.appendChild(usernameLabel);
         
         const usernameInput = document.createElement('input');
@@ -670,7 +683,8 @@ class GameUI {
         usernameInput.style.borderRadius = '4px';
         usernameInput.style.color = 'white';
         usernameInput.style.marginBottom = '10px';
-        usernameInput.style.boxSizing = 'border-box'; // Add box-sizing to include padding in width calculation
+        usernameInput.style.boxSizing = 'border-box';
+        usernameInput.style.touchAction = 'none';
         usernameSection.appendChild(usernameInput);
         
         const saveButton = document.createElement('button');
@@ -682,7 +696,8 @@ class GameUI {
         saveButton.style.borderRadius = '4px';
         saveButton.style.cursor = 'pointer';
         saveButton.style.width = '100%';
-        saveButton.style.boxSizing = 'border-box'; // Add box-sizing to include padding in width calculation
+        saveButton.style.boxSizing = 'border-box';
+        saveButton.style.touchAction = 'none';
         
         // Add hover effect
         saveButton.addEventListener('mouseover', () => {
@@ -725,6 +740,7 @@ class GameUI {
         mainMenuButton.style.width = '100%';
         mainMenuButton.style.marginBottom = '10px';
         mainMenuButton.style.boxSizing = 'border-box';
+        mainMenuButton.style.touchAction = 'none';
         
         // Add hover effect
         mainMenuButton.addEventListener('mouseover', () => {
@@ -771,6 +787,7 @@ class GameUI {
         logoutButton.style.cursor = 'pointer';
         logoutButton.style.width = '100%';
         logoutButton.style.boxSizing = 'border-box';
+        logoutButton.style.touchAction = 'none';
         
         // Add hover effect
         logoutButton.addEventListener('mouseover', () => {
@@ -889,6 +906,7 @@ class GameUI {
         goldAmount.style.fontSize = '24px';
         goldAmount.style.fontWeight = 'bold';
         goldAmount.style.color = '#FFD700';
+        goldAmount.style.touchAction = 'none';
         goldAmountContainer.appendChild(goldAmount);
         
         goldMenu.appendChild(goldAmountContainer);
