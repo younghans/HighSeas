@@ -1129,8 +1129,8 @@ class MultiplayerManager {
             const sourceShip = this.otherPlayerShips.get(eventData.sourceId);
             
             // If we can't find the source ship, log and return
-            if (!sourceShip) {
-                console.error('[COMBAT:EVENT] Cannot find source ship for cannonball event:', {
+            if (!sourceShip || !sourceShip.shipMesh) {
+                console.error('[COMBAT:EVENT] Cannot find valid source ship for cannonball event:', {
                     sourceId: eventData.sourceId,
                     knownPlayers: Array.from(this.otherPlayerShips.keys())
                 });
@@ -1145,8 +1145,8 @@ class MultiplayerManager {
                 // We are the target, so find our player ship
                 targetShip = window.playerShip; // Access the global player ship
                 
-                if (!targetShip) {
-                    console.error('[COMBAT:EVENT] Cannot find local player ship for cannonball target');
+                if (!targetShip || !targetShip.shipMesh) {
+                    console.error('[COMBAT:EVENT] Cannot find valid local player ship for cannonball target');
                     return;
                 }
                 
@@ -1155,8 +1155,8 @@ class MultiplayerManager {
                 // Target is another player, find their ship
                 targetShip = this.otherPlayerShips.get(eventData.targetId);
                 
-                if (!targetShip) {
-                    console.error('[COMBAT:EVENT] Cannot find target ship for cannonball event:', {
+                if (!targetShip || !targetShip.shipMesh) {
+                    console.error('[COMBAT:EVENT] Cannot find valid target ship for cannonball event:', {
                         targetId: eventData.targetId,
                         knownPlayers: Array.from(this.otherPlayerShips.keys())
                     });

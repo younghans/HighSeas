@@ -1125,7 +1125,7 @@ class CombatManager {
                     this.playerShip.updateHealthBar(this.camera);
                 }
                 
-                if (this.currentTarget.updateHealthBar) {
+                if (this.currentTarget && this.currentTarget.updateHealthBar) {
                     this.currentTarget.updateHealthBar(this.camera);
                 }
             }
@@ -1162,8 +1162,10 @@ class CombatManager {
         if (this.enemyShipManager && this.camera) {
             const enemyShips = this.enemyShipManager.getEnemyShips();
             for (const ship of enemyShips) {
-                if (ship.healthBarContainer && ship.healthBarContainer.visible && !ship.isSunk) {
-                    ship.updateHealthBar(this.camera);
+                if (ship && ship.healthBarContainer && ship.healthBarContainer.visible && !ship.isSunk) {
+                    if (ship.updateHealthBar && ship.shipMesh) {
+                        ship.updateHealthBar(this.camera);
+                    }
                 }
             }
         }

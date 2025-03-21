@@ -836,7 +836,7 @@ class BaseShip {
      * @param {THREE.Camera} camera - The game camera for dynamic scaling
      */
     updateHealthBar(camera) {
-        if (!this.healthBarContainer || !this.healthBarForeground || !camera) return;
+        if (!this.healthBarContainer || !this.healthBarForeground || !camera || !this.shipMesh) return;
         
         // Update health bar fill based on current health percentage
         const healthPercent = this.getHealthPercentage() / 100;
