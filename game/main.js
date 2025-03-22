@@ -427,6 +427,12 @@ function startGameWithShip() {
         cannonCooldown: 1500 // 1.5 seconds between shots
     });
     
+    // Set the ship's ID to match the user's Firebase auth ID
+    if (Auth && Auth.getCurrentUser()) {
+        ship.id = Auth.getCurrentUser().uid;
+        console.log('Set ship ID to match user ID:', ship.id);
+    }
+    
     // Make ship available globally for multiplayer combat interactions
     window.playerShip = ship;
     
@@ -654,6 +660,9 @@ function startGameWithShip() {
             multiplayerManager.setPlayerOffline();
         }
     });
+
+    // After creating UI and setting up the game
+    gameUI.chatManager.setGameReferences(camera, [ship]);
 }
 
 /**
@@ -1106,6 +1115,11 @@ function animate() {
     // Update controls
     if (controls) {
         controls.update();
+    }
+
+    // Update chat bubbles
+    if (gameUI && gameUI.chatManager) {
+        gameUI.chatManager.update();
     }
     
     renderer.render(scene, camera);

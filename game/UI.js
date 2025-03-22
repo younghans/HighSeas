@@ -1629,7 +1629,9 @@ class GameUI {
                 // Get the current user's display name or fallback to 'Sailor'
                 const user = this.auth.getCurrentUser();
                 const playerName = user?.displayName || 'Sailor';
-                this.chatManager.sendMessage(playerName, message);
+                // Get the player's ship ID
+                const shipId = this.playerShip ? this.playerShip.id : null;
+                this.chatManager.sendMessage(playerName, message, shipId);
                 chatInput.value = '';
             }
         };
