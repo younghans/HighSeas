@@ -66,20 +66,26 @@ function signInWithGoogle() {
 // Sign in as guest
 function signInAsGuest(username) {
   const guestName = username || 'Guest';
+  let userRef;
   
   return auth.signInAnonymously()
     .then((result) => {
       // The signed-in guest user info
-      const user = result.user;
+      userRef = result.user;
       
       // Update the user profile with the provided username
-      return user.updateProfile({
+      return userRef.updateProfile({
         displayName: guestName
-      }).then(() => {
-        currentUser = auth.currentUser;
-        console.log('Guest signed in as:', guestName);
-        return currentUser;
       });
+    })
+    .then(() => {
+      // Force a reload of the user to ensure we have the latest profile data
+      return userRef.reload();
+    })
+    .then(() => {
+      currentUser = auth.currentUser;
+      console.log('Guest signed in as:', currentUser.displayName);
+      return currentUser;
     })
     .catch((error) => {
       // Handle Errors here

@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "yarr-9d4f2"
-  }
+  },
+  "targets": {
+    "yarr-9d4f2": {
+      "hosting": {
+        "webapp": [
+          "yarr-9d4f2"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

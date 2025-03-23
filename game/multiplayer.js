@@ -23,6 +23,7 @@ class MultiplayerManager {
         this.debugMode = true; // Enable debug mode
         this.onPlayerPositionLoaded = options.onPlayerPositionLoaded || null;
         this.combatManager = null; // Will be set later
+        this.playerShip = null; // Store reference to player ship
         
         // Add reference to combat events
         this.combatEventsRef = this.database.ref('combatEvents');
@@ -37,6 +38,7 @@ class MultiplayerManager {
         this.removePlayerShip = this.removePlayerShip.bind(this);
         this.loadPlayerPosition = this.loadPlayerPosition.bind(this);
         this.handleCombatEvent = this.handleCombatEvent.bind(this);
+        this.handleVisibilityChange = this.handleVisibilityChange.bind(this);
     }
     
     /**
@@ -91,6 +93,38 @@ class MultiplayerManager {
     }
     
     /**
+     * Handle visibility change events
+     */
+    handleVisibilityChange() {
+        if (document.hidden) {
+            this.debug('Page hidden - handling visibility change');
+            // No need to do anything when hidden, Firebase will handle offline state
+        } else {
+            this.debug('Page visible - reconnecting and syncing state');
+            if (this.playerRef && this.playerShip) {
+                // Update online status and current position
+                const currentPosition = this.playerShip.getPosition();
+                const currentRotation = { y: this.playerShip.getObject().rotation.y };
+                
+                this.playerRef.update({
+                    isOnline: true,
+                    position: {
+                        x: currentPosition.x,
+                        y: 0,
+                        z: currentPosition.z
+                    },
+                    rotation: currentRotation,
+                    lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                }).then(() => {
+                    this.debug('Successfully reconnected and synced state');
+                }).catch(error => {
+                    console.error('Error reconnecting:', error);
+                });
+            }
+        }
+    }
+    
+    /**
      * Initialize multiplayer functionality
      * @param {Object} playerShip - The player's ship object
      * @returns {Promise} Promise that resolves when initialization is complete
@@ -101,6 +135,9 @@ class MultiplayerManager {
             return Promise.resolve(false);
         }
         
+        // Store reference to player ship
+        this.playerShip = playerShip;
+        
         // Get the current user
         const user = this.auth.getCurrentUser();
         this.playerId = user.uid;
@@ -109,6 +146,9 @@ class MultiplayerManager {
         
         // Create a reference to this player's data
         this.playerRef = this.playersRef.child(this.playerId);
+        
+        // Set up visibility change handler
+        document.addEventListener('visibilitychange', this.handleVisibilityChange);
         
         // First, try to load existing player data
         return this.loadPlayerPosition()
@@ -844,6 +884,9 @@ class MultiplayerManager {
     cleanup() {
         this.debug('Cleaning up multiplayer resources');
         
+        // Remove visibility change handler
+        document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+        
         // Stop listening for player events
         if (this.playersRef) {
             this.playersRef.off('child_added', this.handlePlayerAdded);
@@ -867,11 +910,9 @@ class MultiplayerManager {
             this.removePlayerShip(playerId);
         });
         
-        // Note: We don't try to set player offline here anymore
-        // This is now handled before logout in the UI and resetGame functions
-        
         // Clear player reference
         this.playerRef = null;
+        this.playerShip = null;
         
         // Clear other data
         this.otherPlayers.clear();
