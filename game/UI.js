@@ -1728,11 +1728,21 @@ class GameUI {
         this.chatManager.setMessageCallback((message) => {
             const messageElement = document.createElement('div');
             messageElement.style.marginBottom = '5px';
+            
+            // Create name element
+            const nameElement = document.createElement('strong');
+            nameElement.textContent = message.playerName + ': ';
+            messageElement.appendChild(nameElement);
+            
             // Filter message on display if enabled
             const displayMessage = this.profanityFilterEnabled ? 
                 this.chatManager.filterProfanity(message.message) : 
                 message.message;
-            messageElement.innerHTML = `<strong>${message.playerName}:</strong> ${displayMessage}`;
+            
+            // Add message text
+            const textNode = document.createTextNode(displayMessage);
+            messageElement.appendChild(textNode);
+            
             messagesContainer.appendChild(messageElement);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         });

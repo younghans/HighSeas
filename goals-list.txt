@@ -1,4 +1,5 @@
-SHIP
+SHIPfirebase deploy --only hosting:webapp
+
 - make ship speed up as it starts, and rotate to destination?
 - make sails blow while ship is moving? (different increments?)
 - add new type of ship
