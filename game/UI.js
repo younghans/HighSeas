@@ -17,6 +17,15 @@ class GameUI {
         // Load saved settings
         this.profanityFilterEnabled = localStorage.getItem('profanityFilter') !== 'false';
         
+        // Debug properties
+        this.debugMode = localStorage.getItem('debugMode') === 'true';
+        this.debugPanelVisible = false;
+        this.debugPanel = null;
+        this.fpsCounter = null;
+        this.fpsUpdateInterval = null;
+        this.frameCount = 0;
+        this.lastFpsUpdate = performance.now();
+        
         // Initialize ChatManager with saved preference
         this.chatManager = new ChatManager();
         this.chatManager.setProfanityFilter(this.profanityFilterEnabled);
@@ -82,7 +91,17 @@ class GameUI {
 
         // Create chat button
         this.createChatButton();
-
+        
+        // If debug mode is enabled, create the debug panel
+        if (this.debugMode) {
+            this.createDebugPanel();
+            
+            // Enable debug click boxes in combat manager
+            if (this.combatManager) {
+                this.combatManager.toggleDebugClickBoxes(true);
+            }
+        }
+        
         // Create bottom UI container
         this.bottomUIContainer = document.createElement('div');
         this.bottomUIContainer.id = 'game-ui-bottom-container';
@@ -905,6 +924,31 @@ class GameUI {
         filterContainer.appendChild(filterLabel);
         settingsMenu.appendChild(filterContainer);
         
+        // Create debug mode button
+        const debugButtonContainer = document.createElement('div');
+        debugButtonContainer.style.marginTop = '20px';
+        debugButtonContainer.style.width = '100%';
+        debugButtonContainer.style.display = 'flex';
+        debugButtonContainer.style.justifyContent = 'center';
+        
+        const debugButton = document.createElement('button');
+        debugButton.textContent = 'Debug Panel';
+        debugButton.style.backgroundColor = '#3399ff';
+        debugButton.style.color = 'white';
+        debugButton.style.border = 'none';
+        debugButton.style.padding = '8px 15px';
+        debugButton.style.borderRadius = '4px';
+        debugButton.style.cursor = 'pointer';
+        debugButton.style.fontWeight = 'bold';
+        debugButton.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.3)';
+        
+        debugButton.addEventListener('click', () => {
+            this.toggleDebugPanel();
+        });
+        
+        debugButtonContainer.appendChild(debugButton);
+        settingsMenu.appendChild(debugButtonContainer);
+        
         // Add click handler to prevent clicks from closing the menu
         settingsMenu.addEventListener('click', (event) => {
             event.stopPropagation();
@@ -925,6 +969,125 @@ class GameUI {
         
         this.topMenuContainer.appendChild(settingsMenu);
         this.settingsMenu = settingsMenu;
+    }
+    
+    /**
+     * Create and toggle the debug panel
+     */
+    toggleDebugPanel() {
+        this.debugMode = !this.debugMode;
+        localStorage.setItem('debugMode', this.debugMode);
+        
+        if (this.debugMode) {
+            // Create the debug panel if it doesn't exist
+            if (!this.debugPanel) {
+                this.createDebugPanel();
+            } else {
+                this.debugPanel.style.display = 'block';
+            }
+            
+            // Enable debug features
+            if (this.combatManager) {
+                this.combatManager.toggleDebugClickBoxes(true);
+            }
+            
+            // Start FPS counter updates
+            this.frameCount = 0;
+            this.lastFpsUpdate = performance.now();
+        } else {
+            // Hide the debug panel
+            if (this.debugPanel) {
+                this.debugPanel.style.display = 'none';
+            }
+            
+            // Disable debug features
+            if (this.combatManager) {
+                this.combatManager.toggleDebugClickBoxes(false);
+            }
+        }
+    }
+    
+    /**
+     * Create the debug panel
+     */
+    createDebugPanel() {
+        // Create debug panel container
+        this.debugPanel = document.createElement('div');
+        this.debugPanel.id = 'debug-panel';
+        this.debugPanel.style.position = 'absolute';
+        this.debugPanel.style.top = '10px';
+        this.debugPanel.style.left = '50%';
+        this.debugPanel.style.transform = 'translateX(-50%)';
+        this.debugPanel.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        this.debugPanel.style.color = '#00ff00';
+        this.debugPanel.style.padding = '10px';
+        this.debugPanel.style.borderRadius = '5px';
+        this.debugPanel.style.fontFamily = 'monospace';
+        this.debugPanel.style.fontSize = '14px';
+        this.debugPanel.style.zIndex = '2000';
+        this.debugPanel.style.display = this.debugMode ? 'block' : 'none';
+        
+        // Create debug info title
+        const debugTitle = document.createElement('div');
+        debugTitle.textContent = 'Debug Mode Enabled';
+        debugTitle.style.marginBottom = '10px';
+        debugTitle.style.fontWeight = 'bold';
+        debugTitle.style.textAlign = 'center';
+        this.debugPanel.appendChild(debugTitle);
+        
+        // Create FPS counter
+        this.fpsCounter = document.createElement('div');
+        this.fpsCounter.textContent = 'FPS: --';
+        this.fpsCounter.style.marginBottom = '5px';
+        this.debugPanel.appendChild(this.fpsCounter);
+        
+        // Create player position display
+        this.positionDisplay = document.createElement('div');
+        this.positionDisplay.textContent = 'Position: (X: --, Z: --)';
+        this.positionDisplay.style.marginBottom = '10px';
+        this.debugPanel.appendChild(this.positionDisplay);
+        
+        // Create respawn ship button
+        const respawnButton = document.createElement('button');
+        respawnButton.textContent = 'Respawn Ship';
+        respawnButton.style.backgroundColor = '#ff3333';
+        respawnButton.style.color = 'white';
+        respawnButton.style.border = 'none';
+        respawnButton.style.padding = '5px 10px';
+        respawnButton.style.borderRadius = '4px';
+        respawnButton.style.cursor = 'pointer';
+        respawnButton.style.fontWeight = 'bold';
+        respawnButton.style.width = '100%';
+        respawnButton.style.marginTop = '5px';
+        respawnButton.style.fontFamily = 'monospace';
+        respawnButton.style.fontSize = '12px';
+        
+        respawnButton.addEventListener('click', () => {
+            this.respawnPlayerShip();
+        });
+        
+        this.debugPanel.appendChild(respawnButton);
+        
+        // Add debug panel to document
+        document.body.appendChild(this.debugPanel);
+    }
+    
+    /**
+     * Respawn the player ship (debug function)
+     */
+    respawnPlayerShip() {
+        if (this.combatManager && this.combatManager.playerShip) {
+            // Force the ship to sink
+            this.combatManager.playerShip.sink();
+            
+            // Use resetPlayerShip directly for immediate respawn
+            if (typeof this.combatManager.resetPlayerShip === 'function') {
+                this.combatManager.resetPlayerShip();
+                
+                // Show notification
+                this.showNotification('Ship respawned', 2000, 'debug');
+            }
+        }
     }
     
     /**
@@ -1252,6 +1415,8 @@ class GameUI {
             bgColor = 'rgba(255, 152, 0, 0.9)'; // Orange
         } else if (type === 'error') {
             bgColor = 'rgba(244, 67, 54, 0.9)'; // Red
+        } else if (type === 'debug') {
+            bgColor = 'rgba(156, 39, 176, 0.9)'; // Magenta/Purple for debug
         }
         
         notification.style.backgroundColor = bgColor;
@@ -1364,6 +1529,30 @@ class GameUI {
                 this.setTarget(null);
             }
         }
+        
+        // Update debug panel if debug mode is enabled
+        if (this.debugMode) {
+            // Update FPS counter
+            if (this.fpsCounter) {
+                this.frameCount++;
+                const now = performance.now();
+                const elapsed = now - this.lastFpsUpdate;
+                
+                // Update FPS every 500ms
+                if (elapsed >= 500) {
+                    const fps = Math.round((this.frameCount * 1000) / elapsed);
+                    this.fpsCounter.textContent = `FPS: ${fps}`;
+                    this.lastFpsUpdate = now;
+                    this.frameCount = 0;
+                }
+            }
+            
+            // Update player position display
+            if (this.positionDisplay && this.playerShip) {
+                const position = this.playerShip.getPosition();
+                this.positionDisplay.textContent = `Position: (X: ${position.x.toFixed(1)}, Z: ${position.z.toFixed(1)})`;
+            }
+        }
     }
     
     /**
@@ -1372,6 +1561,19 @@ class GameUI {
      */
     setPlayerShip(playerShip) {
         this.playerShip = playerShip;
+    }
+    
+    /**
+     * Set the combat manager reference
+     * @param {CombatManager} combatManager - The combat manager
+     */
+    setCombatManager(combatManager) {
+        this.combatManager = combatManager;
+        
+        // If debug mode is already enabled, update combat manager settings
+        if (this.debugMode && this.combatManager) {
+            this.combatManager.toggleDebugClickBoxes(true);
+        }
     }
     
     /**

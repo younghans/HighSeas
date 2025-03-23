@@ -630,7 +630,7 @@ function startGameWithShip() {
         gameUI.setTarget(null);
         
         // Update the GameUI with a reference to the combatManager
-        gameUI.combatManager = combatManager;
+        gameUI.setCombatManager(combatManager);
     }
     
     // Connect EnemyShipManager to CombatManager
