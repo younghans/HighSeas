@@ -9,6 +9,7 @@ class ChatManager {
         this.speechBubbles = new Map(); // Track active speech bubbles
         this.camera = null; // Will be set from outside
         this.playerShips = new Map(); // Will store player ship references
+        this.profanityFilterEnabled = true; // Add profanity filter flag
         
         // Constants for speech bubble scaling
         this.MAX_DISTANCE = 1000; // Maximum distance to show bubble
@@ -128,10 +129,9 @@ class ChatManager {
     sendMessage(playerName, messageText, shipId) {
         if (!messageText.trim()) return;
 
-        const filteredMessage = this.filterProfanity(messageText);
         const messageData = {
             playerName: playerName,
-            message: filteredMessage,
+            message: messageText,
             timestamp: Date.now(),
             shipId: shipId
         };
@@ -140,6 +140,11 @@ class ChatManager {
     }
 
     filterProfanity(text) {
+        // If filter is disabled, return original text
+        if (!this.profanityFilterEnabled) {
+            return text;
+        }
+
         let filteredText = text.toLowerCase();
         // Convert object to array of values or use Object.values directly
         const words = Object.values(this.profanityList || {});
@@ -230,8 +235,9 @@ class ChatManager {
         // Create new speech bubble with initial scale
         const bubble = document.createElement('div');
         bubble.className = 'speech-bubble';
-        bubble.textContent = message.message;
-        bubble.style.setProperty('--initial-scale', initialScale); // Set CSS variable for animation
+        // Apply filter if enabled
+        bubble.textContent = this.profanityFilterEnabled ? this.filterProfanity(message.message) : message.message;
+        bubble.style.setProperty('--initial-scale', initialScale);
         document.body.appendChild(bubble);
         console.log('Created new speech bubble element with initial scale:', initialScale);
 
@@ -331,5 +337,13 @@ class ChatManager {
     // Set callback for new messages
     setMessageCallback(callback) {
         this.onMessageReceived = callback;
+    }
+
+    /**
+     * Set whether the profanity filter is enabled
+     * @param {boolean} enabled - Whether to enable the filter
+     */
+    setProfanityFilter(enabled) {
+        this.profanityFilterEnabled = enabled;
     }
 } 

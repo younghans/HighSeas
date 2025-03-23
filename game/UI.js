@@ -14,8 +14,12 @@ class GameUI {
         this.playerShip = options.playerShip || null;
         this.combatManager = options.combatManager || null;
         
-        // Initialize ChatManager
+        // Load saved settings
+        this.profanityFilterEnabled = localStorage.getItem('profanityFilter') !== 'false';
+        
+        // Initialize ChatManager with saved preference
         this.chatManager = new ChatManager();
+        this.chatManager.setProfanityFilter(this.profanityFilterEnabled);
         
         // UI elements
         this.bottomUIContainer = null;
@@ -154,6 +158,7 @@ class GameUI {
         this.createTargetInfo();
         
         // Create profile button in top container
+        this.createSettingsButton();
         this.createProfileButton();
         
         // Create gold button in bottom container (moved before inventory)
@@ -167,6 +172,7 @@ class GameUI {
         
         // Create menus
         this.createProfileMenu();
+        this.createSettingsMenu();
         this.createInventoryMenu();
         this.createGoldMenu();
         this.createMapMenu();
@@ -851,6 +857,77 @@ class GameUI {
     }
     
     /**
+     * Create settings menu with profanity filter toggle
+     */
+    createSettingsMenu() {
+        const settingsMenu = document.createElement('div');
+        settingsMenu.id = 'settings-menu';
+        settingsMenu.className = 'game-menu';
+        settingsMenu.style.width = '250px';
+        settingsMenu.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+        settingsMenu.style.color = 'white';
+        settingsMenu.style.padding = '15px';
+        settingsMenu.style.borderRadius = '8px';
+        settingsMenu.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.5)';
+        settingsMenu.style.display = 'none'; // Hidden by default
+        settingsMenu.style.boxSizing = 'border-box';
+        settingsMenu.style.touchAction = 'none';
+        
+        // Menu title
+        const title = document.createElement('h3');
+        title.textContent = 'Settings';
+        title.style.margin = '0 0 15px 0';
+        title.style.textAlign = 'center';
+        title.style.color = '#3399ff';
+        settingsMenu.appendChild(title);
+        
+        // Create profanity filter toggle
+        const filterContainer = document.createElement('div');
+        filterContainer.style.display = 'flex';
+        filterContainer.style.alignItems = 'center';
+        filterContainer.style.marginBottom = '10px';
+        filterContainer.style.cursor = 'pointer';
+        
+        const filterCheckbox = document.createElement('input');
+        filterCheckbox.type = 'checkbox';
+        filterCheckbox.id = 'profanity-filter';
+        // Use the class property instead of checking localStorage again
+        filterCheckbox.checked = this.profanityFilterEnabled;
+        filterCheckbox.style.marginRight = '10px';
+        filterCheckbox.style.cursor = 'pointer';
+        
+        const filterLabel = document.createElement('label');
+        filterLabel.htmlFor = 'profanity-filter';
+        filterLabel.textContent = 'Chat Profanity Filter';
+        filterLabel.style.cursor = 'pointer';
+        
+        filterContainer.appendChild(filterCheckbox);
+        filterContainer.appendChild(filterLabel);
+        settingsMenu.appendChild(filterContainer);
+        
+        // Add click handler to prevent clicks from closing the menu
+        settingsMenu.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+        
+        // Add change handler for the checkbox
+        filterCheckbox.addEventListener('change', (event) => {
+            const isEnabled = event.target.checked;
+            // Update class property
+            this.profanityFilterEnabled = isEnabled;
+            // Save to localStorage
+            localStorage.setItem('profanityFilter', isEnabled);
+            // Update ChatManager
+            if (this.chatManager) {
+                this.chatManager.setProfanityFilter(isEnabled);
+            }
+        });
+        
+        this.topMenuContainer.appendChild(settingsMenu);
+        this.settingsMenu = settingsMenu;
+    }
+    
+    /**
      * Create inventory menu (currently empty)
      */
     createInventoryMenu() {
@@ -1007,11 +1084,12 @@ class GameUI {
     
     /**
      * Toggle menu visibility in the top container
-     * @param {string} menuType - Type of menu to toggle ('profile')
+     * @param {string} menuType - Type of menu to toggle ('profile', 'settings')
      */
     toggleTopMenu(menuType) {
         // Hide all top menus first
         this.profileMenu.style.display = 'none';
+        this.settingsMenu.style.display = 'none';
         
         // If we're toggling the currently active menu, just close it
         if (this.activeMenuTop === menuType) {
@@ -1027,6 +1105,8 @@ class GameUI {
             this.profileMenu.style.display = 'block';
             // Load current username if available
             this.loadUsername();
+        } else if (menuType === 'settings') {
+            this.settingsMenu.style.display = 'block';
         }
         
         this.activeMenuTop = menuType;
@@ -1648,7 +1728,11 @@ class GameUI {
         this.chatManager.setMessageCallback((message) => {
             const messageElement = document.createElement('div');
             messageElement.style.marginBottom = '5px';
-            messageElement.innerHTML = `<strong>${message.playerName}:</strong> ${message.message}`;
+            // Filter message on display if enabled
+            const displayMessage = this.profanityFilterEnabled ? 
+                this.chatManager.filterProfanity(message.message) : 
+                message.message;
+            messageElement.innerHTML = `<strong>${message.playerName}:</strong> ${displayMessage}`;
             messagesContainer.appendChild(messageElement);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         });
@@ -1656,6 +1740,56 @@ class GameUI {
         // Store chat elements
         this.chatContainer = chatContainer;
         this.chatInput = chatInput;
+    }
+
+    /**
+     * Create settings button with cog wheel icon
+     */
+    createSettingsButton() {
+        const settingsButton = document.createElement('div');
+        settingsButton.id = 'settings-button';
+        settingsButton.style.width = '40px';
+        settingsButton.style.height = '40px';
+        settingsButton.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        settingsButton.style.color = 'white';
+        settingsButton.style.display = 'flex';
+        settingsButton.style.alignItems = 'center';
+        settingsButton.style.justifyContent = 'center';
+        settingsButton.style.cursor = 'pointer';
+        settingsButton.style.borderRadius = '8px';
+        settingsButton.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+        settingsButton.style.transition = 'all 0.2s ease';
+        settingsButton.style.userSelect = 'none';
+        settingsButton.style.webkitUserSelect = 'none';
+        settingsButton.style.touchAction = 'none';
+        
+        // Use SVG icon for settings (cog wheel) - reduced size from 24 to 20
+        settingsButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>`;
+        
+        settingsButton.title = 'Settings';
+        
+        // Add hover effect
+        settingsButton.addEventListener('mouseover', () => {
+            settingsButton.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+            settingsButton.style.transform = 'scale(1.05)';
+        });
+        
+        settingsButton.addEventListener('mouseout', () => {
+            settingsButton.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            settingsButton.style.transform = 'scale(1)';
+        });
+        
+        // Add click handler to toggle settings menu
+        settingsButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            this.toggleTopMenu('settings');
+        });
+        
+        this.topButtonContainer.appendChild(settingsButton);
+        this.settingsButton = settingsButton;
     }
 }
 
