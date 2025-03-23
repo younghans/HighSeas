@@ -121,7 +121,6 @@ class BaseShip {
     update(delta, time) {
         // Don't move if sunk
         if (this.isSunk) {
-            // We no longer need this animation here since we have the convertToShipwreck animation
             return;
         }
         
@@ -140,6 +139,33 @@ class BaseShip {
                 
                 // Calculate new position
                 const newPosition = this.shipMesh.position.clone().add(direction.multiplyScalar(moveSpeed));
+                
+                // Create a raycaster to check for island collisions
+                const raycaster = new THREE.Raycaster();
+                raycaster.set(this.shipMesh.position, direction);
+                
+                // Get all islands from the scene
+                const islands = [];
+                this.shipMesh.parent.traverse((object) => {
+                    // Check if this is an island mesh (has PlaneGeometry and not a tree or other object)
+                    if (object.geometry instanceof THREE.PlaneGeometry && 
+                        object !== this.shipMesh && 
+                        !(object.parent && object.parent.type === 'Group')) {
+                        islands.push(object);
+                    }
+                });
+                
+                // Check for intersections with islands
+                const intersects = raycaster.intersectObjects(islands);
+                
+                // If there's an intersection and it's closer than our movement distance, stop the ship
+                if (intersects.length > 0) {
+                    const intersection = intersects[0];
+                    if (intersection.distance < moveSpeed + 4) { // Add a small buffer distance
+                        this.stopMoving();
+                        return;
+                    }
+                }
                 
                 // Ensure Y position stays at water level
                 newPosition.y = 0;
