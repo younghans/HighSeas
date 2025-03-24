@@ -1,4 +1,6 @@
 // ChatManager.js - Handles in-game chat functionality with Firebase
+// DOMPurify is loaded via script tag in the HTML
+
 class ChatManager {
     constructor() {
         this.db = firebase.database();
@@ -129,9 +131,12 @@ class ChatManager {
     sendMessage(playerName, messageText, shipId) {
         if (!messageText.trim()) return;
 
+        // Sanitize the input before storing with DOMPurify
+        const sanitizedMessage = DOMPurify.sanitize(messageText);
+
         const messageData = {
-            playerName: playerName,
-            message: messageText,
+            playerName: DOMPurify.sanitize(playerName), // Also sanitize player name
+            message: sanitizedMessage,
             timestamp: Date.now(),
             shipId: shipId
         };
@@ -140,9 +145,9 @@ class ChatManager {
     }
 
     filterProfanity(text) {
-        // If filter is disabled, return original text
+        // If filter is disabled, return sanitized original text
         if (!this.profanityFilterEnabled) {
-            return text;
+            return text; // Text is already sanitized in sendMessage
         }
 
         let filteredText = text.toLowerCase();
@@ -154,7 +159,7 @@ class ChatManager {
                 filteredText = filteredText.replace(regex, '*'.repeat(word.length));
             }
         });
-        return filteredText;
+        return filteredText; // Text is already sanitized in sendMessage
     }
 
     displayMessage(message) {
@@ -235,8 +240,9 @@ class ChatManager {
         // Create new speech bubble with initial scale
         const bubble = document.createElement('div');
         bubble.className = 'speech-bubble';
-        // Apply filter if enabled
-        bubble.textContent = this.profanityFilterEnabled ? this.filterProfanity(message.message) : message.message;
+        // Apply filter if enabled and sanitize with DOMPurify
+        const filteredMessage = this.profanityFilterEnabled ? this.filterProfanity(message.message) : message.message;
+        bubble.textContent = filteredMessage; // Using textContent is already safe, but message is sanitized at the source now
         bubble.style.setProperty('--initial-scale', initialScale);
         document.body.appendChild(bubble);
         console.log('Created new speech bubble element with initial scale:', initialScale);

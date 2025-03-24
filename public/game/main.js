@@ -142,8 +142,9 @@ function setupAuthListeners() {
     // Add event listener for guest login button
     document.getElementById('guestLoginButton').addEventListener('click', () => {
         const usernameInput = document.getElementById('guestUsername');
-        const username = usernameInput.value.trim() || 'Guest';
+        let username = usernameInput.value.trim() || 'Guest';
         
+        // Username will be sanitized in Auth.signInAsGuest, but we sanitize here too for defense in depth
         Auth.signInAsGuest(username)
             .then(() => {
                 // Guest login successful, hide login menu

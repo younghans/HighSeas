@@ -65,7 +65,8 @@ function signInWithGoogle() {
 
 // Sign in as guest
 function signInAsGuest(username) {
-  const guestName = username || 'Guest';
+  // Sanitize the username input using DOMPurify
+  const guestName = username ? DOMPurify.sanitize(username) : 'Guest';
   let userRef;
   
   return auth.signInAnonymously()
@@ -73,7 +74,7 @@ function signInAsGuest(username) {
       // The signed-in guest user info
       userRef = result.user;
       
-      // Update the user profile with the provided username
+      // Update the user profile with the sanitized username
       return userRef.updateProfile({
         displayName: guestName
       });

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 /**
- * GameUI class for handling in-game user interface elements
+ * GameUI class - handles all UI elements in the game
  */
 class GameUI {
     constructor(options = {}) {
@@ -1331,13 +1331,16 @@ class GameUI {
      * @param {string} username - New username to save
      */
     saveUsername(username) {
+        // Sanitize the username input using DOMPurify
+        const sanitizedUsername = DOMPurify.sanitize(username);
+        
         // If we have access to Firebase auth and the user is logged in
         if (this.auth && this.auth.getCurrentUser()) {
             const user = this.auth.getCurrentUser();
             
-            // Update profile in Firebase
+            // Update profile in Firebase with sanitized username
             user.updateProfile({
-                displayName: username
+                displayName: sanitizedUsername
             }).then(() => {
                 console.log('Username updated successfully');
                 // Show success message
@@ -1933,15 +1936,17 @@ class GameUI {
             
             // Create name element
             const nameElement = document.createElement('strong');
+            // playerName should already be sanitized in ChatManager, but we use textContent for safe rendering
             nameElement.textContent = message.playerName + ': ';
             messageElement.appendChild(nameElement);
             
             // Filter message on display if enabled
+            // Message should already be sanitized in ChatManager.sendMessage
             const displayMessage = this.profanityFilterEnabled ? 
                 this.chatManager.filterProfanity(message.message) : 
                 message.message;
             
-            // Add message text
+            // Add message text using textContent for safe rendering
             const textNode = document.createTextNode(displayMessage);
             messageElement.appendChild(textNode);
             

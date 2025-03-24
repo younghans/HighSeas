@@ -1,5 +1,6 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const { rateLimiter } = require('./utils');
 
 /**
  * Validate and process a combat action
@@ -19,6 +20,19 @@ exports.processCombatAction = functions.https.onCall(async (data, context) => {
     
     // Get user ID
     const uid = context.auth.uid;
+    
+    // Apply rate limiting (40 combat actions per minute)
+    const rateLimit = await rateLimiter(uid, 'combat', 40, 60);
+    if (rateLimit.limited) {
+        return {
+            success: false,
+            error: 'Rate limit exceeded for combat actions',
+            code: 'resource-exhausted',
+            actionId: data.actionId,
+            waitMs: rateLimit.waitMs,
+            resetTime: rateLimit.resetTime
+        };
+    }
     
     // Get required parameters
     const { targetId, damage, timestamp, damageSeed, missChance } = data;
@@ -273,6 +287,19 @@ exports.lootShipwreck = functions.https.onCall(async (data, context) => {
     const uid = context.auth.uid;
     console.log(`Processing loot request for user: ${uid}`);
     
+    // Apply rate limiting (10 looting operations per minute)
+    const rateLimit = await rateLimiter(uid, 'loot', 10, 60);
+    if (rateLimit.limited) {
+        throw new functions.https.HttpsError(
+            'resource-exhausted',
+            'Rate limit exceeded for looting shipwrecks',
+            {
+                waitMs: rateLimit.waitMs,
+                resetTime: rateLimit.resetTime
+            }
+        );
+    }
+    
     // Get required parameters
     const { shipwreckId } = data;
     
@@ -444,6 +471,19 @@ exports.resetPlayerShip = functions.https.onCall(async (data, context) => {
     
     // Get user ID
     const uid = context.auth.uid;
+    
+    // Apply rate limiting (5 reset operations per minute)
+    const rateLimit = await rateLimiter(uid, 'reset', 5, 60);
+    if (rateLimit.limited) {
+        throw new functions.https.HttpsError(
+            'resource-exhausted',
+            'Rate limit exceeded for ship resets',
+            {
+                waitMs: rateLimit.waitMs,
+                resetTime: rateLimit.resetTime
+            }
+        );
+    }
     
     try {
         // Get player data

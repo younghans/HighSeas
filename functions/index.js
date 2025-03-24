@@ -5,6 +5,12 @@ admin.initializeApp();
 // Import combat functions
 const combatFunctions = require('./combat');
 
+// Import utilities
+const { rateLimiter } = require('./utils');
+
+// Export utilities
+exports.rateLimiter = rateLimiter;
+
 // Export combat functions
 exports.processCombatAction = combatFunctions.processCombatAction;
 exports.lootShipwreck = combatFunctions.lootShipwreck;
