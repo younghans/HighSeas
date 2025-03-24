@@ -187,40 +187,50 @@ class MultiplayerManager {
                     this.debug('Player was previously marked as sunk. Resetting health and sunk status.');
                 }
                 
-                // Set initial player data
-                const initialData = {
-                    id: this.playerId,
-                    displayName: user.displayName || user.email || 'Sailor',
-                    position: initialPosition,
-                    rotation: initialRotation,
-                    destination: null,
-                    lastUpdated: firebase.database.ServerValue.TIMESTAMP,
-                    isOnline: true,
-                    health: 100, // Always reset health to full when joining
-                    isSunk: false, // Always ensure player is not sunk when joining
-                    gold: existingPlayerData && existingPlayerData.gold ? existingPlayerData.gold : 0 // Initialize gold or preserve existing gold
-                };
-                
-                // Update the database with the player's data
-                return this.playerRef.update(initialData)
+                // Make sure we have the latest user data before setting displayName
+                // This is to ensure any recent updateProfile calls have propagated
+                return this.auth.getCurrentUser().reload()
                     .then(() => {
-                        this.debug('Player data synced to server:', initialData);
+                        // Re-get the user after reload to ensure we have the latest data
+                        const freshUser = this.auth.getCurrentUser();
                         
-                        // Set up presence system
-                        this.setupPresence();
+                        // Set initial player data with the updated user information
+                        const initialData = {
+                            id: this.playerId,
+                            displayName: freshUser.displayName || freshUser.email || 'Sailor',
+                            position: initialPosition,
+                            rotation: initialRotation,
+                            destination: null,
+                            lastUpdated: firebase.database.ServerValue.TIMESTAMP,
+                            isOnline: true,
+                            health: 100, // Always reset health to full when joining
+                            isSunk: false, // Always ensure player is not sunk when joining
+                            gold: existingPlayerData && existingPlayerData.gold ? existingPlayerData.gold : 0 // Initialize gold or preserve existing gold
+                        };
                         
-                        // Listen for other players
-                        this.playersRef.on('child_added', this.handlePlayerAdded);
-                        this.playersRef.on('child_changed', this.handlePlayerChanged);
-                        this.playersRef.on('child_removed', this.handlePlayerRemoved);
+                        this.debug(`Setting player display name: ${initialData.displayName}`);
                         
-                        // Listen for combat events
-                        this.combatEventsRef.on('child_added', this.handleCombatEvent);
-                        
-                        // Start periodic sync
-                        this.startPeriodicSync(playerShip);
-                        
-                        return true;
+                        // Update the database with the player's data
+                        return this.playerRef.update(initialData)
+                            .then(() => {
+                                this.debug('Player data synced to server:', initialData);
+                                
+                                // Set up presence system
+                                this.setupPresence();
+                                
+                                // Listen for other players
+                                this.playersRef.on('child_added', this.handlePlayerAdded);
+                                this.playersRef.on('child_changed', this.handlePlayerChanged);
+                                this.playersRef.on('child_removed', this.handlePlayerRemoved);
+                                
+                                // Listen for combat events
+                                this.combatEventsRef.on('child_added', this.handleCombatEvent);
+                                
+                                // Start periodic sync
+                                this.startPeriodicSync(playerShip);
+                                
+                                return true;
+                            });
                     });
             });
     }
