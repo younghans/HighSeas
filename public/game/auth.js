@@ -99,6 +99,11 @@ function signInAsGuest(username) {
 
 // Sign out
 function signOut() {
+  // Clean up multiplayer manager if it exists
+  if (window.multiplayerManager) {
+    window.multiplayerManager.cleanup();
+  }
+
   return auth.signOut()
     .then(() => {
       console.log('User signed out');

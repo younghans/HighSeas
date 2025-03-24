@@ -1367,15 +1367,18 @@ class GameUI {
                 this.onLogout();
             }
             
-            // Wait a moment for the offline status to be set before signing out
-            setTimeout(() => {
-                this.auth.signOut().then(() => {
-                    console.log('User signed out successfully');
-                }).catch(error => {
-                    console.error('Error signing out:', error);
-                    this.showNotification('Failed to log out. Please try again.', 'error');
-                });
-            }, 500); // 500ms delay to ensure the offline status is set
+            // Clean up multiplayer manager if it exists
+            if (window.multiplayerManager) {
+                window.multiplayerManager.cleanup();
+            }
+
+            // Now sign out
+            this.auth.signOut().then(() => {
+                console.log('User signed out successfully');
+            }).catch(error => {
+                console.error('Error signing out:', error);
+                this.showNotification('Failed to log out. Please try again.', 'error');
+            });
         }
     }
     

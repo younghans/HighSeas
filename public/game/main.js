@@ -113,10 +113,7 @@ function setupAuthListeners() {
     // Add auth state listener
     Auth.addAuthStateListener((user) => {
         if (user) {
-            // If user is logged in, always hide the login menu first
-            Auth.hideLoginMenu();
-            
-            // Then start the game if game has started flag is true
+            // If user is logged in and game has started flag is true
             if (gameStarted) {
                 startGameWithShip();
             }
@@ -124,43 +121,6 @@ function setupAuthListeners() {
             // If user logged out and game was started, reset the game
             resetGame();
         }
-    });
-    
-    // Add event listeners for login buttons
-    document.getElementById('googleLoginButton').addEventListener('click', () => {
-        Auth.signInWithGoogle()
-            .then(() => {
-                // Login successful, hide login menu
-                Auth.hideLoginMenu();
-            })
-            .catch(error => {
-                console.error('Google login error:', error);
-                // You could show an error message here
-            });
-    });
-    
-    // Add event listener for guest login button
-    document.getElementById('guestLoginButton').addEventListener('click', () => {
-        const usernameInput = document.getElementById('guestUsername');
-        let username = usernameInput.value.trim() || 'Guest';
-        
-        // Username will be sanitized in Auth.signInAsGuest, but we sanitize here too for defense in depth
-        Auth.signInAsGuest(username)
-            .then(() => {
-                // Guest login successful, hide login menu
-                Auth.hideLoginMenu();
-            })
-            .catch(error => {
-                console.error('Guest login error:', error);
-                // You could show an error message here
-            });
-    });
-    
-    // Add event listener for close login button
-    document.getElementById('closeLoginButton').addEventListener('click', () => {
-        Auth.hideLoginMenu();
-        // Show main menu again
-        document.getElementById('mainMenu').style.display = 'flex';
     });
 }
 
@@ -298,24 +258,7 @@ function resetGame() {
     
     // Clean up multiplayer
     if (multiplayerManager) {
-        try {
-            // Try to set player offline directly if we still have a valid reference
-            if (multiplayerManager.playerRef && Auth.isAuthenticated()) {
-                console.log('Setting player offline during game reset');
-                multiplayerManager.playerRef.update({
-                    isOnline: false,
-                    lastUpdated: firebase.database.ServerValue.TIMESTAMP
-                }).then(() => {
-                    console.log('Successfully set player as offline during game reset');
-                }).catch(error => {
-                    console.error('Error setting player offline during game reset:', error);
-                });
-            }
-        } catch (error) {
-            console.error('Error in resetGame process:', error);
-        }
-        
-        // Clean up multiplayer resources
+        // Just clean up multiplayer resources - the cleanup method will handle setting offline status
         multiplayerManager.cleanup();
         multiplayerManager = null;
     }
@@ -386,19 +329,10 @@ function startGame() {
     // Set game started flag
     gameStarted = true;
     
-    // Hide the main menu
-    const mainMenu = document.getElementById('mainMenu');
-    if (mainMenu) {
-        mainMenu.style.display = 'none';
-    }
-    
     // Check if user is authenticated
     if (Auth.isAuthenticated()) {
         // User is already logged in, start the game with ship
         startGameWithShip();
-    } else {
-        // User is not logged in, show login menu
-        Auth.showLoginMenu();
     }
 }
 
@@ -415,29 +349,37 @@ function startGameWithShip() {
         controls.autoRotate = false;
     }
     
-    // Create ship with custom speed but don't position it yet
-    // The position will be set by the multiplayer system
-    ship = new Sloop(scene, { 
-        // speed: 50,
-        // Set a default position that will be overridden by multiplayer
-        position: new THREE.Vector3(0, 0, 0),
-        // Add combat properties
-        maxHealth: 100,
-        cannonRange: 100,
-        cannonDamage: { min: 8, max: 25 },
-        cannonCooldown: 1500 // 1.5 seconds between shots
-    });
-    
-    // Set the ship's ID to match the user's Firebase auth ID
-    if (Auth && Auth.getCurrentUser()) {
-        ship.id = Auth.getCurrentUser().uid;
-        console.log('Set ship ID to match user ID:', ship.id);
+    // Only create a new ship if one doesn't exist
+    if (!ship) {
+        // Create ship with custom speed but don't position it yet
+        // The position will be set by the multiplayer system
+        ship = new Sloop(scene, { 
+            // speed: 50,
+            // Set a default position that will be overridden by multiplayer
+            position: new THREE.Vector3(0, 0, 0),
+            // Add combat properties
+            maxHealth: 100,
+            cannonRange: 100,
+            cannonDamage: { min: 8, max: 25 },
+            cannonCooldown: 1500 // 1.5 seconds between shots
+        });
+        
+        // Set the ship's ID to match the user's Firebase auth ID
+        if (Auth && Auth.getCurrentUser()) {
+            ship.id = Auth.getCurrentUser().uid;
+            console.log('Set ship ID to match user ID:', ship.id);
+        }
+        
+        // Make ship available globally for multiplayer combat interactions
+        window.playerShip = ship;
+        
+        console.log('Ship created with initial position:', ship.getPosition());
+    } else {
+        // If ship exists but was removed from scene, add it back
+        if (!scene.getObjectById(ship.getObject().id)) {
+            scene.add(ship.getObject());
+        }
     }
-    
-    // Make ship available globally for multiplayer combat interactions
-    window.playerShip = ship;
-    
-    console.log('Ship created with initial position:', ship.getPosition());
     
     // Setup gameplay controls
     setupGameplayControls();
@@ -449,28 +391,9 @@ function startGameWithShip() {
     if (!gameUI) {
         gameUI = new GameUI({
             auth: Auth,
-            playerShip: ship, // Pass player ship to UI for health display
+            playerShip: ship,
             onLogout: () => {
-                console.log('Logout callback triggered - setting player offline');
-                
-                // Set player offline before handling logout
-                if (multiplayerManager && multiplayerManager.playerRef) {
-                    try {
-                        // Use Firebase directly to update the player status
-                        // This ensures we're using the authenticated reference that still exists
-                        const playerRef = multiplayerManager.playerRef;
-                        playerRef.update({
-                            isOnline: false,
-                            lastUpdated: firebase.database.ServerValue.TIMESTAMP
-                        }).then(() => {
-                            console.log('Successfully set player as offline during logout');
-                        }).catch(error => {
-                            console.error('Error setting player offline during logout:', error);
-                        });
-                    } catch (error) {
-                        console.error('Error in logout process:', error);
-                    }
-                }
+                console.log('Logout callback triggered');
                 
                 // Handle logout by hiding the game UI
                 if (gameUI) {
@@ -750,25 +673,9 @@ function handleResetToMainMenu(event) {
     // Reset camera controls completely
     resetCameraControls();
     
-    // Remove ship if it exists
-    if (ship) {
-        try {
-            // Check if ship has getObject method before calling it
-            if (typeof ship.getObject === 'function') {
-                const shipObject = ship.getObject();
-                if (shipObject) {
-                    scene.remove(shipObject);
-                }
-            } else {
-                // If ship doesn't have getObject method, try to remove it directly
-                scene.remove(ship);
-            }
-        } catch (error) {
-            console.warn('Error removing ship:', error);
-        }
-        
-        // Set ship to null regardless of removal success
-        ship = null;
+    // Remove ship from scene but don't destroy it
+    if (ship && ship.getObject()) {
+        scene.remove(ship.getObject());
     }
     
     // Reset camera position

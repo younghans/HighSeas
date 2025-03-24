@@ -39,6 +39,8 @@ class MultiplayerManager {
         this.loadPlayerPosition = this.loadPlayerPosition.bind(this);
         this.handleCombatEvent = this.handleCombatEvent.bind(this);
         this.handleVisibilityChange = this.handleVisibilityChange.bind(this);
+        this.connectedRef = null;
+        this.disconnectHandler = null;
     }
     
     /**
@@ -231,15 +233,15 @@ class MultiplayerManager {
     setupPresence() {
         this.debug('Setting up presence system');
         // Create a reference to the user's online status
-        const connectedRef = firebase.database().ref('.info/connected');
+        this.connectedRef = firebase.database().ref('.info/connected');
         
-        connectedRef.on('value', (snap) => {
+        this.connectedRef.on('value', (snap) => {
             if (snap.val() === true && this.playerRef) {
                 // User is connected
                 this.debug('Connected to Firebase Realtime Database');
                 
                 // When the user disconnects, update the isOnline status
-                this.playerRef.onDisconnect().update({
+                this.disconnectHandler = this.playerRef.onDisconnect().update({
                     isOnline: false,
                     lastUpdated: firebase.database.ServerValue.TIMESTAMP
                 });
@@ -879,40 +881,49 @@ class MultiplayerManager {
     }
     
     /**
-     * Clean up multiplayer resources
+     * Clean up all Firebase listeners and handlers
+     * This should be called when logging out
      */
     cleanup() {
-        this.debug('Cleaning up multiplayer resources');
+        this.debug('Cleaning up multiplayer manager');
         
-        // Remove visibility change handler
-        document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+        // Clear the sync interval
+        if (this.syncInterval) {
+            clearInterval(this.syncInterval);
+            this.syncInterval = null;
+        }
         
-        // Stop listening for player events
+        // Remove all Firebase listeners
         if (this.playersRef) {
             this.playersRef.off('child_added', this.handlePlayerAdded);
             this.playersRef.off('child_changed', this.handlePlayerChanged);
             this.playersRef.off('child_removed', this.handlePlayerRemoved);
-            this.debug('Removed Firebase event listeners');
         }
         
-        // Stop listening for combat events
         if (this.combatEventsRef) {
             this.combatEventsRef.off('child_added', this.handleCombatEvent);
-            this.debug('Removed combat event listeners');
         }
         
-        // Stop periodic sync
-        this.stopPeriodicSync();
+        // Remove the connected ref listener
+        if (this.connectedRef) {
+            this.connectedRef.off();
+        }
+        
+        // Clear the disconnect handler reference
+        // Firebase will automatically clean up the disconnect handler when the connection is closed
+        this.disconnectHandler = null;
+        
+        // Clear references
+        this.playerRef = null;
+        this.playersRef = null;
+        this.combatEventsRef = null;
+        this.playerId = null;
         
         // Remove all other player ships
         this.debug(`Removing ${this.otherPlayerShips.size} other player ships`);
         this.otherPlayerShips.forEach((otherPlayerShip, playerId) => {
             this.removePlayerShip(playerId);
         });
-        
-        // Clear player reference
-        this.playerRef = null;
-        this.playerShip = null;
         
         // Clear other data
         this.otherPlayers.clear();
