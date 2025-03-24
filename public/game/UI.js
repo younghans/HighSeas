@@ -738,12 +738,13 @@ class GameUI {
         usernameInput.style.width = '100%';
         usernameInput.style.padding = '8px';
         usernameInput.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+        usernameInput.style.color = 'white';
         usernameInput.style.border = '1px solid rgba(255, 255, 255, 0.3)';
         usernameInput.style.borderRadius = '4px';
-        usernameInput.style.color = 'white';
         usernameInput.style.marginBottom = '10px';
         usernameInput.style.boxSizing = 'border-box';
         usernameInput.style.touchAction = 'none';
+        
         usernameSection.appendChild(usernameInput);
         
         const saveButton = document.createElement('button');
@@ -786,53 +787,6 @@ class GameUI {
         divider.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
         divider.style.margin = '15px 0';
         profileMenu.appendChild(divider);
-        
-        // Main Menu button
-        const mainMenuButton = document.createElement('button');
-        mainMenuButton.textContent = 'Main Menu';
-        mainMenuButton.style.padding = '8px 12px';
-        mainMenuButton.style.backgroundColor = '#3399ff';
-        mainMenuButton.style.color = 'white';
-        mainMenuButton.style.border = 'none';
-        mainMenuButton.style.borderRadius = '4px';
-        mainMenuButton.style.cursor = 'pointer';
-        mainMenuButton.style.width = '100%';
-        mainMenuButton.style.marginBottom = '10px';
-        mainMenuButton.style.boxSizing = 'border-box';
-        mainMenuButton.style.touchAction = 'none';
-        
-        // Add hover effect
-        mainMenuButton.addEventListener('mouseover', () => {
-            mainMenuButton.style.backgroundColor = '#2288ee';
-        });
-        
-        mainMenuButton.addEventListener('mouseout', () => {
-            mainMenuButton.style.backgroundColor = '#3399ff';
-        });
-        
-        // Add click handler to return to main menu
-        mainMenuButton.addEventListener('click', (event) => {
-            // Prevent the click from propagating to document
-            event.stopPropagation();
-            
-            // Close the profile menu
-            this.closeTopMenu();
-            
-            // Hide the game UI
-            this.hide();
-            
-            // Show the main menu
-            document.getElementById('mainMenu').style.display = 'flex';
-            
-            // Reset the game state but keep the user authenticated
-            // We'll use a custom event to trigger the reset in main.js
-            const resetEvent = new CustomEvent('resetToMainMenu', {
-                detail: { keepAuthenticated: true }
-            });
-            document.dispatchEvent(resetEvent);
-        });
-        
-        profileMenu.appendChild(mainMenuButton);
         
         // Logout button - shown for all users (both anonymous and Google)
         const logoutButton = document.createElement('button');
