@@ -1,7 +1,7 @@
 {
   "hosting": {
     "target": "webapp",
-    "public": ".",
+    "public": "public",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -33,6 +33,6 @@
     "rules": "database.rules.json"
   },
   "functions": {
-    "source": "firebase/functions"
+    "source": "functions"
   }
 }
