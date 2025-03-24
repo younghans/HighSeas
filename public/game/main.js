@@ -17,6 +17,7 @@ import IslandInteractionManager from './IslandInteractionManager.js';
 import EnemyShipManager from './ships/EnemyShipManager.js';
 import CombatManager from './CombatManager.js';
 import CombatService from './CombatService.js';
+import PortalManager from './portal.js';
 
 // Main game variables
 let scene, camera, renderer;
@@ -28,6 +29,7 @@ let ship; // Ship instance
 let windSystem; // Wind system instance
 let gameStarted = false; // Flag to track if the game has started
 let multiplayerManager;
+let portalManager; // Portal manager instance
 
 // Island generator
 let islandGenerator;
@@ -174,6 +176,19 @@ function resetGame() {
         console.log('Cleaning up combat manager');
         combatManager.cleanup();
         combatManager = null;
+    }
+    
+    // Clean up portal manager if it exists
+    if (portalManager) {
+        console.log('Cleaning up portal manager');
+        // Remove portals from scene
+        if (portalManager.startPortal) {
+            scene.remove(portalManager.startPortal);
+        }
+        if (portalManager.exitPortal) {
+            scene.remove(portalManager.exitPortal);
+        }
+        portalManager = null;
     }
     
     // Clean up enemy ships manager first to ensure all ships are removed
@@ -444,6 +459,48 @@ function startGameWithShip() {
     
     // Update UI for gameplay
     updateUIForGameplay();
+    
+    // Initialize portals
+    if (!portalManager) {
+        portalManager = new PortalManager(scene, ship);
+        
+        // Make portalManager globally accessible for other systems
+        window.portalManager = portalManager;
+        
+        // Set player info for the portal
+        const username = Auth.getCurrentUser()?.displayName || 'Player';
+        const speed = ship.maxSpeed || 20;
+        portalManager.setPlayerInfo(username, speed);
+        
+        // If we came from a portal, set the player position at the start portal
+        if (new URLSearchParams(window.location.search).get('portal')) {
+            setTimeout(() => {
+                // Position the player at the start portal position
+                const startPortalPos = portalManager.startPortal?.position;
+                if (startPortalPos) {
+                    // Use the ship's appropriate position setting method
+                    if (typeof ship.setPosition === 'function') {
+                        ship.setPosition(startPortalPos.x, startPortalPos.y, startPortalPos.z + 20);
+                    } else if (ship.getObject && typeof ship.getObject === 'function') {
+                        const shipObj = ship.getObject();
+                        if (shipObj) {
+                            shipObj.position.set(startPortalPos.x, startPortalPos.y, startPortalPos.z + 20);
+                            // Update internal position if available
+                            if (ship.position) {
+                                ship.position.copy(shipObj.position);
+                            }
+                        }
+                    }
+                    console.log('Positioned ship at start portal:', ship.getPosition ? ship.getPosition() : 'position unknown');
+                    
+                    // Also update multiplayer position if available
+                    if (multiplayerManager) {
+                        multiplayerManager.updatePlayerPosition(ship);
+                    }
+                }
+            }, 500); // Small delay to ensure portal is fully created
+        }
+    }
     
     // Initialize game UI
     if (!gameUI) {
@@ -1075,6 +1132,11 @@ function animate() {
         // Update combat manager if it exists
         if (combatManager) {
             combatManager.update(delta);
+        }
+        
+        // Update portal manager if it exists
+        if (portalManager && ship) {
+            portalManager.update();
         }
         
         // Update camera to follow ship

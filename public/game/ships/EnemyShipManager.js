@@ -45,6 +45,215 @@ class EnemyShipManager {
         for (let i = 0; i < this.maxEnemyShips; i++) {
             this.spawnEnemyShip();
         }
+        
+        // Spawn portal guardian ships (if portals exist)
+        this.spawnPortalGuardianShips();
+    }
+    
+    /**
+     * Create special enemy ships that patrol around portals
+     */
+    spawnPortalGuardianShips() {
+        // Try to find portal positions from scene or global window object
+        const portalPositions = [];
+        
+        // Initialize portal guardian tracking if needed
+        if (!this.portalGuardianStatus) {
+            this.portalGuardianStatus = {};
+        }
+        
+        // Check if window.portalManager exists
+        if (window.portalManager) {
+            console.log('Using portalManager to find portal positions');
+            if (window.portalManager.exitPortal) {
+                portalPositions.push(window.portalManager.exitPortal.position.clone());
+            }
+            if (window.portalManager.startPortal) {
+                portalPositions.push(window.portalManager.startPortal.position.clone());
+            }
+        } else {
+            // Scan the scene for portal objects
+            console.log('Scanning scene for portal objects');
+            this.scene.traverse(object => {
+                // Look for portal objects by name or userData
+                if ((object.name && (object.name.includes('portal') || object.name.includes('Portal'))) || 
+                    (object.userData && object.userData.isPortal)) {
+                    portalPositions.push(object.position.clone());
+                }
+            });
+            
+            // Fallback to default positions if no portals found
+            if (portalPositions.length === 0) {
+                // Exit portal is usually at 300, 0, 300
+                portalPositions.push(new THREE.Vector3(300, 0, 300));
+                
+                // Check if we have portal=true in URL params for start portal
+                if (new URLSearchParams(window.location.search).get('portal')) {
+                    // Start portal is usually at 50, 0, 50
+                    portalPositions.push(new THREE.Vector3(50, 0, 50));
+                }
+            }
+        }
+        
+        console.log(`Found ${portalPositions.length} portal positions for guardian ships`);
+        
+        // Spawn guardian ships for each portal
+        portalPositions.forEach((portalPos, index) => {
+            // Create 2 guardian ships per portal
+            for (let i = 0; i < 2; i++) {
+                this.spawnPortalGuardianShip(portalPos, index, i);
+            }
+        });
+    }
+    
+    /**
+     * Spawn a special guardian ship that patrols around a portal
+     * @param {THREE.Vector3} portalPosition - Position of the portal to guard
+     * @param {number} portalIndex - Index of the portal
+     * @param {number} shipIndex - Index of the guardian ship for this portal
+     * @returns {BaseShip} The spawned guardian ship
+     */
+    spawnPortalGuardianShip(portalPosition, portalIndex, shipIndex) {
+        console.log(`Spawning portal guardian ship for portal at ${portalPosition.x}, ${portalPosition.y}, ${portalPosition.z}`);
+        
+        // Create a unique ID for this portal to track its guardians
+        const portalId = `portal-${portalIndex}`;
+        
+        // Initialize portal guardian tracking if needed
+        if (!this.portalGuardianStatus) {
+            this.portalGuardianStatus = {};
+        }
+        
+        // Initialize tracking for this specific portal if needed
+        if (!this.portalGuardianStatus[portalId]) {
+            this.portalGuardianStatus[portalId] = {
+                guardianCount: 0,              // Number of active guardians
+                totalGuardians: 2,             // Total guardians per portal
+                respawnTimer: null,            // Timer for respawning
+                respawning: false,             // Flag to track respawn in progress
+                lastDefeatTime: null,          // When all guardians were defeated
+                guardianState: {}              // Track individual guardian states
+            };
+        }
+        
+        // Update guardian count
+        this.portalGuardianStatus[portalId].guardianCount++;
+        
+        // Calculate spawn position in a circle around the portal
+        const angle = shipIndex * Math.PI;
+        const radius = 50 + shipIndex * 20; // Different patrol radius for each guardian
+        
+        const position = new THREE.Vector3(
+            portalPosition.x + Math.cos(angle) * radius,
+            0, // Keep at water level
+            portalPosition.z + Math.sin(angle) * radius
+        );
+        
+        // Create guardian ship with indigo color
+        const guardianShip = new Sloop(this.scene, {
+            position: position,
+            rotation: { y: angle + Math.PI },
+            speed: 4 + Math.random() * 3, // Slightly faster than regular enemies (regular is 3-6, this is 4-7)
+            hullColor: 0x4B0082, // Indigo color
+            isEnemy: true,
+            maxHealth: 80 + Math.floor(Math.random() * 40), // Same health as regular enemies (80-120)
+            cannonDamage: { min: 5, max: 20 }, // Same damage as regular enemies
+            cannonCooldown: 3000, // Same cooldown as regular enemies
+            type: 'sloop'
+        });
+        
+        // Tag as guardian ship
+        guardianShip.isPortalGuardian = true;
+        guardianShip.portalPosition = portalPosition.clone();
+        guardianShip.portalPatrolRadius = radius;
+        guardianShip.portalIndex = portalIndex;
+        guardianShip.guardianIndex = shipIndex;
+        guardianShip.portalId = portalId;
+        
+        // Set AI state to 'guard'
+        guardianShip.aiState = 'guard';
+        guardianShip.lastStateChange = Date.now();
+        guardianShip.stateChangeCooldown = 3000 + Math.random() * 2000; // 3-5 seconds
+        guardianShip.id = 'guardian-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+        
+        // Track this guardian in the portal's state
+        this.portalGuardianStatus[portalId].guardianState[shipIndex] = {
+            alive: true,
+            ship: guardianShip
+        };
+        
+        // Tag the ship object with userData for easier identification
+        const shipObject = guardianShip.getObject();
+        if (shipObject) {
+            shipObject.name = `guardian-ship-${portalIndex}-${shipIndex}`;
+            shipObject.userData.isEnemyShip = true;
+            shipObject.userData.isPortalGuardian = true;
+            shipObject.userData.shipId = guardianShip.id;
+            
+            // Store reference in scene userData for additional cleanup
+            if (!this.scene.userData.enemyShipObjects) {
+                this.scene.userData.enemyShipObjects = [];
+            }
+            this.scene.userData.enemyShipObjects.push(shipObject);
+        }
+        
+        // Override onSink method to handle guardian ship sinking
+        guardianShip.onSink = () => {
+            this.handleEnemyShipSink(guardianShip);
+            
+            // Handle portal guardian tracking 
+            if (this.portalGuardianStatus[portalId]) {
+                // Mark this guardian as defeated
+                if (this.portalGuardianStatus[portalId].guardianState[shipIndex]) {
+                    this.portalGuardianStatus[portalId].guardianState[shipIndex].alive = false;
+                }
+                
+                // Decrease active guardian count
+                this.portalGuardianStatus[portalId].guardianCount--;
+                console.log(`Portal ${portalId} guardian ${shipIndex} defeated. ${this.portalGuardianStatus[portalId].guardianCount} guardians remaining.`);
+                
+                // If no guardians remain for this portal, start respawn timer
+                if (this.portalGuardianStatus[portalId].guardianCount <= 0) {
+                    // Record the time when all guardians were defeated
+                    this.portalGuardianStatus[portalId].lastDefeatTime = Date.now();
+                    
+                    // Only set up respawn timer if it's not already running
+                    if (!this.portalGuardianStatus[portalId].respawning) {
+                        this.portalGuardianStatus[portalId].respawning = true;
+                        
+                        console.log(`All guardians for ${portalId} defeated. Starting 30 second respawn timer.`);
+                        
+                        // Start respawn timer - 30 seconds after all guardians are defeated
+                        this.portalGuardianStatus[portalId].respawnTimer = setTimeout(() => {
+                            console.log(`Respawning guardians for ${portalId}`);
+                            
+                            // Reset guardian count before respawning
+                            this.portalGuardianStatus[portalId].guardianCount = 0;
+                            this.portalGuardianStatus[portalId].respawning = false;
+                            
+                            // Spawn new guardians
+                            for (let i = 0; i < this.portalGuardianStatus[portalId].totalGuardians; i++) {
+                                this.spawnPortalGuardianShip(portalPosition, portalIndex, i);
+                            }
+                        }, 30000); // 30 seconds respawn time
+                    }
+                }
+            }
+        };
+        
+        // Create health bar
+        guardianShip.createHealthBar();
+        guardianShip.setHealthBarVisible(false);
+        
+        // If combat manager exists, initialize ship with it
+        if (this.combatManager && this.combatManager.initializeEnemyShip) {
+            this.combatManager.initializeEnemyShip(guardianShip);
+        }
+        
+        // Add to enemy ships array
+        this.enemyShips.push(guardianShip);
+        
+        return guardianShip;
     }
     
     /**
@@ -431,8 +640,12 @@ class EnemyShipManager {
             // Skip if sunk
             if (enemyShip.isSunk) return;
             
-            // Update AI behavior
-            this.updateEnemyAI(enemyShip, delta);
+            // Update AI behavior based on ship type
+            if (enemyShip.isPortalGuardian) {
+                this.updatePortalGuardianAI(enemyShip, delta, time);
+            } else {
+                this.updateEnemyAI(enemyShip, delta);
+            }
             
             // Update ship physics and animation
             enemyShip.update(delta, time);
@@ -634,6 +847,185 @@ class EnemyShipManager {
                     if (this.combatManager) {
                         this.combatManager.fireCannonball(enemyShip, this.playerShip, damage, !isHit);
                     }
+                }
+                break;
+        }
+    }
+    
+    /**
+     * Update portal guardian AI behavior
+     * @param {BaseShip} guardianShip - The guardian ship to update
+     * @param {number} delta - Time delta since last frame
+     * @param {number} time - Current time
+     */
+    updatePortalGuardianAI(guardianShip, delta, time) {
+        // Skip if no player ship
+        if (!this.playerShip) return;
+        
+        // Get player position
+        const playerPos = this.playerShip.getPosition();
+        const guardianPos = guardianShip.getPosition();
+        
+        // Ensure guardian ship stays at water level
+        if (guardianPos.y !== 0 && !guardianShip.isSunk) {
+            guardianPos.y = 0;
+            guardianShip.setPosition(guardianPos);
+        }
+        
+        // Update health bar visibility based on:
+        // 1. If the ship is not at full health
+        // 2. If the ship is targeting another ship (in attack mode)
+        if (guardianShip.healthBarContainer) {
+            const isFullHealth = guardianShip.currentHealth >= guardianShip.maxHealth;
+            const isTargeting = guardianShip.aiState === 'attack' && guardianShip.targetShip;
+            
+            if (!isFullHealth || isTargeting) {
+                guardianShip.setHealthBarVisible(true);
+                // If camera is available through combat manager, update the health bar
+                if (this.combatManager && this.combatManager.camera) {
+                    guardianShip.updateHealthBar(this.combatManager.camera);
+                }
+            } else if (!this.combatManager || !this.combatManager.currentTarget || 
+                       this.combatManager.currentTarget !== guardianShip) {
+                // Hide health bar if not targeted by player and not in conditions above
+                guardianShip.setHealthBarVisible(false);
+            }
+        }
+        
+        // Calculate distance to player
+        const distanceToPlayer = guardianPos.distanceTo(playerPos);
+        
+        // Calculate distance to portal
+        const distanceToPortal = guardianPos.distanceTo(guardianShip.portalPosition);
+        
+        // Check if we should change state
+        const now = Date.now();
+        if (now - guardianShip.lastStateChange > guardianShip.stateChangeCooldown) {
+            // Decide next state based on distance to player and portal
+            if (distanceToPlayer < this.aggroRange && !this.playerShip.isSunk) {
+                // Player is in range and not sunk, attack
+                guardianShip.aiState = 'attack';
+                guardianShip.targetShip = this.playerShip;
+            } else if (distanceToPortal > guardianShip.portalPatrolRadius * 1.5) {
+                // Too far from portal, return to patrol area
+                guardianShip.aiState = 'return';
+                guardianShip.targetShip = null;
+            } else {
+                // Default is to patrol around the portal
+                guardianShip.aiState = 'guard';
+                guardianShip.targetShip = null;
+            }
+            
+            guardianShip.lastStateChange = now;
+        }
+        
+        // Handle AI state
+        switch (guardianShip.aiState) {
+            case 'guard':
+                // Patrol in a circle around the portal
+                const patrolAngle = (time * 0.2) + guardianShip.guardianIndex * Math.PI; // Move in circle over time
+                const targetX = guardianShip.portalPosition.x + Math.cos(patrolAngle) * guardianShip.portalPatrolRadius;
+                const targetZ = guardianShip.portalPosition.z + Math.sin(patrolAngle) * guardianShip.portalPatrolRadius;
+                
+                const patrolTarget = new THREE.Vector3(targetX, 0, targetZ);
+                guardianShip.moveTo(patrolTarget);
+                
+                // Check if player is in range
+                if (distanceToPlayer < this.aggroRange && !this.playerShip.isSunk) {
+                    // Player is in range and not sunk, switch to attack
+                    guardianShip.aiState = 'attack';
+                    guardianShip.targetShip = this.playerShip;
+                    guardianShip.lastStateChange = now;
+                }
+                break;
+                
+            case 'attack':
+                // If player is sunk or out of range, switch back to guard
+                if (this.playerShip.isSunk || distanceToPlayer > this.aggroRange * 1.5) {
+                    guardianShip.aiState = 'guard';
+                    guardianShip.targetShip = null;
+                    guardianShip.lastStateChange = now;
+                    break;
+                }
+                
+                // If too far from portal, limit pursuit
+                if (distanceToPortal > guardianShip.portalPatrolRadius * 2.5) {
+                    guardianShip.aiState = 'return';
+                    guardianShip.targetShip = null;
+                    guardianShip.lastStateChange = now;
+                    break;
+                }
+                
+                // Move towards player but keep some distance
+                const targetPos = new THREE.Vector3();
+                const direction = new THREE.Vector3()
+                    .subVectors(playerPos, guardianPos)
+                    .normalize();
+                
+                // Try to maintain a distance of 30-40 units for combat
+                const idealDistance = 35;
+                if (distanceToPlayer > idealDistance + 10) {
+                    // Too far, move closer
+                    targetPos.copy(playerPos).sub(direction.multiplyScalar(idealDistance));
+                    targetPos.y = 0; // Ensure Y is at water level
+                    guardianShip.moveTo(targetPos);
+                } else if (distanceToPlayer < idealDistance - 10) {
+                    // Too close, back up
+                    targetPos.copy(playerPos).sub(direction.multiplyScalar(idealDistance));
+                    targetPos.y = 0; // Ensure Y is at water level
+                    guardianShip.moveTo(targetPos);
+                } else if (!guardianShip.isMoving) {
+                    // At good distance but not moving, circle around player
+                    const circlePos = new THREE.Vector3(
+                        playerPos.x + Math.cos(now * 0.0005) * idealDistance,
+                        0, // Always set Y to water level
+                        playerPos.z + Math.sin(now * 0.0005) * idealDistance
+                    );
+                    guardianShip.moveTo(circlePos);
+                }
+                
+                // Check if player is in range and guardian can fire
+                if (distanceToPlayer <= guardianShip.cannonRange && guardianShip.canFire()) {
+                    // Determine if shot is a hit or miss (70% hit chance - same as regular enemies)
+                    const isHit = Math.random() >= 0.3;
+                    
+                    // Calculate damage (0 for misses)
+                    const damage = isHit ? Math.floor(
+                        guardianShip.cannonDamage.min + 
+                        Math.random() * (guardianShip.cannonDamage.max - guardianShip.cannonDamage.min)
+                    ) : 0;
+                    
+                    // Update last fired time
+                    guardianShip.lastFiredTime = Date.now();
+                    
+                    // Use combat manager to visualize cannonball if available
+                    if (this.combatManager) {
+                        this.combatManager.fireCannonball(guardianShip, this.playerShip, damage, !isHit);
+                    }
+                }
+                break;
+                
+            case 'return':
+                // Return to patrol area around portal
+                const returnTarget = new THREE.Vector3(
+                    guardianShip.portalPosition.x + Math.cos(guardianShip.guardianIndex * Math.PI) * guardianShip.portalPatrolRadius,
+                    0,
+                    guardianShip.portalPosition.z + Math.sin(guardianShip.guardianIndex * Math.PI) * guardianShip.portalPatrolRadius
+                );
+                
+                guardianShip.moveTo(returnTarget);
+                
+                // Check if we're close enough to the patrol area
+                if (guardianPos.distanceTo(returnTarget) < 10) {
+                    guardianShip.aiState = 'guard';
+                    guardianShip.lastStateChange = now;
+                }
+                
+                // If player is close while returning, may switch to attack
+                if (distanceToPlayer < this.aggroRange / 2 && !this.playerShip.isSunk) {
+                    guardianShip.aiState = 'attack';
+                    guardianShip.targetShip = this.playerShip;
+                    guardianShip.lastStateChange = now;
                 }
                 break;
         }
@@ -1166,6 +1558,9 @@ class EnemyShipManager {
      */
     reset() {
         console.log('EnemyShipManager: Performing complete reset');
+        
+        // Clean up portal guardian timers
+        this.clearPortalGuardianTimers();
         
         // Remove all enemy ships
         this.enemyShips.forEach(ship => {
@@ -1820,6 +2215,29 @@ class EnemyShipManager {
                 // Start animation loop
                 this.scene.userData.treasureAnimationId = requestAnimationFrame(animateTreasures);
             }
+        }
+    }
+    
+    /**
+     * Clear any portal guardian respawn timers
+     */
+    clearPortalGuardianTimers() {
+        if (this.portalGuardianStatus) {
+            // Loop through each portal and clear any existing timers
+            Object.values(this.portalGuardianStatus).forEach(portalStatus => {
+                if (portalStatus.respawnTimer) {
+                    clearTimeout(portalStatus.respawnTimer);
+                    portalStatus.respawnTimer = null;
+                }
+                
+                // Reset other tracker values
+                portalStatus.guardianCount = 0;
+                portalStatus.respawning = false;
+                portalStatus.lastDefeatTime = null;
+                portalStatus.guardianState = {};
+            });
+            
+            console.log('Cleared all portal guardian respawn timers');
         }
     }
 }
