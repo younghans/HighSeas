@@ -160,11 +160,24 @@
             50% { transform: translateY(-10px) rotate(10deg); }
         }
 
-        #playButton {
-            padding: 15px 50px;
-            font-size: 1.5rem;
+        #mainMenuUsername {
+            width: 300px !important;
+            margin-bottom: 1.5rem;
+            padding: 15px !important;
+            font-size: 1.2rem !important;
+            border: 2px solid #FFD700 !important;
+            border-radius: 5px !important;
+            background-color: rgba(0, 0, 0, 0.6) !important;
+            color: white !important;
+            text-align: center;
+            font-family: 'Pirata One', cursive;
+        }
+
+        #guestPlayButton, #googlePlayButton {
+            width: 260px;
+            padding: 15px;
+            font-size: 1.2rem;
             background-color: #8B4513;
-            background-image: none;
             position: relative;
             overflow: hidden;
             color: white;
@@ -179,9 +192,13 @@
             letter-spacing: 2px;
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
             z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 15px;
         }
         
-        #playButton::before {
+        #guestPlayButton::before, #googlePlayButton::before {
             content: "";
             position: absolute;
             top: -150%;
@@ -197,14 +214,20 @@
             filter: sepia(70%) brightness(110%);
         }
 
-        #playButton:hover {
+        #guestPlayButton:hover, #googlePlayButton:hover {
             background-color: #A0522D;
             transform: scale(1.05);
             box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
         }
         
-        #playButton:hover::before {
+        #guestPlayButton:hover::before, #googlePlayButton:hover::before {
             filter: sepia(80%) brightness(120%);
+        }
+
+        #googlePlayButton img {
+            width: 24px;
+            height: 24px;
+            margin-right: 10px;
         }
 
         /* Login Menu Styles */
@@ -365,7 +388,12 @@
     <!-- Main Menu Overlay -->
     <div id="mainMenu">
         <h1>High Seas</h1>
-        <button id="playButton">Play</button>
+        <input type="text" id="mainMenuUsername" placeholder="Choose your pirate name" autofocus>
+        <button id="guestPlayButton">Play as Guest</button>
+        <button id="googlePlayButton">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+            Play with Google
+        </button>
     </div>
 
     <!-- Login Menu Overlay -->

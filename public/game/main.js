@@ -128,7 +128,57 @@ function setupAuthListeners() {
         }
     });
     
-    // Add event listeners for login buttons
+    // Add event listeners for 'Play as Guest' button from main menu
+    document.getElementById('guestPlayButton').addEventListener('click', () => {
+        const username = document.getElementById('mainMenuUsername').value.trim() || 'Guest';
+        
+        // Sign in as guest with the provided username
+        Auth.signInAsGuest(username)
+            .then(() => {
+                // Guest login successful, hide main menu
+                document.getElementById('mainMenu').style.display = 'none';
+            })
+            .catch(error => {
+                console.error('Guest login error:', error);
+                // You could show an error message here
+            });
+    });
+    
+    // Add event listeners for 'Play with Google' button from main menu
+    document.getElementById('googlePlayButton').addEventListener('click', () => {
+        const username = document.getElementById('mainMenuUsername').value.trim();
+        
+        // If we're already authenticated with Google, just start the game
+        if (Auth.isAuthenticated() && Auth.getCurrentUser() && !Auth.getCurrentUser().isAnonymous) {
+            // Already signed in with Google, just start the game
+            startGameWithShip();
+            // Mark the game as started
+            gameStarted = true;
+            // Hide the main menu
+            document.getElementById('mainMenu').style.display = 'none';
+        } else {
+            // Not signed in with Google yet, attempt sign in
+            Auth.signInWithGoogle()
+                .then(user => {
+                    // If user provided a username and this is a new Google account, update profile
+                    if (username && user && !user.displayName) {
+                        return user.updateProfile({
+                            displayName: username
+                        }).then(() => {
+                            return user.reload();
+                        });
+                    }
+                    return user;
+                })
+                .catch(error => {
+                    console.error('Google login error:', error);
+                    // You could show an error message here
+                });
+        }
+    });
+    
+    // Keep the original login menu button listeners for backward compatibility
+    // Add event listeners for login buttons in the separate login menu
     document.getElementById('googleLoginButton').addEventListener('click', () => {
         Auth.signInWithGoogle()
             .then(() => {
@@ -141,7 +191,7 @@ function setupAuthListeners() {
             });
     });
     
-    // Add event listener for guest login button
+    // Add event listener for guest login button in the separate login menu
     document.getElementById('guestLoginButton').addEventListener('click', () => {
         const usernameInput = document.getElementById('guestUsername');
         let username = usernameInput.value.trim() || 'Guest';
@@ -356,12 +406,21 @@ function setupMenuControls() {
     controls.update();
 }
 
-// Create minimal UI for main menu
+// Create minimal UI for main menu (no longer needed as we've updated the main menu HTML)
 function createMinimalUI() {
     // Remove any existing info panel first
     const existingInfoElement = document.getElementById('info');
     if (existingInfoElement) {
         existingInfoElement.remove();
+        
+        // Create a basic info panel since we removed it
+        const infoElement = document.createElement('div');
+        infoElement.id = 'info';
+        infoElement.innerHTML = `
+            <h2>High Seas</h2>
+            <p>Enter a username and click a button to play</p>
+        `;
+        document.body.appendChild(infoElement);
     }
     
     // Remove the old user info panel if it exists
@@ -369,21 +428,10 @@ function createMinimalUI() {
     if (oldUserInfo) {
         oldUserInfo.remove();
     }
-    
-    // Create info panel with minimal information
-    const infoElement = document.createElement('div');
-    infoElement.id = 'info';
-    infoElement.innerHTML = `
-        <h2>Yarr!</h2>
-        <p>Click Play to begin</p>
-    `;
-    document.body.appendChild(infoElement);
-    
-    // Add event listeners for main menu buttons
-    document.getElementById('playButton').addEventListener('click', startGame);
 }
 
-// Start the full game with ship and controls
+// We're no longer using this function as the main menu directly handles login
+// Keeping the function for backward compatibility but not using it
 function startGame() {
     // Set game started flag
     gameStarted = true;
@@ -652,6 +700,18 @@ function startGameWithShip() {
             <p>Click enemy: Target</p>
             <p>Space: Fire cannons</p>
         `;
+    } else {
+        // Create info panel if it doesn't exist
+        const newInfoElement = document.createElement('div');
+        newInfoElement.id = 'info';
+        newInfoElement.innerHTML = `
+            <h2>Yarr!</h2>
+            <p>Left-click: Move ship</p>
+            <p>Right-click: Camera</p>
+            <p>Click enemy: Target</p>
+            <p>Space: Fire cannons</p>
+        `;
+        document.body.appendChild(newInfoElement);
     }
     
     // Add window unload event listener to set player offline when browser/tab is closed
@@ -703,8 +763,15 @@ function setupGameplayControls() {
 
 // Update UI for gameplay
 function updateUIForGameplay() {
+    // Check if info panel exists, create it if not
+    let infoElement = document.getElementById('info');
+    if (!infoElement) {
+        infoElement = document.createElement('div');
+        infoElement.id = 'info';
+        document.body.appendChild(infoElement);
+    }
+    
     // Update info panel for gameplay
-    const infoElement = document.getElementById('info');
     infoElement.innerHTML = `
         <h2>Yarr!</h2>
         <p>Left-click: Move ship</p>
