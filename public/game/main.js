@@ -116,10 +116,12 @@ function setupAuthListeners() {
             // If user is logged in, always hide the login menu first
             Auth.hideLoginMenu();
             
-            // Then start the game if game has started flag is true
-            if (gameStarted) {
-                startGameWithShip();
-            }
+            // Auto-start the game if user is authenticated, regardless of the gameStarted flag
+            startGameWithShip();
+            // Mark the game as started
+            gameStarted = true;
+            // Hide the main menu
+            document.getElementById('mainMenu').style.display = 'none';
         } else if (!user && gameStarted) {
             // If user logged out and game was started, reset the game
             resetGame();
@@ -399,6 +401,7 @@ function startGame() {
     } else {
         // User is not logged in, show login menu
         Auth.showLoginMenu();
+        // Note: When authentication completes, the auth listener will auto-start the game
     }
 }
 

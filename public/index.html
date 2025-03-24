@@ -265,54 +265,6 @@
             background-color: #888;
         }
 
-        #creativeButton {
-            margin-top: 15px;
-            padding: 15px 50px;
-            font-size: 1.5rem;
-            background-color: #8B4513;
-            background-image: none;
-            position: relative;
-            overflow: hidden;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-            border: 2px solid #FFD700;
-            text-transform: uppercase;
-            font-family: 'Pirata One', cursive;
-            letter-spacing: 2px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
-            z-index: 1;
-        }
-        
-        #creativeButton::before {
-            content: "";
-            position: absolute;
-            top: -150%;
-            left: -150%;
-            width: 400%;
-            height: 400%;
-            background-image: url('https://www.transparenttextures.com/patterns/dark-wood.png');
-            background-repeat: repeat;
-            background-size: 60px;
-            transform: rotate(-35deg);
-            z-index: -1;
-            opacity: 1;
-            filter: sepia(70%) brightness(110%);
-        }
-
-        #creativeButton:hover {
-            background-color: #A0522D;
-            transform: scale(1.05);
-            box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
-        }
-        
-        #creativeButton:hover::before {
-            filter: sepia(80%) brightness(120%);
-        }
-
         #buildingUI {
             position: absolute;
             bottom: 20px;
@@ -414,9 +366,6 @@
     <div id="mainMenu">
         <h1>High Seas</h1>
         <button id="playButton">Play</button>
-        <a href="creative" style="text-decoration: none;">
-            <button id="creativeButton">Creative</button>
-        </a>
     </div>
 
     <!-- Login Menu Overlay -->
