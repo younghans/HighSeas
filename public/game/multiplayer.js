@@ -1,6 +1,6 @@
 // Multiplayer functionality using Firebase Realtime Database
 import * as THREE from 'three';
-import { Sloop } from './ships/index.js';
+import { Sloop, SailboatShip } from './ships/index.js';
 
 class MultiplayerManager {
     constructor(options = {}) {
@@ -453,9 +453,9 @@ class MultiplayerManager {
             rotation: playerData.rotation
         });
         
-        // Create a Sloop ship for the other player
-        const otherPlayerShip = new Sloop(this.scene, {
-            // Use the default Sloop speed (10)
+        // Create a SailboatShip for the other player
+        const otherPlayerShip = new SailboatShip(this.scene, {
+            // Use the default speed (10)
             speed: 10, // Explicitly set speed to match local player
             hullColor: 0x8B4513, // Default brown hull
             deckColor: 0xD2B48C, // Default tan deck

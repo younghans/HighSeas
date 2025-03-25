@@ -8,6 +8,7 @@ import WakeParticleSystem from './WakeParticleSystem.js';
 class BaseShip {
     // Class constant for ship height estimate (used for clickable sphere positioning)
     static SHIP_HEIGHT_ESTIMATE = 3; // Average height from water level to top of ship (excluding mast)
+    static SHIP_HEIGHT = 2; // Estimated height for clickable sphere
     
     /**
      * Create a new ship
@@ -57,6 +58,9 @@ class BaseShip {
         if (options.rotation) {
             this.rotation.y = options.rotation.y || 0;
         }
+        
+        // Store water offset
+        this.waterOffset = options.waterOffset || -0.5; // Default water offset
     }
     
     /**
@@ -88,7 +92,7 @@ class BaseShip {
         
         // Clone the target position and ensure Y is at water level
         this.targetPosition = targetPos.clone();
-        this.targetPosition.y = 0; // Force Y to be at water level
+        this.targetPosition.y = this.waterOffset; // Use water offset instead of 0
         
         // Calculate direction to target
         const direction = new THREE.Vector3()
@@ -125,16 +129,17 @@ class BaseShip {
             return;
         }
         
-        // Move ship towards target
+        // Update movement if we have a target
         if (this.isMoving && this.targetPosition) {
-            // Calculate direction and distance to target
+            // Calculate direction to target
             const direction = new THREE.Vector3()
                 .subVectors(this.targetPosition, this.shipMesh.position)
                 .normalize();
-            const distance = this.shipMesh.position.distanceTo(this.targetPosition);
             
-            // Move ship if not very close to target
-            if (distance > 0.1) {
+            // Check if we're close enough to target
+            const distanceToTarget = this.shipMesh.position.distanceTo(this.targetPosition);
+            
+            if (distanceToTarget > 0.1) {
                 // Move ship at a constant speed
                 const moveSpeed = this.speed * delta;
                 
@@ -142,7 +147,7 @@ class BaseShip {
                 const newPosition = this.shipMesh.position.clone().add(direction.multiplyScalar(moveSpeed));
                 
                 // Ensure Y position stays at water level
-                newPosition.y = 0;
+                newPosition.y = this.waterOffset; // Use water offset instead of 0
                 
                 // Apply new position
                 this.shipMesh.position.copy(newPosition);
@@ -166,9 +171,9 @@ class BaseShip {
                 this.isMoving = false;
                 
                 // Ensure final position has correct Y value
-                if (this.shipMesh.position.y !== 0) {
-                    this.shipMesh.position.y = 0;
-                    this.position.y = 0;
+                if (this.shipMesh.position.y !== this.waterOffset) {
+                    this.shipMesh.position.y = this.waterOffset;
+                    this.position.y = this.waterOffset;
                 }
             }
         }
@@ -184,8 +189,8 @@ class BaseShip {
             this.shipMesh.rotation.z = Math.sin(time * 1.2) * 0.03;
             
             // Ensure Y position stays at water level
-            if (this.shipMesh.position.y !== 0) {
-                this.shipMesh.position.y = 0;
+            if (this.shipMesh.position.y !== this.waterOffset) {
+                this.shipMesh.position.y = this.waterOffset;
             }
         }
     }
@@ -265,7 +270,20 @@ class BaseShip {
      * Sink the ship
      */
     sink() {
-        if (this.isSunk) return;
+        if (this.isSunk) {
+            console.log('[DEBUG:SINK] Ship already sunk, skipping sink process');
+            return;
+        }
+        
+        console.log('[DEBUG:SINK] Starting sink process for ship:', {
+            isEnemy: this.isEnemy,
+            currentHealth: this.currentHealth,
+            maxHealth: this.maxHealth,
+            isSunk: this.isSunk,
+            hasShipMesh: !!this.shipMesh,
+            hasHealthBar: !!this.healthBarContainer,
+            hasWakeSystem: !!this.wakeParticleSystem
+        });
         
         this.isSunk = true;
         this.stopMoving();
@@ -292,6 +310,7 @@ class BaseShip {
         
         // If this ship is being targeted by the player via combat manager, clear the target
         if (window.combatManager && window.combatManager.currentTarget === this) {
+            console.log('[DEBUG:SINK] Clearing combat target for sunk ship');
             // Clean up debug arrows before clearing target
             if (window.combatManager.cleanupDebugArrows) {
                 window.combatManager.cleanupDebugArrows();
@@ -300,13 +319,13 @@ class BaseShip {
         }
         
         // Trigger UI update immediately if this is the player ship
-        // This ensures cooldown UI and other elements update without waiting for the next frame
         if (!this.isEnemy && window.gameUI) {
             window.gameUI.update();
         }
         
         // Stop wake particles if they exist
         if (this.wakeParticleSystem) {
+            console.log('[DEBUG:SINK] Cleaning up wake particle system');
             // Call cleanup method to immediately remove all particles
             if (typeof this.wakeParticleSystem.cleanup === 'function') {
                 this.wakeParticleSystem.cleanup();
@@ -317,10 +336,13 @@ class BaseShip {
         }
         
         // Convert to shipwreck
+        console.log('[DEBUG:SINK] Converting ship to shipwreck');
         this.convertToShipwreck();
         
         // Trigger any sink-specific behavior
         this.onSink();
+        
+        console.log('[DEBUG:SINK] Sink process complete');
     }
     
     /**
@@ -435,16 +457,28 @@ class BaseShip {
      * Respawn the ship with a fresh appearance after being sunk
      * @param {THREE.Vector3} spawnPosition - Position to respawn at (defaults to origin)
      */
-    respawn(spawnPosition = new THREE.Vector3(0, 0.5, 0)) {
-        console.log('Respawning ship at position:', spawnPosition);
+    async respawn(spawnPosition = new THREE.Vector3(0, 0.5, 0)) {
+        console.log('[DEBUG:RESPAWN] Starting respawn process:', {
+            spawnPosition: spawnPosition,
+            isSunk: this.isSunk,
+            currentHealth: this.currentHealth,
+            maxHealth: this.maxHealth,
+            hasShipMesh: !!this.shipMesh,
+            hasHealthBar: !!this.healthBarContainer,
+            hasWakeSystem: !!this.wakeParticleSystem,
+            isEnemy: this.isEnemy
+        });
         
         // Track the current health status before respawning
         const wasHealthFull = this.currentHealth >= this.maxHealth;
         
-        // First reset health values
+        // First reset health values and sunk state
+        console.log('[DEBUG:RESPAWN] Resetting health and sunk state');
         this.resetHealth();
+        this.isSunk = false; // Explicitly reset sunk state
         
         // Clear health bar reference since we'll be removing the ship mesh
+        console.log('[DEBUG:RESPAWN] Clearing health bar references');
         this.healthBarContainer = null;
         this.healthBarBackground = null;
         this.healthBarForeground = null;
@@ -455,10 +489,11 @@ class BaseShip {
         
         // Remove old ship mesh and any associated effects
         if (this.shipMesh) {
-            console.log('Removing old ship mesh from scene');
+            console.log('[DEBUG:RESPAWN] Removing old ship mesh and cleaning up resources');
             
             // Check if shipMesh is a Group with children 
             if (this.shipMesh.type === 'Group') {
+                console.log('[DEBUG:RESPAWN] Ship mesh is a Group, cleaning up children');
                 // Process all children recursively
                 this.shipMesh.traverse(child => {
                     if (child.isMesh) {
@@ -480,6 +515,7 @@ class BaseShip {
                     }
                 });
             } else {
+                console.log('[DEBUG:RESPAWN] Ship mesh is a single mesh, cleaning up directly');
                 // Handle the case where shipMesh is a single mesh
                 if (this.shipMesh.geometry) {
                     this.shipMesh.geometry.dispose();
@@ -498,16 +534,19 @@ class BaseShip {
             
             // Remove wake particle system if it exists
             if (this.wakeParticleSystem) {
+                console.log('[DEBUG:RESPAWN] Cleaning up wake particle system');
                 this.wakeParticleSystem.dispose();
                 this.wakeParticleSystem = null;
             }
             
             // Remove ship mesh from scene
+            console.log('[DEBUG:RESPAWN] Removing ship mesh from scene');
             this.scene.remove(this.shipMesh);
             this.shipMesh = null;
         }
         
         // Reset position and rotation
+        console.log('[DEBUG:RESPAWN] Resetting position and rotation');
         this.position.copy(spawnPosition);
         this.rotation.set(0, 0, 0);
         this.isMoving = false;
@@ -515,31 +554,41 @@ class BaseShip {
         
         // Create new ship mesh if the class implements createShip
         if (typeof this.createShip === 'function') {
-            console.log('Creating new ship mesh with original colors:', 
+            console.log('[DEBUG:RESPAWN] Creating new ship mesh with colors:', 
                 `Hull: 0x${this.hullColor.toString(16)}, ` +
                 `Deck: 0x${this.deckColor.toString(16)}, ` + 
                 `Sail: 0x${this.sailColor.toString(16)}`);
                 
+            // Set loading state
+            this.isLoading = true;
+            
+            // Create the ship and wait for it to load
+            console.log('[DEBUG:RESPAWN] Calling createShip()');
             this.createShip();
             
-            // Create clickable sphere after ship mesh is created
+            // Wait for the ship to finish loading
+            console.log('[DEBUG:RESPAWN] Waiting for ship to load...');
+            while (this.isLoading) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            console.log('[DEBUG:RESPAWN] Ship finished loading');
+            
+            // Now that the ship is loaded, initialize all systems
+            console.log('[DEBUG:RESPAWN] Initializing ship systems');
             this.createClickBoxSphere();
-            
-            // Initialize new wake particle system after ship mesh is created
             this.initWakeParticleSystem();
-            
-            // Recreate the health bar after the ship mesh is created
             this.createHealthBar();
             
             // If health is not full after respawn, make health bar visible
             if (!wasHealthFull) {
+                console.log('[DEBUG:RESPAWN] Health not full, making health bar visible');
                 this.setHealthBarVisible(true);
             }
         } else {
-            console.error('Cannot recreate ship: createShip method not found');
+            console.error('[DEBUG:RESPAWN] Cannot recreate ship: createShip method not found');
         }
         
-        console.log('Ship respawn complete');
+        console.log('[DEBUG:RESPAWN] Respawn process complete');
         return this;
     }
     
@@ -837,11 +886,18 @@ class BaseShip {
         this.healthBarContainer.add(this.healthBarForeground);
         
         // Position the health bar above the ship
-        this.healthBarContainer.position.y = 8;  // Height above ship
+        // For GLB models, we need to position it higher to account for the model's scale
+        this.healthBarContainer.position.y = 12;  // Increased height above ship
         
         // Add to ship mesh, but hide initially
         if (this.shipMesh) {
-            this.shipMesh.add(this.healthBarContainer);
+            // For GLB models, we need to ensure the health bar is added to the correct part of the model
+            if (this.shipMesh.children && this.shipMesh.children.length > 0) {
+                // Add to the first child of the ship mesh (usually the main model group)
+                this.shipMesh.children[0].add(this.healthBarContainer);
+            } else {
+                this.shipMesh.add(this.healthBarContainer);
+            }
             this.healthBarContainer.visible = false;
         }
     }

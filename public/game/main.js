@@ -5,7 +5,7 @@ import { Water } from 'three/addons/objects/Water.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import IslandGenerator from './IslandGenerator.js';
 import World from './world.js';
-import { Sloop } from './ships/index.js';
+import { Sloop, SailboatShip } from './ships/index.js';
 import { WindSystem } from './wind.js';
 import MarketStall from './objects/market-stall.js';
 import Dock from './objects/dock.js';
@@ -474,7 +474,8 @@ function startGameWithShip() {
     
     // Create ship with custom speed but don't position it yet
     // The position will be set by the multiplayer system
-    ship = new Sloop(scene, { 
+    ship = new SailboatShip(scene, { 
+        modelType: 'sailboat-3', // Use sailboat-3 model
         // speed: 50,
         // Set a default position that will be overridden by multiplayer
         position: new THREE.Vector3(0, 0, 0),
@@ -991,7 +992,7 @@ function animate() {
         
         // Check if player ship has entered the Vibeverse portal
         const vibeVersePortal = scene.getObjectByName("vibeVersePortal");
-        if (vibeVersePortal) {
+        if (vibeVersePortal && ship && !ship.isLoading) {
             const playerBox = new THREE.Box3().setFromObject(ship.getObject());
             const portalBox = vibeVersePortal.userData.collisionBox;
             

@@ -1690,60 +1690,31 @@ class CombatManager {
      * Reset the player ship after sinking
      */
     async resetPlayerShip() {
-        // Skip if no player ship
-        if (!this.playerShip) return;
+        console.log('[PLAYER] Starting ship respawn process');
         
-        console.log('[PLAYER] Resetting player ship after sinking', {
-            id: this.playerShip.id,
-            timestamp: new Date().toISOString()
-        });
+        // Reset the player ship
+        await this.playerShip.respawn(new THREE.Vector3(0, 0, 0));
         
-        // Store if we had a target before respawning
-        const hadTarget = this.currentTarget !== null;
-        const previousTarget = this.currentTarget;
-        
-        // Ensure target is cleared and debug arrows are removed
-        this.cleanupDebugArrows();
-        this.setTarget(null);
-        
-        // If we have a combat service, use it to reset the player ship
-        if (this.combatService) {
-            try {
-                console.log('[PLAYER] Requesting server-side player ship reset');
-                const result = await this.combatService.resetPlayerShip();
-                
-                if (result.success) {
-                    console.log('[PLAYER] Player ship reset successfully on server');
-                } else {
-                    console.error('[PLAYER] Failed to reset player ship:', result.error);
-                }
-            } catch (error) {
-                console.error('[PLAYER] Error resetting player ship:', error);
-            }
-        }
-        
-        console.log('[PLAYER] Respawning player ship locally');
-        // Use the new respawn method instead of just resetting health
-        this.playerShip.respawn(new THREE.Vector3(0, 0, 0));
-        
-        // Immediately sync player position to Firebase after respawn
-        if (window.multiplayerManager) {
+        // Only sync position after the ship is fully loaded
+        if (this.multiplayerManager) {
             console.log('[PLAYER] Immediately syncing respawn position to multiplayer system');
-            window.multiplayerManager.updatePlayerPosition(this.playerShip, true);
+            this.multiplayerManager.updatePlayerPosition(this.playerShip);
         }
         
-        // Reset flag
+        // Reset combat state
+        this.setTarget(null);
+        this.lastAttackTime = 0;
+        
+        // Update UI
+        if (this.ui) {
+            this.ui.setTarget(null);
+            this.ui.update();
+        }
+        
+        // Reset the isResetting flag after respawn is complete
         this.isResetting = false;
         
-        console.log('[PLAYER] Player respawn complete', {
-            id: this.playerShip.id,
-            health: `${this.playerShip.currentHealth}/${this.playerShip.maxHealth}`,
-            position: `${this.playerShip.getPosition().x.toFixed(1)},${this.playerShip.getPosition().y.toFixed(1)},${this.playerShip.getPosition().z.toFixed(1)}`,
-            timestamp: new Date().toISOString()
-        });
-        
-        // Don't restore the previous target - we've already cleared it explicitly
-        // and the player should manually re-select a target after respawning
+        console.log('[PLAYER] Ship respawn complete');
     }
     
     /**

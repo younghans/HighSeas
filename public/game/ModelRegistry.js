@@ -115,6 +115,12 @@ export const MODELS = {
         name: 'Box 2',
         path: './assets/models/box-2.glb',
         scale: [1, 1, 1]
+    },
+    test: {
+        id: 'test',
+        name: 'Test Model',
+        path: './assets/models/test.glb',
+        scale: [1, 1, 1]
     }
 };
 
