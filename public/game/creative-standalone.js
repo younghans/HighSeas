@@ -4,6 +4,8 @@ import IslandGenerator from './IslandGenerator.js';
 import PerlinNoise from './PerlinNoise.js';
 import World from './world.js';
 import BuildingManager from './BuildingManager.js';
+import GenericGLBModel from './objects/GenericGLBModel.js';
+import { MODELS } from './ModelRegistry.js';
 
 class CreativeStandalone {
     constructor() {
@@ -435,11 +437,8 @@ class CreativeStandalone {
         // Find all placed objects in the scene
         const objectsToRemove = [];
         this.scene.traverse(object => {
-            // Check if this is a market stall or dock
-            // This is a simple check - in a real implementation you might want to tag objects
-            // with a custom property when they're placed
-            if (object.type === 'Group' && 
-                (object.userData.type === 'marketStall' || object.userData.type === 'dock')) {
+            // Check for any placed object with a type in userData
+            if (object.type === 'Group' && object.userData && object.userData.type) {
                 objectsToRemove.push(object);
             }
         });
@@ -455,37 +454,54 @@ class CreativeStandalone {
     
     async loadAvailableObjects() {
         try {
-            // Define a mapping of file names to object IDs and display names
-            // This allows us to have consistent IDs regardless of file naming conventions
-            const objectMappings = {
-                'market-stall.js': { id: 'marketStall', name: 'Market Stall' },
-                'dock.js': { id: 'dock', name: 'Dock' }
-                // Add new objects here as they're created
-                // 'lighthouse.js': { id: 'lighthouse', name: 'Lighthouse' },
-                // 'house.js': { id: 'house', name: 'House' },
-            };
+            // Create an array to hold our available objects
+            this.availableObjects = [];
             
-            // Create object modules array from the mappings
-            const objectModules = Object.entries(objectMappings).map(([fileName, info]) => ({
-                name: info.name,
-                id: info.id,
-                module: `./objects/${fileName}`
-            }));
-            
-            // Load each module dynamically
-            for (const obj of objectModules) {
-                try {
-                    const module = await import(obj.module);
-                    // Store the constructor and metadata
+            // Add custom model types first (these need special handling)
+            const customModulePromises = [
+                import('./objects/market-stall.js').then(module => {
                     this.availableObjects.push({
-                        name: obj.name,
-                        id: obj.id,
+                        name: 'Market Stall',
+                        id: 'marketStall',
                         constructor: module.default
                     });
-                    console.log(`Loaded object: ${obj.name}`);
-                } catch (error) {
-                    console.error(`Failed to load object: ${obj.name}`, error);
-                }
+                }),
+                import('./objects/dock.js').then(module => {
+                    this.availableObjects.push({
+                        name: 'Dock',
+                        id: 'dock',
+                        constructor: module.default
+                    });
+                })
+            ];
+            
+            // Wait for custom modules to load
+            await Promise.all(customModulePromises);
+            
+            // Add GLB models from the registry
+            for (const [id, model] of Object.entries(MODELS)) {
+                // Skip custom models that were already added
+                if (model.isCustom) continue;
+                
+                // Create a constructor function for this GLB model
+                const constructor = (options) => {
+                    return new GenericGLBModel({
+                        ...options,
+                        modelPath: model.path,
+                        scale: model.scale || 1,
+                        type: id,
+                        userData: { type: id }
+                    });
+                };
+                
+                // Add to available objects
+                this.availableObjects.push({
+                    name: model.name,
+                    id,
+                    constructor
+                });
+                
+                console.log(`Registered model: ${model.name}`);
             }
             
             console.log(`Loaded ${this.availableObjects.length} objects`);
@@ -509,10 +525,10 @@ class CreativeStandalone {
         buildingUIContainer.style.borderRadius = '10px';
         buildingUIContainer.style.zIndex = '1000';
         
-        // Create a button for each available object
-        this.availableObjects.forEach(obj => {
+        // Create a button for each available model from MODELS registry
+        Object.values(MODELS).forEach(model => {
             const button = document.createElement('button');
-            button.textContent = obj.name;
+            button.textContent = model.name;
             button.style.padding = '10px 15px';
             button.style.backgroundColor = '#4a6d8c';
             button.style.color = 'white';
@@ -530,7 +546,7 @@ class CreativeStandalone {
             });
             
             button.addEventListener('click', () => {
-                this.enterBuildMode(obj.id);
+                this.enterBuildMode(model.id);
             });
             
             buildingUIContainer.appendChild(button);
@@ -586,11 +602,8 @@ class CreativeStandalone {
         // Select the building type
         this.buildingManager.selectBuildingType(objectId);
         
-        // Force an update of the preview position
-        const center = new THREE.Vector3(0, 0, 0);
-        if (this.buildingManager.buildPreview) {
-            this.buildingManager.updatePreviewPosition(center);
-        }
+        // No need to force update of the preview position -
+        // the BuildingManager's mouse movement handler will do this automatically
     }
     
     onMouseClick(event) {
@@ -780,6 +793,8 @@ class CreativeStandalone {
         // Add additional parameters based on object type
         if (objData.type === 'marketStall') {
             params.detailLevel = 0.8;
+        } else if (objData.type === 'tradingHouse') {
+            // Any special parameters for Trading House can be added here
         }
         
         try {

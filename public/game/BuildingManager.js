@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import MarketStall from './objects/market-stall.js';
 import Dock from './objects/dock.js';
+import GenericGLBModel from './objects/GenericGLBModel.js';
+import { MODELS, getModelDisplayName } from './ModelRegistry.js';
 
 /**
  * BuildingManager handles all building-related functionality
@@ -94,21 +96,24 @@ class BuildingManager {
     showBuildingSelectionUI() {
         if (!this.uiContainer) return;
         
+        // Build buttons HTML from model registry
+        let buttonsHTML = '';
+        Object.values(MODELS).forEach(model => {
+            buttonsHTML += `<button id="${model.id}Button">${model.name}</button>\n`;
+        });
+        
         this.uiContainer.innerHTML = `
             <h2>Building Mode</h2>
             <p>Select a building to place:</p>
-            <button id="marketStallButton">Market Stall</button>
-            <button id="dockButton">Dock</button>
+            ${buttonsHTML}
             <button id="exitBuildModeButton">Exit Build Mode</button>
         `;
         
         // Add event listeners to buttons
-        document.getElementById('marketStallButton').addEventListener('click', () => {
-            this.selectBuildingType('marketStall');
-        });
-        
-        document.getElementById('dockButton').addEventListener('click', () => {
-            this.selectBuildingType('dock');
+        Object.values(MODELS).forEach(model => {
+            document.getElementById(`${model.id}Button`).addEventListener('click', () => {
+                this.selectBuildingType(model.id);
+            });
         });
         
         document.getElementById('exitBuildModeButton').addEventListener('click', () => {
@@ -133,9 +138,12 @@ class BuildingManager {
             this.buildPreview = null;
         }
         
+        // Get model info from registry
+        const modelInfo = MODELS[buildingType];
+        
         // Create the build preview based on the building type
         if (buildingType === 'marketStall') {
-            // Create a market stall with 50% opacity
+            // Create a market stall with 50% opacity (custom model)
             this.buildObject = new MarketStall({
                 position: new THREE.Vector3(0, 0, 0),
                 detailLevel: 0.8
@@ -143,9 +151,19 @@ class BuildingManager {
             
             this.buildPreview = this.buildObject.getObject();
         } else if (buildingType === 'dock') {
-            // Create a dock with 50% opacity
+            // Create a dock with 50% opacity (custom model)
             this.buildObject = new Dock({
                 position: new THREE.Vector3(0, 0, 0)
+            });
+            
+            this.buildPreview = this.buildObject.getObject();
+        } else if (modelInfo && !modelInfo.isCustom) {
+            // Create a generic GLB model
+            this.buildObject = new GenericGLBModel({
+                position: new THREE.Vector3(0, 0, 0),
+                modelPath: modelInfo.path,
+                scale: modelInfo.scale || 1,
+                type: buildingType
             });
             
             this.buildPreview = this.buildObject.getObject();
@@ -173,7 +191,7 @@ class BuildingManager {
             // Update info display via callback
             if (this.onInfoUpdate) {
                 this.onInfoUpdate({
-                    title: `Build: ${buildingType === 'marketStall' ? 'Market' : 'Dock'}`,
+                    title: `Build: ${getModelDisplayName(buildingType)}`,
                     message: 'Left-click: Place\nR: Rotate\nClick away: Cancel'
                 });
             }
@@ -197,8 +215,10 @@ class BuildingManager {
     showBuildingPlacementUI(buildingType) {
         if (!this.uiContainer) return;
         
+        const buildingName = getModelDisplayName(buildingType);
+        
         this.uiContainer.innerHTML = `
-            <h2>Place ${buildingType === 'marketStall' ? 'Market Stall' : 'Dock'}</h2>
+            <h2>Place ${buildingName}</h2>
             <p>Position the building and click to place it</p>
             <button id="rotateButton">Rotate (R)</button>
             <button id="cancelPlacementButton">Cancel Placement</button>
@@ -270,6 +290,7 @@ class BuildingManager {
         // Create a new building at the specified position
         if (this.buildObject && this.currentBuildingType) {
             let newBuilding;
+            const modelInfo = MODELS[this.currentBuildingType];
             
             if (this.currentBuildingType === 'marketStall') {
                 newBuilding = new MarketStall({
@@ -281,6 +302,16 @@ class BuildingManager {
                 newBuilding = new Dock({
                     position: position.clone(),
                     rotation: this.buildPreview.rotation.y
+                });
+            } else if (modelInfo && !modelInfo.isCustom) {
+                // Create a generic GLB model
+                newBuilding = new GenericGLBModel({
+                    position: position.clone(),
+                    rotation: this.buildPreview.rotation.y,
+                    modelPath: modelInfo.path,
+                    scale: modelInfo.scale || 1,
+                    type: this.currentBuildingType,
+                    userData: { type: this.currentBuildingType }
                 });
             }
             
