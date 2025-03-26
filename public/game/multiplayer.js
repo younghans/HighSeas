@@ -150,41 +150,36 @@ class MultiplayerManager {
         // Set up visibility change handler
         document.addEventListener('visibilitychange', this.handleVisibilityChange);
         
-        // First, try to load existing player data
+        // Add event listener for page unload to save final position
+        this.handleBeforeUnload = this.handleBeforeUnload.bind(this);
+        window.addEventListener('beforeunload', this.handleBeforeUnload);
+        
         return this.loadPlayerPosition()
             .then(existingPlayerData => {
-                let initialPosition, initialRotation;
+                // Get current ship position and rotation
+                const currentPosition = playerShip.getPosition();
                 
-                if (existingPlayerData && existingPlayerData.position) {
-                    // Use position from database
-                    initialPosition = existingPlayerData.position;
-                    // Force y position to 0
-                    initialPosition.y = 0;
-                    initialRotation = existingPlayerData.rotation || { y: 0 };
-                    
-                    this.debug('Using saved position from database:', initialPosition);
-                    
-                    // Update the player's ship position and rotation
-                    if (playerShip && this.onPlayerPositionLoaded) {
-                        this.onPlayerPositionLoaded(initialPosition, initialRotation);
-                    }
-                } else {
-                    // Use current position if no saved data
-                    initialPosition = {
-                        x: playerShip.position.x,
-                        y: 0, // Force y position to always be 0
-                        z: playerShip.position.z
-                    };
-                    initialRotation = {
-                        y: playerShip.rotation.y
-                    };
-                    
-                    this.debug('No saved position found, using current position:', initialPosition);
-                }
+                // Set initial position and rotation
+                const initialPosition = {
+                    x: existingPlayerData && existingPlayerData.position ? existingPlayerData.position.x : currentPosition.x,
+                    y: 0, // Always force y to 0
+                    z: existingPlayerData && existingPlayerData.position ? existingPlayerData.position.z : currentPosition.z
+                };
                 
-                // Check if the player was previously marked as sunk and log it
-                if (existingPlayerData && existingPlayerData.isSunk) {
-                    this.debug('Player was previously marked as sunk. Resetting health and sunk status.');
+                const initialRotation = {
+                    y: existingPlayerData && existingPlayerData.rotation ? existingPlayerData.rotation.y : playerShip.getObject().rotation.y
+                };
+                
+                // this.debug('Setting initial position and rotation:', {
+                //     position: initialPosition,
+                //     rotation: initialRotation,
+                //     source: existingPlayerData ? 'loaded from Firebase' : 'current ship position'
+                // });
+                
+                // If we have saved position data and the onPlayerPositionLoaded callback, update the ship now
+                if (existingPlayerData && existingPlayerData.position && this.onPlayerPositionLoaded) {
+                    this.debug('Calling onPlayerPositionLoaded with saved position data');
+                    this.onPlayerPositionLoaded(initialPosition, initialRotation);
                 }
                 
                 // Make sure we have the latest user data before setting displayName
@@ -204,6 +199,7 @@ class MultiplayerManager {
                             lastUpdated: firebase.database.ServerValue.TIMESTAMP,
                             isOnline: true,
                             health: 100, // Always reset health to full when joining
+                            maxHealth: 100, // Add maxHealth to initial data
                             isSunk: false, // Always ensure player is not sunk when joining
                             gold: existingPlayerData && existingPlayerData.gold ? existingPlayerData.gold : 0 // Initialize gold or preserve existing gold
                         };
@@ -321,10 +317,10 @@ class MultiplayerManager {
         
         // Debug message
         const syncType = playerShip.targetPosition ? 'position and destination' : 'position';
-        this.debug(`Synced player ${syncType} to server:`, {
-            position: updateData.position,
-            destination: updateData.destination
-        });
+        // this.debug(`Synced player ${syncType} to server:`, {
+        //     position: updateData.position,
+        //     destination: updateData.destination
+        // });
     }
     
     /**
@@ -372,10 +368,9 @@ class MultiplayerManager {
         
         // If ship exists, update it
         if (otherPlayerShip) {
-            // Check if player has respawned (was sunk but now has health)
-            const hasRespawned = otherPlayerShip.isSunk && 
-                                playerData.health !== undefined && 
-                                playerData.health > 0;
+            // Check if player has respawned - either from sunk state, or health was reset to full
+            const hasRespawned = (otherPlayerShip.isSunk && playerData.isSunk === false) || 
+                                 (otherPlayerShip.isSunk && playerData.health >= otherPlayerShip.maxHealth);
             
             if (hasRespawned) {
                 // Player has respawned - recreate their ship from scratch
@@ -404,7 +399,7 @@ class MultiplayerManager {
                     }
                 }
                 
-                // If health is 0, sink the ship
+                // Update sunk state if health dropped to 0
                 if (playerData.health <= 0 && !otherPlayerShip.isSunk) {
                     this.debug(`Player ${playerData.displayName || playerId} has been sunk`);
                     
@@ -414,6 +409,17 @@ class MultiplayerManager {
                     } else {
                         // Simple fallback if sink method doesn't exist
                         otherPlayerShip.isSunk = true;
+                    }
+                }
+                // Or update sunk state if explicitly set in Firebase
+                else if (playerData.isSunk !== undefined && otherPlayerShip.isSunk !== playerData.isSunk) {
+                    this.debug(`Updating isSunk state for player ${playerData.displayName || playerId}: ${otherPlayerShip.isSunk} → ${playerData.isSunk}`);
+                    otherPlayerShip.isSunk = playerData.isSunk;
+                    
+                    // If ship is now unsunk (respawned), make sure to reset its rotation
+                    if (!playerData.isSunk && otherPlayerShip.shipMesh) {
+                        otherPlayerShip.shipMesh.rotation.set(0, playerData.rotation ? playerData.rotation.y : 0, 0);
+                        this.debug(`Reset rotation for respawned player ${playerData.displayName || playerId}`);
                     }
                 }
             }
@@ -448,10 +454,10 @@ class MultiplayerManager {
     createPlayerShip(playerData) {
         if (!playerData.isOnline) return;
         
-        this.debug(`Creating ship for player: ${playerData.displayName} (${playerData.id})`, {
-            position: playerData.position,
-            rotation: playerData.rotation
-        });
+        // this.debug(`Creating ship for player: ${playerData.displayName} (${playerData.id})`, {
+        //     position: playerData.position,
+        //     rotation: playerData.rotation
+        // });
         
         // Create a SailboatShip for the other player
         const otherPlayerShip = new SailboatShip(this.scene, {
@@ -476,31 +482,10 @@ class MultiplayerManager {
         otherPlayerShip.cannonRange = 50; // Same as player ship
         otherPlayerShip.cannonDamage = { min: 5, max: 15 }; // Standard damage
         
-        // Create a click box for targeting
-        if (typeof otherPlayerShip.createClickBoxSphere === 'function') {
-            otherPlayerShip.createClickBoxSphere();
-        }
+        // Store ship in map early to prevent race conditions
+        this.otherPlayerShips.set(playerData.id, otherPlayerShip);
         
-        // Create a health bar
-        if (typeof otherPlayerShip.createHealthBar === 'function') {
-            otherPlayerShip.createHealthBar();
-        }
-        
-        // Get the ship object
-        const shipObject = otherPlayerShip.getObject();
-        
-        // Set initial position and rotation
-        shipObject.position.set(
-            playerData.position.x,
-            0, // Force y position to always be 0
-            playerData.position.z
-        );
-        
-        // Set rotation and store it
-        const rotationY = playerData.rotation ? playerData.rotation.y || 0 : 0;
-        shipObject.rotation.y = rotationY;
-        
-        // Create nametag
+        // Create a nametag early (we'll position it later)
         const nametagDiv = document.createElement('div');
         nametagDiv.className = 'player-nametag';
         nametagDiv.textContent = playerData.displayName;
@@ -516,34 +501,80 @@ class MultiplayerManager {
         nametagDiv.style.textAlign = 'center';
         nametagDiv.style.minWidth = '80px';
         nametagDiv.style.transform = 'translateX(-50%)';
+        nametagDiv.style.display = 'none'; // Hide initially
         document.body.appendChild(nametagDiv);
         
         // Store the nametag with the ship
         otherPlayerShip.userData = otherPlayerShip.userData || {};
         otherPlayerShip.userData.nametag = nametagDiv;
         otherPlayerShip.userData.playerId = playerData.id;
-        otherPlayerShip.userData.lastPosition = new THREE.Vector3(
-            playerData.position.x,
-            0, // Force y position to always be 0
-            playerData.position.z
-        );
-        otherPlayerShip.userData.lastRotation = rotationY;
         
-        // Store destination if available
-        if (playerData.destination) {
-            otherPlayerShip.userData.destination = new THREE.Vector3(
-                playerData.destination.x,
-                playerData.destination.y,
-                playerData.destination.z
-            );
-            
-            // Set the ship's target position to enable wake particles
-            otherPlayerShip.targetPosition = otherPlayerShip.userData.destination;
-            otherPlayerShip.isMoving = true;
-        }
+        // Wait for ship mesh to be created
+        const initializeShipMesh = () => {
+            return new Promise((resolve) => {
+                const checkMesh = () => {
+                    const shipObject = otherPlayerShip.getObject();
+                    if (shipObject) {
+                        // Set initial position and rotation
+                        shipObject.position.set(
+                            playerData.position.x,
+                            0, // Force y position to always be 0
+                            playerData.position.z
+                        );
+                        
+                        // Set rotation and store it
+                        const rotationY = playerData.rotation ? playerData.rotation.y || 0 : 0;
+                        shipObject.rotation.y = rotationY;
+                        
+                        otherPlayerShip.userData.lastPosition = new THREE.Vector3(
+                            playerData.position.x,
+                            0,
+                            playerData.position.z
+                        );
+                        otherPlayerShip.userData.lastRotation = rotationY;
+                        
+                        // Store destination if available
+                        if (playerData.destination) {
+                            otherPlayerShip.userData.destination = new THREE.Vector3(
+                                playerData.destination.x,
+                                playerData.destination.y,
+                                playerData.destination.z
+                            );
+                            
+                            // Set the ship's target position to enable wake particles
+                            otherPlayerShip.targetPosition = otherPlayerShip.userData.destination;
+                            otherPlayerShip.isMoving = true;
+                        }
+                        
+                        // Create a click box for targeting
+                        if (typeof otherPlayerShip.createClickBoxSphere === 'function') {
+                            otherPlayerShip.createClickBoxSphere();
+                        }
+                        
+                        // Create a health bar
+                        if (typeof otherPlayerShip.createHealthBar === 'function') {
+                            otherPlayerShip.createHealthBar();
+                        }
+                        
+                        // Show nametag now that ship is ready
+                        nametagDiv.style.display = 'block';
+                        
+                        resolve();
+                    } else {
+                        // Check again in 100ms
+                        setTimeout(checkMesh, 100);
+                    }
+                };
+                checkMesh();
+            });
+        };
         
-        // Store ship
-        this.otherPlayerShips.set(playerData.id, otherPlayerShip);
+        // Initialize the ship mesh and handle any errors
+        initializeShipMesh().catch(error => {
+            console.error('Error initializing ship mesh:', error);
+            // Clean up if initialization fails
+            this.removePlayerShip(playerData.id);
+        });
     }
     
     /**
@@ -567,10 +598,10 @@ class MultiplayerManager {
             return;
         }
         
-        this.debug(`Updating ship for player: ${playerData.displayName} (${playerData.id})`, {
-            position: playerData.position,
-            destination: playerData.destination
-        });
+        // this.debug(`Updating ship for player: ${playerData.displayName} (${playerData.id})`, {
+        //     position: playerData.position,
+        //     destination: playerData.destination
+        // });
         
         // Get the ship object
         const shipObject = otherPlayerShip.getObject();
@@ -591,12 +622,11 @@ class MultiplayerManager {
         // Check for respawn scenario - was previously sunk and now has positive health near origin
         const hasRespawned = otherPlayerShip.isSunk && 
                            playerData.health !== undefined && 
-                           playerData.health > 0 &&
-                           isNearOrigin;
+                           playerData.health > 0;
         
         if (hasRespawned) {
             // Player has respawned - recreate their ship from scratch
-            this.debug(`Player ${playerData.displayName} has respawned at origin - recreating ship`);
+            this.debug(`Player ${playerData.displayName} has respawned - recreating ship`);
             
             // Remove the old ship
             this.removePlayerShip(playerData.id);
@@ -608,8 +638,14 @@ class MultiplayerManager {
         
         if (distanceChange > this.TELEPORT_THRESHOLD || isNearOrigin || playerData.isSunk) {
             // For large position changes or respawns, teleport immediately
-            this.debug(`Teleporting ship for player ${playerData.displayName} to new position:`, newPos);
+            // this.debug(`Teleporting ship for player ${playerData.displayName} to new position:`, newPos);
             shipObject.position.copy(newPos);
+            
+            // If the player has respawned, make sure to reset rotation (especially z-rotation)
+            if (isNearOrigin && playerData.health > 0) {
+                shipObject.rotation.set(0, playerData.rotation ? playerData.rotation.y : 0, 0);
+                this.debug(`Resetting ship rotation for respawned player ${playerData.displayName}`);
+            }
             
             // If player was sunk and respawned, clear any movement data
             if (isNearOrigin || playerData.isSunk) {
@@ -629,7 +665,7 @@ class MultiplayerManager {
                 // Calculate the target position based on reported position and current position
                 const targetPos = newPos.clone();
                 
-                this.debug(`Setting course correction for ${playerData.displayName}, distance: ${distanceChange.toFixed(2)}`);
+                // this.debug(`Setting course correction for ${playerData.displayName}, distance: ${distanceChange.toFixed(2)}`);
                 
                 // Set the ship to move to this position
                 otherPlayerShip.targetPosition = targetPos;
@@ -790,7 +826,7 @@ class MultiplayerManager {
                     otherPlayerShip.isMoving = false;
                     otherPlayerShip.targetPosition = null;
                     
-                    this.debug(`Ship for player ${playerData.displayName} reached target position`);
+                    // this.debug(`Ship for player ${playerData.displayName} reached target position`);
                 }
             }
             
@@ -894,8 +930,9 @@ class MultiplayerManager {
     cleanup() {
         this.debug('Cleaning up multiplayer resources');
         
-        // Remove visibility change handler
+        // Remove event handlers
         document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+        window.removeEventListener('beforeunload', this.handleBeforeUnload);
         
         // Stop listening for player events
         if (this.playersRef) {
@@ -937,9 +974,11 @@ class MultiplayerManager {
     updatePlayerHealth(ship) {
         if (!this.playerRef || !ship) return Promise.reject('Not connected or no ship');
         
-        // Get current health and sunk status
+        // Get current health and sunk state
         const health = ship.currentHealth;
         const isSunk = ship.isSunk;
+        
+        this.debug(`Updating player health in Firebase: health=${health}, isSunk=${isSunk}`);
         
         // Update health in Firebase
         return this.playerRef.update({
@@ -1244,6 +1283,40 @@ class MultiplayerManager {
             // Clean up the processed event
             this.combatEventsRef.child(eventId).remove()
                 .catch(error => console.error('[COMBAT:EVENT] Error removing processed combat event:', error));
+        }
+    }
+    
+    /**
+     * Handle beforeunload event to save final position
+     */
+    handleBeforeUnload() {
+        if (this.playerRef && this.playerShip) {
+            this.debug('Page unloading - saving final position');
+            
+            // Get current position and rotation
+            const currentPosition = this.playerShip.getPosition();
+            const currentRotation = { y: this.playerShip.getObject().rotation.y };
+            
+            // Create update data
+            const updateData = {
+                position: {
+                    x: currentPosition.x,
+                    y: 0,
+                    z: currentPosition.z
+                },
+                rotation: currentRotation,
+                lastUpdated: firebase.database.ServerValue.TIMESTAMP
+            };
+            
+            // Use synchronous approach for beforeunload
+            try {
+                // Firebase doesn't support synchronous operations for beforeunload
+                // But we can still try to send the update - it might complete
+                this.playerRef.update(updateData);
+                this.debug('Final position saved:', updateData.position);
+            } catch (error) {
+                console.error('Error saving final position:', error);
+            }
         }
     }
 }

@@ -24,6 +24,10 @@ class BaseShip {
         this.shipMesh = null;
         this.targetIslandPoint = null;
         
+        // Add transition properties for smooth bobbing
+        this.bobTransition = 0; // 0 = stationary, 1 = moving
+        this.bobTransitionSpeed = 1; // Speed of transition (higher = faster)
+        
         // Ship properties with defaults that can be overridden
         this.speed = options.speed || 5;
         this.hullColor = options.hullColor || 0x8B4513;
@@ -125,7 +129,6 @@ class BaseShip {
     update(delta, time) {
         // Don't move if sunk
         if (this.isSunk) {
-            // We no longer need this animation here since we have the convertToShipwreck animation
             return;
         }
         
@@ -147,7 +150,7 @@ class BaseShip {
                 const newPosition = this.shipMesh.position.clone().add(direction.multiplyScalar(moveSpeed));
                 
                 // Ensure Y position stays at water level
-                newPosition.y = this.waterOffset; // Use water offset instead of 0
+                newPosition.y = this.waterOffset;
                 
                 // Apply new position
                 this.shipMesh.position.copy(newPosition);
@@ -155,9 +158,17 @@ class BaseShip {
                 // Update internal position to match mesh position
                 this.position.copy(this.shipMesh.position);
                 
-                // Add slight bobbing motion
-                this.shipMesh.rotation.x = Math.sin(time * 2) * 0.05;
-                this.shipMesh.rotation.z = Math.sin(time * 1.5) * 0.05;
+                // Smoothly transition to moving bobbing state
+                this.bobTransition = Math.min(1, this.bobTransition + delta * this.bobTransitionSpeed);
+                
+                // Add bobbing motion with smooth transition
+                const movingBobX = Math.sin(time * 2) * 0.05;
+                const movingBobZ = Math.sin(time * 1.5) * 0.05;
+                const stationaryBobX = Math.sin(time * 1.5) * 0.03;
+                const stationaryBobZ = Math.sin(time * 1.2) * 0.03;
+                
+                this.shipMesh.rotation.x = stationaryBobX + (movingBobX - stationaryBobX) * this.bobTransition;
+                this.shipMesh.rotation.z = stationaryBobZ + (movingBobZ - stationaryBobZ) * this.bobTransition;
                 
                 // Sync internal rotation with mesh rotation
                 this.rotation.x = this.shipMesh.rotation.x;
@@ -176,22 +187,28 @@ class BaseShip {
                     this.position.y = this.waterOffset;
                 }
             }
-        }
-        
-        // Update wake particles regardless of movement (to let active ones fade out)
-        if (this.wakeParticleSystem) {
-            this.wakeParticleSystem.updateParticles(delta);
-        }
-        
-        // Add gentle bobbing even when not moving
-        if (!this.isMoving) {
-            this.shipMesh.rotation.x = Math.sin(time * 1.5) * 0.03;
-            this.shipMesh.rotation.z = Math.sin(time * 1.2) * 0.03;
+        } else {
+            // Smoothly transition to stationary bobbing state
+            this.bobTransition = Math.max(0, this.bobTransition - delta * this.bobTransitionSpeed);
+            
+            // Add bobbing motion with smooth transition
+            const movingBobX = Math.sin(time * 2) * 0.05;
+            const movingBobZ = Math.sin(time * 1.5) * 0.05;
+            const stationaryBobX = Math.sin(time * 1.5) * 0.03;
+            const stationaryBobZ = Math.sin(time * 1.2) * 0.03;
+            
+            this.shipMesh.rotation.x = stationaryBobX + (movingBobX - stationaryBobX) * this.bobTransition;
+            this.shipMesh.rotation.z = stationaryBobZ + (movingBobZ - stationaryBobZ) * this.bobTransition;
             
             // Ensure Y position stays at water level
             if (this.shipMesh.position.y !== this.waterOffset) {
                 this.shipMesh.position.y = this.waterOffset;
             }
+        }
+        
+        // Update wake particles regardless of movement (to let active ones fade out)
+        if (this.wakeParticleSystem) {
+            this.wakeParticleSystem.updateParticles(delta);
         }
     }
     
@@ -572,6 +589,12 @@ class BaseShip {
                 await new Promise(resolve => setTimeout(resolve, 100));
             }
             console.log('[DEBUG:RESPAWN] Ship finished loading');
+            
+            // Ensure the ship mesh rotation is reset
+            if (this.shipMesh) {
+                console.log('[DEBUG:RESPAWN] Resetting ship mesh rotation');
+                this.shipMesh.rotation.set(0, this.rotation.y, 0);
+            }
             
             // Now that the ship is loaded, initialize all systems
             console.log('[DEBUG:RESPAWN] Initializing ship systems');

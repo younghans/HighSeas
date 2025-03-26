@@ -475,7 +475,7 @@ function startGameWithShip() {
     // Create ship with custom speed but don't position it yet
     // The position will be set by the multiplayer system
     ship = new SailboatShip(scene, { 
-        modelType: 'sailboat-3', // Use sailboat-3 model
+        modelType: 'sailboat', // Use sailboat-3 model
         // speed: 50,
         // Set a default position that will be overridden by multiplayer
         position: new THREE.Vector3(0, 0, 0),
@@ -1166,7 +1166,7 @@ function initMultiplayer() {
     // Store camera reference in scene for nametag positioning
     scene.userData.camera = camera;
     
-    console.log('Initializing multiplayer with ship at position:', ship.getPosition());
+    // console.log('Initializing multiplayer with ship at position:', ship.getPosition());
     
     // Create multiplayer manager with callback for when player position is loaded
     multiplayerManager = new MultiplayerManager({
@@ -1175,8 +1175,8 @@ function initMultiplayer() {
         onPlayerPositionLoaded: (position, rotation) => {
             // Update the ship's position and rotation when loaded from Firebase
             if (ship && ship.getObject()) {
-                console.log('Player position loaded from Firebase:', position);
-                console.log('Current ship position before update:', ship.getPosition());
+                // console.log('Player position loaded from Firebase:', position);
+                // console.log('Current ship position before update:', ship.getPosition());
                 
                 // Force y position to always be 0
                 position.y = 0;
@@ -1219,8 +1219,8 @@ function initMultiplayer() {
                     controls.update();
                 }
                 
-                console.log('Updated player ship position from server:', position);
-                console.log('New ship position after update:', ship.getPosition());
+                // console.log('Updated player ship position from server:', position);
+                // console.log('New ship position after update:', ship.getPosition());
                 
                 // Update player ship reference in enemy ship manager
                 if (enemyShipManager) {
@@ -1271,9 +1271,10 @@ function initMultiplayer() {
                     // Call original method
                     originalMoveTo.call(this, targetPos);
                     
-                    // Sync with Firebase
+                    // Sync with Firebase immediately with force update
                     if (multiplayerManager) {
-                        multiplayerManager.updatePlayerPosition(ship);
+                        // Force update to ensure position is saved even if last sync was recent
+                        multiplayerManager.updatePlayerPosition(ship, true);
                     }
                 };
                 
