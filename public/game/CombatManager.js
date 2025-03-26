@@ -24,15 +24,19 @@ class CombatManager {
         this.cannonballGeometry = new THREE.SphereGeometry(0.5, 8, 8);
         this.cannonballLifetime = 3000; // 3 seconds
         this.isSpacePressed = false;
-        this.autoFireInterval = null;
         this.isResetting = false;
         this.debugArrows = [];
         this.showDebugClickBoxes = false; // Show debug click boxes by default
         
-        // Action tracking for server authority
-        this.pendingActions = new Map(); // Track actions awaiting server confirmation
-        this.confirmedActions = new Map(); // Track server-confirmed actions
+        // Simplified action tracking system
+        this.actionTracker = new Map(); // Single map to track all actions with status
         this.actionSequence = 0; // For action ordering
+        
+        // Lightweight index for quick target-based lookups
+        this.actionIndices = {
+            byTarget: new Map() // Maps targetId -> Set of actionIds
+        };
+        
         this.lastReconciliationTime = Date.now();
         this.reconciliationInterval = 10000; // 10 seconds between reconciliations
         
@@ -188,76 +192,8 @@ class CombatManager {
         if (event.code === 'Space' && !this.isSpacePressed) {
             this.isSpacePressed = true;
             
-            // Fire immediately
+            // Fire a single shot
             this.fireAtCurrentTarget();
-            
-            // Instead of using setInterval, use requestAnimationFrame for smoother, more consistent timing
-            // and to prevent shots bunching up when tab is inactive
-            this._lastServerAttackTime = this._lastServerAttackTime || 0;
-            this._nextFireTime = Date.now() + this.playerShip.cannonCooldown;
-            
-            // Clear any existing autofire frame
-            if (this._autoFireFrame) {
-                cancelAnimationFrame(this._autoFireFrame);
-            }
-            
-            const autoFireCheck = () => {
-                if (!this.isSpacePressed) return;
-                
-                const now = Date.now();
-                const clientCooldownReady = now - this.playerShip.lastFiredTime >= this.playerShip.cannonCooldown;
-                
-                // Log auto-fire timing info
-                if (now >= this._nextFireTime) {
-                    console.log('[DEBUG:AUTOFIRE] Ready to fire check:', {
-                        currentTime: now,
-                        scheduledFireTime: this._nextFireTime,
-                        clientLastFired: this.playerShip.lastFiredTime,
-                        clientCooldownElapsed: now - this.playerShip.lastFiredTime,
-                        clientCooldownValue: this.playerShip.cannonCooldown,
-                        clientCooldownReady: clientCooldownReady,
-                        serverLastAttack: this._lastServerAttackTime,
-                        serverElapsedTime: this._lastServerAttackTime ? now - this._lastServerAttackTime : 'N/A',
-                        serverLastResponse: this._lastServerResponseTime || 'never'
-                    });
-                }
-                
-                // If it's time to fire the next shot
-                if (now >= this._nextFireTime && clientCooldownReady) {
-                    // Track server cooldown carefully to avoid rapid rejections
-                    const serverBufferTime = 400; // Increased buffer from 200ms to 400ms
-                    const serverReady = !this._lastServerAttackTime || 
-                        now - this._lastServerAttackTime >= this.playerShip.cannonCooldown + serverBufferTime;
-                        
-                    if (serverReady) {
-                        // Time to fire!
-                        this.fireAtCurrentTarget();
-                        
-                        // Update next fire time based on client cooldown
-                        this._nextFireTime = now + this.playerShip.cannonCooldown;
-                    } else {
-                        // Server not ready yet - wait until it should be
-                        const serverReadyTime = this._lastServerAttackTime + this.playerShip.cannonCooldown + serverBufferTime;
-                        this._nextFireTime = serverReadyTime;
-                        
-                        console.log('[DEBUG:AUTOFIRE] Waiting for server cooldown:', {
-                            serverLastAttack: this._lastServerAttackTime,
-                            serverCooldownValue: this.playerShip.cannonCooldown,
-                            serverReadyTime: serverReadyTime,
-                            currentTime: now,
-                            waitTime: serverReadyTime - now
-                        });
-                    }
-                }
-                
-                // Continue the loop as long as space is pressed
-                if (this.isSpacePressed) {
-                    this._autoFireFrame = requestAnimationFrame(autoFireCheck);
-                }
-            };
-            
-            // Start the animation frame loop
-            this._autoFireFrame = requestAnimationFrame(autoFireCheck);
         }
     }
     
@@ -269,12 +205,6 @@ class CombatManager {
         // Check for space bar release
         if (event.code === 'Space') {
             this.isSpacePressed = false;
-            
-            // Cancel animation frame instead of interval
-            if (this._autoFireFrame) {
-                cancelAnimationFrame(this._autoFireFrame);
-                this._autoFireFrame = null;
-            }
         }
     }
     
@@ -489,7 +419,7 @@ class CombatManager {
                     target: this.currentTarget.id,
                     clientDamage: damage,
                     cannonballRef: cannonballData,
-                    status: 'pending'
+                    status: 'pending' // Status can be: 'pending', 'confirmed', 'rejected', 'expired'
                 };
                 
                 console.log(`[ACTION:${actionId}] Created combat action:`, {
@@ -501,17 +431,14 @@ class CombatManager {
                     timestamp: new Date(action.timestamp).toISOString()
                 });
                 
-                // Add to pending actions map
-                this.pendingActions.set(actionId, action);
+                // Add to action tracker
+                this.actionTracker.set(actionId, action);
                 
-                // Also track by target ID for easier recovery if server response omits actionId
-                if (!this._pendingActionsByTarget) {
-                    this._pendingActionsByTarget = new Map();
+                // Add to target index for quicker lookups
+                if (!this.actionIndices.byTarget.has(this.currentTarget.id)) {
+                    this.actionIndices.byTarget.set(this.currentTarget.id, new Set());
                 }
-                if (!this._pendingActionsByTarget.has(this.currentTarget.id)) {
-                    this._pendingActionsByTarget.set(this.currentTarget.id, []);
-                }
-                this._pendingActionsByTarget.get(this.currentTarget.id).push(action);
+                this.actionIndices.byTarget.get(this.currentTarget.id).add(actionId);
                 
                 // Server validation happens in parallel with cannonball animation
                 // Send the damage seed to the server so it can calculate the same damage
@@ -533,58 +460,33 @@ class CombatManager {
                     if (result.actionId === undefined) {
                         console.error('[ACTION:ERROR] Server response missing actionId:', result);
                         
-                        // Try to match with the most relevant pending action
+                        // Try to find the matching action based on target
+                        const targetActions = this.findActionsByTarget(this.currentTarget.id);
                         let matchingAction = null;
                         
-                        // First check if we're tracking actions by target
-                        if (this._pendingActionsByTarget && this._pendingActionsByTarget.has(this.currentTarget.id)) {
-                            const targetActions = this._pendingActionsByTarget.get(this.currentTarget.id);
-                            if (targetActions && targetActions.length > 0) {
-                                // If error response with cooldown, it's likely the most recent action
-                                if (result.error === 'Attack cooldown in progress') {
-                                    // Sort by timestamp (newest first) and get the most recent
-                                    targetActions.sort((a, b) => b.timestamp - a.timestamp);
-                                    matchingAction = targetActions[0];
-                                    console.log('[ACTION:RECOVER] Matched cooldown error to most recent action for target');
-                                } 
-                                // If success response, try to match by damage if available
-                                else if (result.success && result.damage !== undefined) {
-                                    matchingAction = targetActions.find(a => 
-                                        a.clientDamage === result.damage ||
-                                        a.clientDamage === result.expectedDamage
-                                    );
-                                    
-                                    if (matchingAction) {
-                                        console.log('[ACTION:RECOVER] Matched by damage amount');
-                                    }
+                        if (targetActions.length > 0) {
+                            // If error response with cooldown, it's likely the most recent action
+                            if (result.error === 'Attack cooldown in progress') {
+                                // Get the most recent action (already sorted by timestamp)
+                                matchingAction = targetActions[0];
+                                console.log('[ACTION:RECOVER] Matched cooldown error to most recent action for target');
+                            } 
+                            // If success response, try to match by damage if available
+                            else if (result.success && result.damage !== undefined) {
+                                matchingAction = targetActions.find(a => 
+                                    a.clientDamage === result.damage ||
+                                    a.clientDamage === result.expectedDamage
+                                );
+                                
+                                if (matchingAction) {
+                                    console.log('[ACTION:RECOVER] Matched by damage amount');
                                 }
                             }
-                        }
-                        
-                        // If no match yet, fall back to previous approach
-                        if (!matchingAction) {
-                            const pendingActions = Array.from(this.pendingActions.values());
                             
-                            // First try to match by target and damage (most specific)
-                            matchingAction = pendingActions.find(a => 
-                                a.target === this.currentTarget.id && 
-                                a.clientDamage === damage &&
-                                a.status === 'pending'
-                            );
-                            
-                            // If no match, try to find any pending action for this target
+                            // If still no match, use the most recent action
                             if (!matchingAction) {
-                                matchingAction = pendingActions.find(a => 
-                                    a.target === this.currentTarget.id && 
-                                    a.status === 'pending'
-                                );
-                            }
-                            
-                            // If still no match, take the most recent pending action (last resort)
-                            if (!matchingAction && pendingActions.length > 0) {
-                                matchingAction = pendingActions.reduce((latest, current) => {
-                                    return current.timestamp > latest.timestamp ? current : latest;
-                                }, pendingActions[0]);
+                                matchingAction = targetActions[0];
+                                console.log('[ACTION:RECOVER] Using most recent action as fallback');
                             }
                         }
                         
@@ -592,10 +494,7 @@ class CombatManager {
                             console.log('[ACTION:RECOVER] Found likely matching action:', {
                                 actionId: matchingAction.id,
                                 target: matchingAction.target,
-                                clientDamage: matchingAction.clientDamage,
-                                matchType: matchingAction.target === this.currentTarget.id ? 
-                                    (matchingAction.clientDamage === damage ? 'exact' : 'target-only') : 
-                                    'most-recent'
+                                clientDamage: matchingAction.clientDamage
                             });
                             // Use the action we found
                             result.actionId = matchingAction.id;
@@ -605,12 +504,11 @@ class CombatManager {
                         }
                     }
                     
-                    const action = this.pendingActions.get(result.actionId);
+                    const action = this.actionTracker.get(result.actionId);
                     if (!action) {
-                        console.warn(`[ACTION:${result.actionId}] Cannot find pending action for server response`, {
+                        console.warn(`[ACTION:${result.actionId}] Cannot find action for server response`, {
                             responseActionId: result.actionId,
-                            pendingActionsCount: this.pendingActions.size,
-                            pendingActionIds: Array.from(this.pendingActions.keys()),
+                            trackerSize: this.actionTracker.size,
                             success: result.success,
                             timestamp: new Date().toISOString()
                         });
@@ -618,7 +516,7 @@ class CombatManager {
                     }
                     
                     if (result.success) {
-                        // Move from pending to confirmed
+                        // Update action status to confirmed
                         action.status = 'confirmed';
                         action.serverDamage = result.damage || damage;
                         action.serverResult = result;
@@ -653,9 +551,6 @@ class CombatManager {
                             nextClientFireTime: action.timestamp + this.playerShip.cannonCooldown,
                             nextServerReadyTime: this._lastServerAttackTime + this.playerShip.cannonCooldown
                         });
-                        
-                        this.confirmedActions.set(result.actionId, action);
-                        this.pendingActions.delete(result.actionId);
                         
                         // If cannonball already hit (optimistic UI), reconcile the damage
                         if (action.cannonballRef.hasHit) {
@@ -717,21 +612,12 @@ class CombatManager {
                             this.rollbackAction(action);
                         }
                         
-                        // Remove from pending actions
-                        this.pendingActions.delete(result.actionId);
-                        
-                        // Remove from target tracking if we're using it
-                        if (this._pendingActionsByTarget && action && action.target) {
-                            const targetActions = this._pendingActionsByTarget.get(action.target);
-                            if (targetActions) {
-                                const index = targetActions.findIndex(a => a.id === action.id);
-                                if (index !== -1) {
-                                    targetActions.splice(index, 1);
-                                }
-                                // Clean up empty arrays
-                                if (targetActions.length === 0) {
-                                    this._pendingActionsByTarget.delete(action.target);
-                                }
+                        // Remove from target index
+                        if (this.actionIndices.byTarget.has(action.target)) {
+                            this.actionIndices.byTarget.get(action.target).delete(action.id);
+                            // Clean up empty sets
+                            if (this.actionIndices.byTarget.get(action.target).size === 0) {
+                                this.actionIndices.byTarget.delete(action.target);
                             }
                         }
                     }
@@ -925,12 +811,10 @@ class CombatManager {
         }
         
         const reconcileStartTime = Date.now();
-        const pendingActionsCount = this.pendingActions.size;
-        const confirmedActionsCount = this.confirmedActions.size;
+        const pendingActionsCount = this.actionTracker.size;
         
         console.log('[RECONCILE:STATE] Starting game state reconciliation with server', {
             pendingActions: pendingActionsCount,
-            confirmedActions: confirmedActionsCount,
             timeSinceLastReconciliation: reconcileStartTime - this.lastReconciliationTime,
             timestamp: new Date(reconcileStartTime).toISOString()
         });
@@ -1044,7 +928,6 @@ class CombatManager {
                 // Log details about the error
                 console.error('[RECONCILE:STATE] Reconciliation error details:', {
                     pendingActions: pendingActionsCount,
-                    confirmedActions: confirmedActionsCount,
                     errorMessage: error.message,
                     errorStack: error.stack,
                     responseTime: Date.now() - reconcileStartTime
@@ -1426,8 +1309,8 @@ class CombatManager {
                     // Only apply damage if the target is not already sunk
                     if (!userData.target.isSunk) {
                         // Check if we have a confirmed server result from an action
-                        const matchingAction = Array.from(this.confirmedActions.values())
-                            .find(a => a.cannonballRef === userData);
+                        const matchingActions = this.findActionsByTarget(userData.targetId);
+                        const matchingAction = matchingActions.length > 0 ? matchingActions[0] : null;
                         
                         console.log('[CANNONBALL:HIT] Cannonball hit target', {
                             targetId: userData.targetId || 'unknown',
@@ -1436,8 +1319,7 @@ class CombatManager {
                             hasServerResult: !!matchingAction,
                             flightTime: timestamp - userData.createdAt,
                             actionId: matchingAction ? matchingAction.id : 'none',
-                            pendingActions: this.pendingActions.size,
-                            confirmedActions: this.confirmedActions.size
+                            pendingActions: this.actionTracker.size
                         });
                         
                         // If we have a matching action, use it
@@ -1457,15 +1339,15 @@ class CombatManager {
                                 userData.target.sink();
                             }
                             
-                            // Remove from confirmed actions
-                            this.confirmedActions.delete(matchingAction.id);
+                            // Remove from action tracker
+                            this.actionTracker.delete(matchingAction.id);
                         } 
                         // Rest of the existing damage application code...
                         else if (userData.source === this.playerShip) {
                             // Existing optimistic update code...
-                            // Try to find a pending action that matches this cannonball
-                            const pendingAction = Array.from(this.pendingActions.values())
-                                .find(a => a.target === userData.targetId && a.cannonballRef === userData);
+                            // Try to find a matching action that matches this cannonball
+                            const actions = this.findActionsByTarget(userData.targetId);
+                            const pendingAction = actions.length > 0 ? actions[0] : null;
                             
                             if (pendingAction) {
                                 console.log('[CANNONBALL:HIT] Server response not yet received, marking pending action', {
@@ -1592,10 +1474,13 @@ class CombatManager {
      */
     cleanupStaleActions(currentTime) {
         const ACTION_TIMEOUT = 10000; // 10 seconds timeout
-        const staleActions = [];
+        const staleActionIds = [];
         
         // Find stale actions
-        this.pendingActions.forEach((action, actionId) => {
+        for (const [actionId, action] of this.actionTracker.entries()) {
+            // Only check pending actions
+            if (action.status !== 'pending') continue;
+            
             const age = currentTime - action.timestamp;
             if (age > ACTION_TIMEOUT) {
                 console.warn(`[ACTION:TIMEOUT] Action ${actionId} timed out after ${age}ms`, {
@@ -1604,7 +1489,10 @@ class CombatManager {
                     clientDamage: action.clientDamage,
                     timestamp: new Date(action.timestamp).toISOString()
                 });
-                staleActions.push(actionId);
+                
+                // Mark action as expired instead of removing
+                action.status = 'expired';
+                staleActionIds.push(actionId);
                 
                 // If cannonball already hit, we need to keep the optimistic update
                 // since the server didn't respond in time
@@ -1612,32 +1500,88 @@ class CombatManager {
                     console.log(`[ACTION:TIMEOUT] Preserving optimistic update for action ${actionId} since cannonball already hit`);
                 }
             }
-        });
+        }
         
-        // Remove stale actions
-        staleActions.forEach(actionId => {
-            const action = this.pendingActions.get(actionId);
-            this.pendingActions.delete(actionId);
+        // Remove stale actions from indices
+        for (const actionId of staleActionIds) {
+            const action = this.actionTracker.get(actionId);
+            if (!action) continue;
             
-            // Also remove from target tracking
-            if (action && action.target && this._pendingActionsByTarget) {
-                const targetActions = this._pendingActionsByTarget.get(action.target);
-                if (targetActions) {
-                    const index = targetActions.findIndex(a => a.id === action.id);
-                    if (index !== -1) {
-                        targetActions.splice(index, 1);
-                    }
-                    // Clean up empty arrays
-                    if (targetActions.length === 0) {
-                        this._pendingActionsByTarget.delete(action.target);
+            // Remove from target index
+            if (this.actionIndices.byTarget.has(action.target)) {
+                this.actionIndices.byTarget.get(action.target).delete(actionId);
+                // Clean up empty sets
+                if (this.actionIndices.byTarget.get(action.target).size === 0) {
+                    this.actionIndices.byTarget.delete(action.target);
+                }
+            }
+        }
+        
+        if (staleActionIds.length > 0) {
+            console.log(`[ACTION:CLEANUP] Marked ${staleActionIds.length} stale actions as expired`);
+        }
+        
+        // Periodically prune old non-pending actions to prevent unlimited growth
+        this.pruneOldActions(currentTime - 60000); // Remove completed actions older than 1 minute
+    }
+    
+    /**
+     * Prune old completed actions to prevent memory leaks
+     * @param {number} cutoffTime - Timestamp threshold for removal
+     */
+    pruneOldActions(cutoffTime) {
+        const removedCount = {
+            confirmed: 0,
+            rejected: 0,
+            expired: 0
+        };
+        
+        for (const [actionId, action] of this.actionTracker.entries()) {
+            // Only remove non-pending actions
+            if (action.status === 'pending') continue;
+            
+            // Remove if older than cutoff
+            if (action.timestamp < cutoffTime) {
+                removedCount[action.status]++;
+                this.actionTracker.delete(actionId);
+                
+                // Also clean from indices if somehow still there
+                if (this.actionIndices.byTarget.has(action.target)) {
+                    this.actionIndices.byTarget.get(action.target).delete(actionId);
+                    // Clean up empty sets
+                    if (this.actionIndices.byTarget.get(action.target).size === 0) {
+                        this.actionIndices.byTarget.delete(action.target);
                     }
                 }
             }
-        });
-        
-        if (staleActions.length > 0) {
-            console.log(`[ACTION:CLEANUP] Removed ${staleActions.length} stale actions`);
         }
+        
+        const total = removedCount.confirmed + removedCount.rejected + removedCount.expired;
+        if (total > 0) {
+            console.log(`[ACTION:PRUNE] Removed ${total} old actions:`, removedCount);
+        }
+    }
+    
+    /**
+     * Find actions by target ID
+     * @param {string} targetId - Target ship ID
+     * @returns {Array} Array of actions sorted by timestamp (newest first)
+     */
+    findActionsByTarget(targetId) {
+        if (!this.actionIndices.byTarget.has(targetId)) return [];
+        
+        const actionIds = this.actionIndices.byTarget.get(targetId);
+        const actions = [];
+        
+        for (const actionId of actionIds) {
+            const action = this.actionTracker.get(actionId);
+            if (action && action.status === 'pending') {
+                actions.push(action);
+            }
+        }
+        
+        // Sort by timestamp (newest first)
+        return actions.sort((a, b) => b.timestamp - a.timestamp);
     }
     
     /**
@@ -1825,12 +1769,6 @@ class CombatManager {
         document.removeEventListener('click', this.handleMouseClick);
         document.removeEventListener('keydown', this.handleKeyDown);
         document.removeEventListener('keyup', this.handleKeyUp);
-        
-        // Clear auto-fire interval
-        if (this.autoFireInterval) {
-            clearInterval(this.autoFireInterval);
-            this.autoFireInterval = null;
-        }
         
         // Hide all debug click boxes first
         this.toggleDebugClickBoxes(false);

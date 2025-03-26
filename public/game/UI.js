@@ -332,7 +332,7 @@ class GameUI {
                     cancelable: true
                 });
                 document.dispatchEvent(spaceUpEvent);
-            }, 50); // 50ms delay, enough to trigger the firing but stop auto-fire
+            }, 50); // 50ms delay, just enough time to ensure the keydown is processed
         });
         buttonsContainer.appendChild(fireButton);
         
