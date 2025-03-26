@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import Sloop from './Sloop.js';
+import SailboatShip from './SailboatShip.js';
 
 /**
  * EnemyShipManager class for managing AI-controlled enemy ships
@@ -117,11 +117,13 @@ class EnemyShipManager {
         console.log('Spawning portal guardian at:', position);
         
         // Create guardian ship with purple color
-        const guardianShip = new Sloop(this.scene, {
+        const guardianShip = new SailboatShip(this.scene, {
             position: position,
             rotation: { y: Math.random() * Math.PI * 2 },
+            modelType: 'sailboat-3',
             speed: 3 + Math.random() * 3, // Same speed as regular enemies (3-6)
             hullColor: 0x800080, // Purple for guardians
+            sailColor: 0x000000, // Black sails
             isEnemy: true,
             maxHealth: 80 + Math.floor(Math.random() * 40), // Same health as regular enemies (80-120)
             cannonDamage: { min: 5, max: 20 }, // Same damage as regular enemies
@@ -270,11 +272,13 @@ class EnemyShipManager {
         const shipType = shipOptions.type || 'sloop';
         
         // Create enemy ship
-        const enemyShip = new Sloop(this.scene, {
+        const enemyShip = new SailboatShip(this.scene, {
             position: position,
             rotation: { y: Math.random() * Math.PI * 2 },
+            modelType: 'sailboat-2',
             speed: 3 + Math.random() * 3, // Random speed between 3-6
             hullColor: 0x8B0000, // Dark red hull for enemy ships
+            sailColor: 0x000000, // Black sails
             isEnemy: true,
             maxHealth: 80 + Math.floor(Math.random() * 40), // Random health between 80-120
             cannonDamage: { min: 5, max: 20 },
@@ -1918,7 +1922,7 @@ class EnemyShipManager {
         console.log(`Creating shipwreck from Firebase with ship type: ${shipType}, looted: ${fbShipwreck.looted}`);
         
         // Create an actual Sloop instance but don't add it to enemy ships
-        const tempShip = new Sloop(this.scene, {
+        const tempShip = new SailboatShip(this.scene, {
             position: new THREE.Vector3(
                 fbShipwreck.position.x,
                 fbShipwreck.position.y,
@@ -1926,16 +1930,9 @@ class EnemyShipManager {
             ),
             // Use damaged/wrecked appearance
             hullColor: 0x8B4513, // Brown
-            type: shipType
+            type: shipType,
+            modelType: 'sailboat-2' // Use the new model type
         });
-        
-        // Explicitly hide the clickable sphere since this is a shipwreck
-        if (tempShip.clickBoxSphere) {
-            tempShip.clickBoxSphere.visible = false;
-        }
-        
-        // Get the ship mesh
-        const shipMesh = tempShip.getObject();
         
         // Store the position for easier access
         const position = new THREE.Vector3(
@@ -1944,45 +1941,81 @@ class EnemyShipManager {
             fbShipwreck.position.z
         );
         
-        // Create a dummy ship object that will be used for the shipwreck
-        const dummyShip = {
-            getPosition: () => position.clone(),
-            getObject: () => shipMesh,
-            shipMesh: shipMesh,
-            type: shipType,
-            isSunk: true // Explicitly mark as sunk to ensure it's skipped in click handling
+        // Create the shipwreck object to add to our shipwrecks array (without waiting for mesh loading)
+        const shipwreckObj = {
+            position: position,
+            id: id,
+            shipType: shipType,
+            createdAt: fbShipwreck.createdAt || Date.now(),
+            looted: fbShipwreck.looted || false,
+            lootedAt: fbShipwreck.lootedAt || null,
+            lootedBy: fbShipwreck.lootedBy || null,
+            loot: fbShipwreck.loot || { gold: 50 + Math.random() * 100, items: [] }
         };
         
-        // Position the ship
-        shipMesh.position.copy(position);
+        // Add the shipwreck to our array right away
+        this.shipwrecks.push(shipwreckObj);
         
-        // Apply shipwreck appearance
-        shipMesh.rotation.z = Math.PI * 0.4; // Capsized rotation
-        
-        // If the ship has materials, modify them to look damaged
-        if (shipMesh.material) {
-            shipMesh.material.color.multiplyScalar(0.7);
-            shipMesh.material.color.r = Math.min(1, shipMesh.material.color.r * 1.5);
-        } else if (shipMesh.children) {
-            shipMesh.children.forEach(child => {
-                if (child.material) {
-                    if (Array.isArray(child.material)) {
-                        child.material.forEach(mat => {
-                            if (mat.color) {
-                                mat.color.multiplyScalar(0.7);
-                                mat.color.r = Math.min(1, mat.color.r * 1.5);
-                            }
-                        });
-                    } else if (child.material.color) {
-                        child.material.color.multiplyScalar(0.7);
-                        child.material.color.r = Math.min(1, child.material.color.r * 1.5);
+        // Set up a listener for when the ship model finishes loading
+        const checkModelLoaded = () => {
+            if (tempShip.isLoading) {
+                // If still loading, check again in a bit
+                setTimeout(checkModelLoaded, 100);
+                return;
+            }
+            
+            // Now that the model is loaded, we can get the ship mesh
+            const shipMesh = tempShip.getObject();
+            
+            // Skip everything else if the mesh didn't load properly
+            if (!shipMesh) {
+                console.error(`Failed to load shipwreck mesh for ${id}`);
+                return;
+            }
+            
+            // Explicitly hide the clickable sphere since this is a shipwreck
+            if (tempShip.clickBoxSphere) {
+                tempShip.clickBoxSphere.visible = false;
+            }
+            
+            // Create a dummy ship object that will be used for the shipwreck
+            const dummyShip = {
+                getPosition: () => position.clone(),
+                getObject: () => shipMesh,
+                shipMesh: shipMesh,
+                type: shipType,
+                isSunk: true // Explicitly mark as sunk to ensure it's skipped in click handling
+            };
+            
+            // Position the ship
+            shipMesh.position.copy(position);
+            
+            // Apply shipwreck appearance
+            shipMesh.rotation.z = Math.PI * 0.4; // Capsized rotation
+            
+            // If the ship has materials, modify them to look damaged
+            if (shipMesh.material) {
+                shipMesh.material.color.multiplyScalar(0.7);
+                shipMesh.material.color.r = Math.min(1, shipMesh.material.color.r * 1.5);
+            } else if (shipMesh.children) {
+                shipMesh.children.forEach(child => {
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(mat => {
+                                if (mat.color) {
+                                    mat.color.multiplyScalar(0.7);
+                                    mat.color.r = Math.min(1, mat.color.r * 1.5);
+                                }
+                            });
+                        } else if (child.material.color) {
+                            child.material.color.multiplyScalar(0.7);
+                            child.material.color.r = Math.min(1, child.material.color.r * 1.5);
+                        }
                     }
-                }
-            });
-        }
-        
-        // Update userData to mark as shipwreck
-        if (shipMesh) {
+                });
+            }
+            
+            // Update userData to mark as shipwreck
             shipMesh.name = `shipwreck-${id}`;
             shipMesh.userData.isShipwreck = true;
             shipMesh.userData.isEnemyShip = false;
@@ -1995,31 +2028,21 @@ class EnemyShipManager {
                 this.scene.userData.shipwreckObjects = [];
             }
             this.scene.userData.shipwreckObjects.push(shipMesh);
-        }
-        
-        // Create the shipwreck object to add to our shipwrecks array
-        const shipwreckObj = {
-            ship: dummyShip,
-            loot: fbShipwreck.loot || { gold: 50 + Math.random() * 100, items: [] },
-            position: position,
-            id: id,
-            shipType: shipType, // Store ship type for reference
-            createdAt: fbShipwreck.createdAt || Date.now(),
-            looted: fbShipwreck.looted || false, // Set looted status from Firebase
-            lootedAt: fbShipwreck.lootedAt || null,
-            lootedBy: fbShipwreck.lootedBy || null
+            
+            // Now update our shipwreck object with the ship reference
+            shipwreckObj.ship = dummyShip;
+            
+            // Add treasure indicator only if not looted
+            if (!shipwreckObj.looted) {
+                this.addTreasureIndicatorToShip(dummyShip);
+            }
+            
+            // Make sure treasure animations are running if needed
+            this.ensureTreasureAnimationLoop();
         };
         
-        // Add treasure indicator only if not looted
-        if (!shipwreckObj.looted) {
-            this.addTreasureIndicatorToShip(dummyShip);
-        }
-        
-        // Add to shipwrecks array
-        this.shipwrecks.push(shipwreckObj);
-        
-        // Make sure treasure animations are running if needed
-        this.ensureTreasureAnimationLoop();
+        // Start checking if model is loaded
+        checkModelLoaded();
         
         return shipwreckObj;
     }

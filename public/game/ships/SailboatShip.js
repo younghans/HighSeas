@@ -41,13 +41,13 @@ class SailboatShip extends BaseShip {
         },
         'ship-3': {
             modelPath: '/assets/models/ships/ship-3.glb',
-            scale: new THREE.Vector3(0.5, 0.5, 0.5),
+            scale: new THREE.Vector3(0.75, 0.75, 0.75),
             waterOffset: -0.3,
             speed: 11
         },
         'ship-4': {
             modelPath: '/assets/models/ships/ship-4.glb',
-            scale: new THREE.Vector3(0.5, 0.5, 0.5),
+            scale: new THREE.Vector3(0.7, 0.7, 0.7),
             waterOffset: -0.4,
             speed: 13
         }
@@ -61,7 +61,7 @@ class SailboatShip extends BaseShip {
      */
     constructor(scene, options = {}) {
         // Get the ship configuration
-        const modelType = options.modelType || 'sailboat-2';
+        const modelType = options.modelType || 'sailboat';
         const shipConfig = SailboatShip.SHIP_CONFIGS[modelType];
         
         if (!shipConfig) {
