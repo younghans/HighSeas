@@ -6,7 +6,7 @@ This directory contains the ship system for the Yarr game. The system is designe
 
 - `BaseShip.js`: The base class for all ships, providing common functionality.
 - `WakeParticleSystem.js`: A class to handle wake particle effects for ships.
-- `Sloop.js`: A small, fast sailing vessel (the default ship type).
+- `SailboatShip.js`: A ship class that uses GLB models for ship representation.
 - `index.js`: Exports all ship types and related classes.
 
 ## Usage
@@ -14,58 +14,46 @@ This directory contains the ship system for the Yarr game. The system is designe
 To use a ship in the game, import it from the ships directory:
 
 ```javascript
-import { Sloop } from './ships/index.js';
+import { SailboatShip } from './ships/index.js';
 
-// Create a new ship
-const ship = new Sloop(scene, {
+// Create a new ship with a specific model type
+const ship = new SailboatShip(scene, {
+    modelType: 'sailboat-3',  // Choose from available model types
     speed: 100,
-    hullColor: 0x8B4513,
-    deckColor: 0xD2B48C,
-    sailColor: 0xFFFFFF
+    waterOffset: -0.3
 });
 ```
 
-## Adding New Ship Types
+## Available Ship Models
 
-To add a new ship type:
+SailboatShip supports various GLB model types:
 
-1. Create a new file for your ship class (e.g., `Galleon.js`).
-2. Extend the `BaseShip` class.
-3. Implement the `createShip()` method to define the ship's appearance.
-4. Add any ship-specific properties or methods.
-5. Update `index.js` to export your new ship type.
+- `sailboat`: Basic sailboat model
+- `sailboat-2`: Alternative sailboat design
+- `sailboat-3`: Advanced sailboat design
+- `ship`: Standard ship model
+- `ship-2`: Alternative ship design
+- `ship-3`: Larger ship model
+- `ship-4`: Advanced ship model
 
-Example:
+Each model has predefined settings for scale, water offset, and default speed.
+
+## Adding New Ship Models
+
+To add a new ship model:
+
+1. Add your GLB model file to `/assets/models/ships/`
+2. Update the `SHIP_CONFIGS` static property in `SailboatShip.js` to include your new model
+
+Example configuration:
 
 ```javascript
-import * as THREE from 'three';
-import BaseShip from './BaseShip.js';
-
-class Galleon extends BaseShip {
-    constructor(scene, options = {}) {
-        // Set default options for a Galleon
-        const galleonOptions = {
-            speed: options.speed || 5, // Slower but larger
-            hullColor: options.hullColor || 0x8B4513,
-            deckColor: options.deckColor || 0xD2B48C,
-            sailColor: options.sailColor || 0xFFFFFF,
-            ...options
-        };
-        
-        // Call the parent constructor
-        super(scene, galleonOptions);
-        
-        // Create the ship mesh
-        this.createShip();
-    }
-    
-    createShip() {
-        // Implement the ship's appearance
-        // ...
-    }
+'new-ship': {
+    modelPath: '/assets/models/ships/new-ship.glb',
+    scale: new THREE.Vector3(0.5, 0.5, 0.5),
+    waterOffset: -0.3,
+    speed: 9
 }
-
-export default Galleon;
 ```
 
 ## Wake Particle System

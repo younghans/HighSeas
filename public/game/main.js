@@ -5,7 +5,7 @@ import { Water } from 'three/addons/objects/Water.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import IslandGenerator from './IslandGenerator.js';
 import World from './world.js';
-import { Sloop, SailboatShip } from './ships/index.js';
+import { SailboatShip } from './ships/index.js';
 import { WindSystem } from './wind.js';
 import MarketStall from './objects/market-stall.js';
 import Dock from './objects/dock.js';

@@ -1,6 +1,6 @@
 // Multiplayer functionality using Firebase Realtime Database
 import * as THREE from 'three';
-import { Sloop, SailboatShip } from './ships/index.js';
+import { SailboatShip } from './ships/index.js';
 
 class MultiplayerManager {
     constructor(options = {}) {
