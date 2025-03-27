@@ -363,9 +363,9 @@ class GameUI {
         disengageButton.addEventListener('click', (event) => {
             event.stopPropagation();
             
-            // Clear target in the CombatManager if available (cleans up debug arrows)
-            if (this.combatManager) {
-                this.combatManager.setTarget(null);
+            // Clear target using the target manager in CombatManager
+            if (this.combatManager && this.combatManager.targetManager) {
+                this.combatManager.targetManager.clearTarget();
             } else {
                 // Fallback if CombatManager reference is not available
                 this.setTarget(null);
@@ -420,25 +420,41 @@ class GameUI {
      * Update target information display
      */
     updateTargetInfo() {
-        if (!this.currentTarget) return;
-        
-        // Update distance if player ship is available
-        if (this.playerShip) {
-            const distance = Math.round(this.playerShip.getPosition().distanceTo(this.currentTarget.getPosition()));
-            this.targetDistanceText.textContent = `Distance: ${distance}m`;
-            
-            // Update range indicator
-            if (distance <= this.playerShip.cannonRange) {
-                this.targetRangeIndicator.textContent = 'IN RANGE';
-                this.targetRangeIndicator.style.color = '#4CAF50'; // Green
-            } else {
-                this.targetRangeIndicator.textContent = 'OUT OF RANGE';
-                this.targetRangeIndicator.style.color = '#F44336'; // Red
-            }
+        // Ensure currentTarget exists
+        if (!this.currentTarget || !this.targetDistanceText || !this.targetRangeIndicator) {
+            return;
         }
         
-        // Check if target is sunk
-        if (this.currentTarget.isSunk) {
+        try {
+            // Update distance if player ship is available
+            if (this.playerShip && typeof this.playerShip.getPosition === 'function' && 
+                typeof this.currentTarget.getPosition === 'function') {
+                
+                const playerPos = this.playerShip.getPosition();
+                const targetPos = this.currentTarget.getPosition();
+                
+                if (playerPos && targetPos) {
+                    const distance = Math.round(playerPos.distanceTo(targetPos));
+                    this.targetDistanceText.textContent = `Distance: ${distance}m`;
+                    
+                    // Update range indicator
+                    if (distance <= this.playerShip.cannonRange) {
+                        this.targetRangeIndicator.textContent = 'IN RANGE';
+                        this.targetRangeIndicator.style.color = '#4CAF50'; // Green
+                    } else {
+                        this.targetRangeIndicator.textContent = 'OUT OF RANGE';
+                        this.targetRangeIndicator.style.color = '#F44336'; // Red
+                    }
+                }
+            }
+            
+            // Check if target is sunk, with null check
+            if (this.currentTarget && this.currentTarget.isSunk === true) {
+                this.setTarget(null);
+            }
+        } catch (error) {
+            console.error('Error in updateTargetInfo:', error);
+            // If there was an error, safely clear the target
             this.setTarget(null);
         }
     }
@@ -1479,10 +1495,16 @@ class GameUI {
         
         // Update target info if there is a current target
         if (this.currentTarget) {
-            this.updateTargetInfo();
-            
-            // If target is sunk, clear target
-            if (this.currentTarget.isSunk) {
+            try {
+                this.updateTargetInfo();
+                
+                // If target is sunk, clear target - with proper null check
+                if (this.currentTarget && this.currentTarget.isSunk) {
+                    this.setTarget(null);
+                }
+            } catch (error) {
+                console.error('Error updating target info:', error);
+                // If there's any error with target info, clear the target
                 this.setTarget(null);
             }
         }

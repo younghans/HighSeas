@@ -21,8 +21,14 @@ class BaseShip {
         this.rotation = new THREE.Euler(0, 0, 0);
         this.targetPosition = null;
         this.isMoving = false;
+        this.hasMovedBefore = false; // Track if ship has ever started moving before
         this.shipMesh = null;
         this.targetIslandPoint = null;
+        
+        // Add rotation properties for smooth turning
+        this.targetRotation = null;
+        this.rotationSpeed = options.rotationSpeed || 2.0; // Rotation speed in radians per second
+        this.minRotationToMove = options.minRotationToMove || (Math.PI / 8); // Min rotation before starting to move
         
         // Add transition properties for smooth bobbing
         this.bobTransition = 0; // 0 = stationary, 1 = moving
@@ -98,18 +104,27 @@ class BaseShip {
         this.targetPosition = targetPos.clone();
         this.targetPosition.y = this.waterOffset; // Use water offset instead of 0
         
+        // Calculate distance to new target
+        const distanceToTarget = this.shipMesh.position.distanceTo(this.targetPosition);
+        
         // Calculate direction to target
         const direction = new THREE.Vector3()
             .subVectors(this.targetPosition, this.shipMesh.position)
             .normalize();
         
-        // Set ship rotation to face the target
+        // Calculate target rotation to face the target
         const newRotationY = Math.atan2(direction.x, direction.z);
-        this.shipMesh.rotation.y = newRotationY;
         
-        // Sync internal rotation with mesh rotation
-        this.rotation.y = newRotationY;
+        // Set target rotation, but don't immediately rotate the ship
+        this.targetRotation = newRotationY;
         
+        // For very close targets (<5 units away), force the ship to be stationary during rotation
+        if (distanceToTarget < 3) {
+            // Mark as not previously moved to force rotation before movement
+            this.hasMovedBefore = false;
+        }
+        
+        // Ship is now moving, regardless of whether it was before
         this.isMoving = true;
     }
     
@@ -132,6 +147,33 @@ class BaseShip {
             return;
         }
         
+        // Handle rotation smoothly
+        if (this.targetRotation !== null && this.shipMesh) {
+            // Calculate the shortest angle difference (handles wrap-around)
+            let angleDiff = this.targetRotation - this.shipMesh.rotation.y;
+            
+            // Normalize to range [-PI, PI]
+            while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+            while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+            
+            // Calculate rotation step based on rotation speed and delta time
+            const rotationStep = this.rotationSpeed * delta;
+            
+            // Apply rotation step (clamped to the angle difference)
+            if (Math.abs(angleDiff) > 0.01) { // Small threshold to avoid jitter
+                // Use min to avoid overshooting
+                const step = Math.min(rotationStep, Math.abs(angleDiff)) * Math.sign(angleDiff);
+                this.shipMesh.rotation.y += step;
+                
+                // Sync internal rotation with mesh rotation
+                this.rotation.y = this.shipMesh.rotation.y;
+            } else {
+                // Reached target rotation
+                this.shipMesh.rotation.y = this.targetRotation;
+                this.rotation.y = this.targetRotation;
+            }
+        }
+        
         // Update movement if we have a target
         if (this.isMoving && this.targetPosition) {
             // Calculate direction to target
@@ -142,44 +184,81 @@ class BaseShip {
             // Check if we're close enough to target
             const distanceToTarget = this.shipMesh.position.distanceTo(this.targetPosition);
             
+            // Calculate the angle difference between current rotation and target rotation
+            const currentForward = new THREE.Vector3(0, 0, 1).applyEuler(this.shipMesh.rotation);
+            const angleDiff = Math.acos(Math.min(1, Math.max(-1, currentForward.dot(direction))));
+            
             if (distanceToTarget > 0.1) {
-                // Move ship at a constant speed
-                const moveSpeed = this.speed * delta;
+                // For the first movement or for very close targets, wait until properly aligned
+                const isVeryCloseTarget = distanceToTarget < 5;
+                const needToRotateFirst = !this.hasMovedBefore || isVeryCloseTarget;
                 
-                // Calculate new position
-                const newPosition = this.shipMesh.position.clone().add(direction.multiplyScalar(moveSpeed));
-                
-                // Ensure Y position stays at water level
-                newPosition.y = this.waterOffset;
-                
-                // Apply new position
-                this.shipMesh.position.copy(newPosition);
-                
-                // Update internal position to match mesh position
-                this.position.copy(this.shipMesh.position);
-                
-                // Smoothly transition to moving bobbing state
-                this.bobTransition = Math.min(1, this.bobTransition + delta * this.bobTransitionSpeed);
-                
-                // Add bobbing motion with smooth transition
-                const movingBobX = Math.sin(time * 2) * 0.05;
-                const movingBobZ = Math.sin(time * 1.5) * 0.05;
-                const stationaryBobX = Math.sin(time * 1.5) * 0.03;
-                const stationaryBobZ = Math.sin(time * 1.2) * 0.03;
-                
-                this.shipMesh.rotation.x = stationaryBobX + (movingBobX - stationaryBobX) * this.bobTransition;
-                this.shipMesh.rotation.z = stationaryBobZ + (movingBobZ - stationaryBobZ) * this.bobTransition;
-                
-                // Sync internal rotation with mesh rotation
-                this.rotation.x = this.shipMesh.rotation.x;
-                this.rotation.z = this.shipMesh.rotation.z;
-                
-                // Emit wake particles when moving
-                if (this.wakeParticleSystem) {
-                    this.wakeParticleSystem.emitParticles(delta);
+                if (needToRotateFirst && angleDiff > this.minRotationToMove) {
+                    // Don't move yet, just continue rotating
+                    
+                    // If we're very close to the target, we need better alignment
+                    if (isVeryCloseTarget && angleDiff < this.minRotationToMove * 2) {
+                        // Set a stricter rotation threshold for close targets
+                        this.minRotationToMove = 0.05; // Much tighter angle requirement
+                    }
+                } else {
+                    // Always move the ship forward along its current heading while rotating
+                    // Move ship at a constant speed
+                    const moveSpeed = this.speed * delta;
+                    
+                    // Calculate new position - use current rotation for movement, not the target direction
+                    // This makes the ship follow its nose rather than strafe
+                    const forward = new THREE.Vector3(0, 0, 1).applyEuler(this.shipMesh.rotation);
+                    const newPosition = this.shipMesh.position.clone().add(forward.multiplyScalar(moveSpeed));
+                    
+                    // Ensure Y position stays at water level
+                    newPosition.y = this.waterOffset;
+                    
+                    // Apply new position
+                    this.shipMesh.position.copy(newPosition);
+                    
+                    // Update internal position to match mesh position
+                    this.position.copy(this.shipMesh.position);
+                    
+                    // Now the ship has moved before
+                    this.hasMovedBefore = true;
+                    
+                    // Smoothly transition to moving bobbing state
+                    this.bobTransition = Math.min(1, this.bobTransition + delta * this.bobTransitionSpeed);
+                    
+                    // Add bobbing motion with smooth transition
+                    const movingBobX = Math.sin(time * 2) * 0.05;
+                    const movingBobZ = Math.sin(time * 1.5) * 0.05;
+                    const stationaryBobX = Math.sin(time * 1.5) * 0.03;
+                    const stationaryBobZ = Math.sin(time * 1.2) * 0.03;
+                    
+                    this.shipMesh.rotation.x = stationaryBobX + (movingBobX - stationaryBobX) * this.bobTransition;
+                    this.shipMesh.rotation.z = stationaryBobZ + (movingBobZ - stationaryBobZ) * this.bobTransition;
+                    
+                    // Sync internal rotation with mesh rotation
+                    this.rotation.x = this.shipMesh.rotation.x;
+                    this.rotation.z = this.shipMesh.rotation.z;
+                    
+                    // Emit wake particles when moving
+                    if (this.wakeParticleSystem) {
+                        this.wakeParticleSystem.emitParticles(delta);
+                    }
+                    
+                    // Continuously update target rotation to face the target while moving
+                    this.targetRotation = Math.atan2(direction.x, direction.z);
+                    
+                    // If we're too far off course, do a course correction check
+                    // Adjust speed based on how far off we are from our target direction
+                    if (angleDiff > Math.PI / 4) {
+                        // We're very off course, reduce speed to help with turning
+                        this.shipMesh.position.lerp(this.position.clone().add(direction.multiplyScalar(moveSpeed * 0.3)), 0.05);
+                    }
                 }
             } else {
                 this.isMoving = false;
+                this.targetRotation = null;
+                // Reset minRotationToMove to default value for future movements
+                this.minRotationToMove = Math.PI / 8;
                 
                 // Ensure final position has correct Y value
                 if (this.shipMesh.position.y !== this.waterOffset) {
@@ -294,12 +373,17 @@ class BaseShip {
         
         console.log('[DEBUG:SINK] Starting sink process for ship:', {
             isEnemy: this.isEnemy,
+            isMultiplayerShip: this.isMultiplayerShip || false,
+            shipType: this.type,
+            id: this.id,
             currentHealth: this.currentHealth,
             maxHealth: this.maxHealth,
             isSunk: this.isSunk,
             hasShipMesh: !!this.shipMesh,
+            shipMeshType: this.shipMesh ? this.shipMesh.type : 'none',
             hasHealthBar: !!this.healthBarContainer,
-            hasWakeSystem: !!this.wakeParticleSystem
+            hasWakeSystem: !!this.wakeParticleSystem,
+            isPVP: window.combatManager ? (window.combatManager.isPVPCombat || false) : false
         });
         
         this.isSunk = true;
@@ -337,7 +421,14 @@ class BaseShip {
         
         // Trigger UI update immediately if this is the player ship
         if (!this.isEnemy && window.gameUI) {
-            window.gameUI.update();
+            try {
+                console.log('[DEBUG:SINK] Updating UI for player ship');
+                window.gameUI.update();
+                console.log('[DEBUG:SINK] UI update completed');
+            } catch (error) {
+                console.error('[DEBUG:SINK] Error updating UI:', error);
+                // Continue with sink process despite UI error
+            }
         }
         
         // Stop wake particles if they exist
@@ -353,8 +444,14 @@ class BaseShip {
         }
         
         // Convert to shipwreck
-        console.log('[DEBUG:SINK] Converting ship to shipwreck');
-        this.convertToShipwreck();
+        console.log('[DEBUG:SINK] About to call convertToShipwreck()');
+        
+        try {
+            this.convertToShipwreck();
+            console.log('[DEBUG:SINK] Successfully called convertToShipwreck()');
+        } catch (error) {
+            console.error('[DEBUG:SINK] Error during convertToShipwreck():', error);
+        }
         
         // Trigger any sink-specific behavior
         this.onSink();
@@ -494,6 +591,12 @@ class BaseShip {
         this.resetHealth();
         this.isSunk = false; // Explicitly reset sunk state
         
+        // Reset movement state
+        this.isMoving = false;
+        this.targetPosition = null;
+        this.targetRotation = null;
+        this.hasMovedBefore = false; // Reset movement history
+
         // Clear health bar reference since we'll be removing the ship mesh
         console.log('[DEBUG:RESPAWN] Clearing health bar references');
         this.healthBarContainer = null;
@@ -620,69 +723,126 @@ class BaseShip {
      * This method changes the appearance of the ship to look like a shipwreck
      */
     convertToShipwreck() {
+        console.log('[DEBUG:SHIPWRECK] Starting convertToShipwreck for ship:', {
+            isEnemy: this.isEnemy,
+            isMultiplayerShip: this.isMultiplayerShip || false,
+            shipType: this.type,
+            id: this.id,
+            hasShipMesh: !!this.shipMesh,
+            shipMeshType: this.shipMesh ? this.shipMesh.type : 'none',
+            shipMeshChildren: this.shipMesh ? (this.shipMesh.children ? this.shipMesh.children.length : 0) : 0,
+            shipMeshRotation: this.shipMesh ? JSON.stringify({
+                x: this.shipMesh.rotation.x,
+                y: this.shipMesh.rotation.y,
+                z: this.shipMesh.rotation.z
+            }) : 'no mesh',
+            shipMeshPosition: this.shipMesh ? JSON.stringify({
+                x: this.shipMesh.position.x,
+                y: this.shipMesh.position.y,
+                z: this.shipMesh.position.z
+            }) : 'no mesh',
+            playerShipMatch: window.combatManager ? (this === window.combatManager.playerShip) : false,
+            isPVP: window.combatManager ? (window.combatManager.isPVPCombat || false) : false
+        });
+
         // If the ship mesh exists, modify it to look like a shipwreck
         if (this.shipMesh) {
-            // Store original rotation
-            const originalRotationZ = this.shipMesh.rotation.z;
-            const targetRotationZ = Math.PI * 0.4; // Target capsized rotation
+            console.log('[DEBUG:SHIPWRECK] Ship mesh exists, starting capsizing animation');
             
-            // Store original position
-            const originalPositionY = this.shipMesh.position.y;
-            const targetPositionY = originalPositionY - 0.2; // Target position adjustment
-            
-            // Store original material colors before modifying them
-            const originalMaterials = this.captureOriginalMaterials();
-            
-            // Animation parameters
-            const animationDuration = 5000; // 5 seconds
-            const startTime = Date.now();
-            
-            // Start animation
-            const animateCapsizing = () => {
-                const elapsedTime = Date.now() - startTime;
-                const progress = Math.min(1, elapsedTime / animationDuration);
+            try {
+                // Store original rotation
+                const originalRotationZ = this.shipMesh.rotation.z;
+                const targetRotationZ = Math.PI * 0.4; // Target capsized rotation
                 
-                // Cubic ease-out for more natural motion
-                const easedProgress = 1 - Math.pow(1 - progress, 3);
+                // Store original position
+                const originalPositionY = this.shipMesh.position.y;
+                const targetPositionY = originalPositionY - 0.2; // Target position adjustment
                 
-                // Update rotation
-                this.shipMesh.rotation.z = originalRotationZ + (targetRotationZ - originalRotationZ) * easedProgress;
+                console.log('[DEBUG:SHIPWRECK] Animation parameters:', {
+                    originalRotationZ,
+                    targetRotationZ,
+                    originalPositionY,
+                    targetPositionY
+                });
                 
-                // Sync internal rotation with mesh rotation
-                this.rotation.z = this.shipMesh.rotation.z;
+                // Store original material colors before modifying them
+                const originalMaterials = this.captureOriginalMaterials();
+                console.log('[DEBUG:SHIPWRECK] Captured original materials');
                 
-                // Update position
-                this.shipMesh.position.y = originalPositionY + (targetPositionY - originalPositionY) * easedProgress;
+                // Animation parameters
+                const animationDuration = 5000; // 5 seconds
+                const startTime = Date.now();
                 
-                // Sync internal position with mesh position
-                this.position.y = this.shipMesh.position.y;
-                
-                // Gradually update material colors based on the same progress
-                this.updateMaterialColors(originalMaterials, easedProgress);
-                
-                // Continue animation if not complete
-                if (progress < 1) {
-                    requestAnimationFrame(animateCapsizing);
-                } else {
-                    // If this is the player ship, notify CombatManager to schedule respawn
-                    // Check if this ship is the player ship by comparing with playerShip reference in combatManager
-                    if (window.combatManager && this === window.combatManager.playerShip) {
-                        console.log('Player ship sunk, scheduling respawn');
-                        // Signal combat manager to start respawn timer
-                        window.combatManager.schedulePlayerRespawn();
-                    } 
-                    // Only add treasure indicator for enemy ships, not for player ships
-                    else if (this.isEnemy) {
-                        // Add treasure indicator once fully capsized
-                        this.addTreasureIndicator();
+                // Start animation
+                const animateCapsizing = () => {
+                    const elapsedTime = Date.now() - startTime;
+                    const progress = Math.min(1, elapsedTime / animationDuration);
+                    
+                    // Cubic ease-out for more natural motion
+                    const easedProgress = 1 - Math.pow(1 - progress, 3);
+                    
+                    if (progress === 0) {
+                        console.log('[DEBUG:SHIPWRECK] Starting animation frame');
                     }
                     
-                    console.log('Ship converted to shipwreck');
-                }
-            };
-            
-            // Start the animation
-            animateCapsizing();
+                    // Update rotation
+                    this.shipMesh.rotation.z = originalRotationZ + (targetRotationZ - originalRotationZ) * easedProgress;
+                    
+                    // Sync internal rotation with mesh rotation
+                    this.rotation.z = this.shipMesh.rotation.z;
+                    
+                    // Update position
+                    this.shipMesh.position.y = originalPositionY + (targetPositionY - originalPositionY) * easedProgress;
+                    
+                    // Sync internal position with mesh position
+                    this.position.y = this.shipMesh.position.y;
+                    
+                    // Gradually update material colors based on the same progress
+                    this.updateMaterialColors(originalMaterials, easedProgress);
+                    
+                    // Log progress at key points
+                    if (progress === 0 || progress === 0.25 || progress === 0.5 || progress === 0.75 || progress === 1) {
+                        console.log(`[DEBUG:SHIPWRECK] Animation progress: ${Math.round(progress * 100)}%, rotation.z: ${this.shipMesh.rotation.z.toFixed(2)}, position.y: ${this.shipMesh.position.y.toFixed(2)}`);
+                    }
+                    
+                    // Continue animation if not complete
+                    if (progress < 1) {
+                        requestAnimationFrame(animateCapsizing);
+                    } else {
+                        console.log('[DEBUG:SHIPWRECK] Animation complete with final values:', {
+                            rotationZ: this.shipMesh.rotation.z,
+                            positionY: this.shipMesh.position.y
+                        });
+                        
+                        // If this is the player ship, notify CombatManager to schedule respawn
+                        // Check if this ship is the player ship by comparing with playerShip reference in combatManager
+                        if (window.combatManager && this === window.combatManager.playerShip) {
+                            console.log('[DEBUG:SHIPWRECK] This is the player ship, scheduling respawn');
+                            // Signal combat manager to start respawn timer
+                            window.combatManager.schedulePlayerRespawn();
+                        } else {
+                            console.log('[DEBUG:SHIPWRECK] This is NOT the player ship:', {
+                                isPlayerShip: window.combatManager ? this === window.combatManager.playerShip : false,
+                                hasCombatManager: !!window.combatManager,
+                                shipId: this.id,
+                                playerShipId: window.combatManager ? window.combatManager.playerShip?.id : 'unknown'
+                            });
+                        }
+                        
+                        console.log('[DEBUG:SHIPWRECK] Ship converted to shipwreck');
+                    }
+                };
+                
+                console.log('[DEBUG:SHIPWRECK] About to start animation');
+                // Start the animation
+                animateCapsizing();
+                console.log('[DEBUG:SHIPWRECK] Animation started');
+                
+            } catch (error) {
+                console.error('[DEBUG:SHIPWRECK] Error during shipwreck animation setup:', error);
+            }
+        } else {
+            console.error('[DEBUG:SHIPWRECK] Ship mesh does not exist, cannot create shipwreck animation');
         }
     }
     
@@ -749,137 +909,6 @@ class BaseShip {
             material.color.g = originalColor.g + (targetColor.g - originalColor.g) * progress;
             material.color.b = originalColor.b + (targetColor.b - originalColor.b) * progress;
         });
-    }
-    
-    /**
-     * Add a visual treasure indicator above the shipwreck
-     */
-    addTreasureIndicator() {
-        if (!this.scene || !this.shipMesh) return;
-        
-        // Create a treasure chest with a more distinctive appearance
-        const chestGeometry = new THREE.BoxGeometry(1.5, 1, 1);
-        const chestMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); // Gold color
-        const treasureChest = new THREE.Mesh(chestGeometry, chestMaterial);
-        
-        // Add a glow effect by creating a slightly larger, semi-transparent box
-        const glowGeometry = new THREE.BoxGeometry(1.8, 1.3, 1.3);
-        const glowMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0xFFFF00, 
-            transparent: true, 
-            opacity: 0.3 
-        });
-        const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-        treasureChest.add(glowMesh);
-        
-        // Position above the shipwreck
-        treasureChest.position.copy(this.shipMesh.position);
-        treasureChest.position.y = 4; // Float above the ship for better visibility
-        
-        // Add animation data
-        treasureChest.userData = {
-            baseY: treasureChest.position.y,
-            phase: Math.random() * Math.PI * 2, // Random starting phase
-            bobSpeed: 1 + Math.random() * 0.5,  // Random bob speed
-            bobHeight: 0.5 + Math.random() * 0.3 // Increased bob height for visibility
-        };
-        
-        // Create a "LOOT" text label
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        canvas.width = 128;
-        canvas.height = 64;
-        context.fillStyle = 'rgba(0, 0, 0, 0)';
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Draw text
-        context.font = 'bold 32px Arial';
-        context.textAlign = 'center';
-        context.textBaseline = 'middle';
-        context.fillStyle = 'white';
-        context.strokeStyle = 'black';
-        context.lineWidth = 4;
-        context.strokeText('LOOT', canvas.width/2, canvas.height/2);
-        context.fillText('LOOT', canvas.width/2, canvas.height/2);
-        
-        // Create texture from canvas
-        const texture = new THREE.CanvasTexture(canvas);
-        const labelMaterial = new THREE.SpriteMaterial({ 
-            map: texture,
-            transparent: true
-        });
-        const label = new THREE.Sprite(labelMaterial);
-        label.scale.set(5, 2.5, 1);
-        label.position.y = 2; // Position above the treasure chest
-        
-        // Add label to treasure chest
-        treasureChest.add(label);
-        
-        // Add to scene
-        this.scene.add(treasureChest);
-        
-        // Store reference
-        this.treasureIndicator = treasureChest;
-        
-        // Set up animation
-        if (!this.scene.userData.treasureIndicators) {
-            this.scene.userData.treasureIndicators = [];
-        }
-        
-        // Add to animation list
-        this.scene.userData.treasureIndicators.push(treasureChest);
-        
-        // Make sure the animation loop is running
-        if (!this.scene.userData.treasureAnimationId) {
-            const animateTreasures = () => {
-                const time = Date.now() * 0.001; // Convert to seconds
-                
-                if (this.scene.userData.treasureIndicators && this.scene.userData.treasureIndicators.length > 0) {
-                    // Animate all treasure indicators
-                    this.scene.userData.treasureIndicators.forEach(indicator => {
-                        if (indicator && indicator.userData) {
-                            // Bob up and down
-                            indicator.position.y = indicator.userData.baseY + 
-                                Math.sin(time * indicator.userData.bobSpeed + indicator.userData.phase) * 
-                                indicator.userData.bobHeight;
-                            
-                            // Slowly rotate
-                            indicator.rotation.y += 0.02;
-                            
-                            // Make the glow pulse
-                            if (indicator.children && indicator.children[0]) {
-                                const glow = indicator.children[0];
-                                if (glow.material) {
-                                    glow.material.opacity = 0.3 + Math.sin(time * 2) * 0.2;
-                                }
-                            }
-                        }
-                    });
-                    
-                    // Continue the animation loop
-                    this.scene.userData.treasureAnimationId = requestAnimationFrame(animateTreasures);
-                } else {
-                    // No indicators left, clear the animation ID
-                    this.scene.userData.treasureAnimationId = null;
-                }
-            };
-            
-            // Start animation loop
-            this.scene.userData.treasureAnimationId = requestAnimationFrame(animateTreasures);
-            console.log('Started treasure animation loop');
-        }
-    }
-    
-    /**
-     * Get the forward vector of the ship
-     * @returns {THREE.Vector3} The normalized forward vector
-     */
-    getForwardVector() {
-        // Forward is positive Z in our ship's coordinate system (opposite of three.js standard)
-        const forward = new THREE.Vector3(0, 0, 1);
-        // Apply the ship's rotation
-        forward.applyEuler(this.shipMesh.rotation);
-        return forward;
     }
     
     /**
@@ -984,7 +1013,7 @@ class BaseShip {
         
         // Calculate radius based on the larger of length or width, with a 100% increase (200% size)
         const maxDimension = Math.max(this.shipDimensions.length, this.shipDimensions.width);
-        const radius = maxDimension; // 1.0 = 2.0/2 (200% size, divide by 2 for radius)
+        const radius = maxDimension * 0.5; // 1.0 = 2.0/2 (200% size, divide by 2 for radius)
         
         // Create sphere geometry and material
         const geometry = new THREE.SphereGeometry(radius, 16, 16);
@@ -1118,6 +1147,144 @@ class BaseShip {
         }
         
         console.log('Ship cleanup complete');
+    }
+    
+    /**
+     * Add a visual treasure indicator above the shipwreck
+     */
+    addTreasureIndicator() {
+        if (!this.scene || !this.shipMesh) return;
+        
+        // Create a treasure chest with a more distinctive appearance
+        const chestGeometry = new THREE.BoxGeometry(1.5, 1, 1);
+        const chestMaterial = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); // Gold color
+        const treasureChest = new THREE.Mesh(chestGeometry, chestMaterial);
+        
+        // Add a glow effect by creating a slightly larger, semi-transparent box
+        const glowGeometry = new THREE.BoxGeometry(1.8, 1.3, 1.3);
+        const glowMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xFFFF00, 
+            transparent: true, 
+            opacity: 0.3 
+        });
+        const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+        treasureChest.add(glowMesh);
+        
+        // Position above the shipwreck
+        treasureChest.position.copy(this.shipMesh.position);
+        treasureChest.position.y = 4; // Float above the ship for better visibility
+        
+        // Add animation data
+        treasureChest.userData = {
+            baseY: treasureChest.position.y,
+            phase: Math.random() * Math.PI * 2, // Random starting phase
+            bobSpeed: 1 + Math.random() * 0.5,  // Random bob speed
+            bobHeight: 0.5 + Math.random() * 0.3 // Increased bob height for visibility
+        };
+        
+        // Create a "LOOT" text label
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = 128;
+        canvas.height = 64;
+        context.fillStyle = 'rgba(0, 0, 0, 0)';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw text
+        context.font = 'bold 32px Arial';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillStyle = 'white';
+        context.strokeStyle = 'black';
+        context.lineWidth = 4;
+        context.strokeText('LOOT', canvas.width/2, canvas.height/2);
+        context.fillText('LOOT', canvas.width/2, canvas.height/2);
+        
+        // Create texture from canvas
+        const texture = new THREE.CanvasTexture(canvas);
+        const labelMaterial = new THREE.SpriteMaterial({ 
+            map: texture,
+            transparent: true
+        });
+        const label = new THREE.Sprite(labelMaterial);
+        label.scale.set(5, 2.5, 1);
+        label.position.y = 2; // Position above the treasure chest
+        
+        // Add label to treasure chest
+        treasureChest.add(label);
+        
+        // Add to scene
+        this.scene.add(treasureChest);
+        
+        // Store reference
+        this.treasureIndicator = treasureChest;
+        
+        // Set up animation
+        if (!this.scene.userData.treasureIndicators) {
+            this.scene.userData.treasureIndicators = [];
+        }
+        
+        // Add to animation list
+        this.scene.userData.treasureIndicators.push(treasureChest);
+        
+        // Make sure the animation loop is running
+        if (!this.scene.userData.treasureAnimationId) {
+            const animateTreasures = () => {
+                const time = Date.now() * 0.001; // Convert to seconds
+                
+                if (this.scene.userData.treasureIndicators && this.scene.userData.treasureIndicators.length > 0) {
+                    // Animate all treasure indicators
+                    this.scene.userData.treasureIndicators.forEach(indicator => {
+                        if (indicator && indicator.userData) {
+                            // Bob up and down
+                            indicator.position.y = indicator.userData.baseY + 
+                                Math.sin(time * indicator.userData.bobSpeed + indicator.userData.phase) * 
+                                indicator.userData.bobHeight;
+                            
+                            // Slowly rotate
+                            indicator.rotation.y += 0.02;
+                            
+                            // Make the glow pulse
+                            if (indicator.children && indicator.children[0]) {
+                                const glow = indicator.children[0];
+                                if (glow.material) {
+                                    glow.material.opacity = 0.3 + Math.sin(time * 2) * 0.2;
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Continue the animation loop
+                    this.scene.userData.treasureAnimationId = requestAnimationFrame(animateTreasures);
+                } else {
+                    // No indicators left, clear the animation ID
+                    this.scene.userData.treasureAnimationId = null;
+                }
+            };
+            
+            // Start animation loop
+            this.scene.userData.treasureAnimationId = requestAnimationFrame(animateTreasures);
+            console.log('Started treasure animation loop');
+        }
+    }
+    
+    /**
+     * Get the forward vector of the ship
+     * @returns {THREE.Vector3} The normalized forward vector
+     */
+    getForwardVector() {
+        // Forward is positive Z in our ship's coordinate system (opposite of three.js standard)
+        const forward = new THREE.Vector3(0, 0, 1);
+        
+        // Apply the ship's rotation if shipMesh exists
+        if (this.shipMesh && this.shipMesh.rotation) {
+            forward.applyEuler(this.shipMesh.rotation);
+        } else if (this.rotation) {
+            // Fallback to using the ship's internal rotation if shipMesh is not available
+            forward.applyEuler(this.rotation);
+        }
+        
+        return forward;
     }
 }
 

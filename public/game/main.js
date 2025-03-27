@@ -671,12 +671,17 @@ function startGameWithShip() {
         scene: scene,
         playerShip: ship,
         maxEnemyShips: 5,
-        spawnRadius: 800,
-        worldSize: 2000,
+        spawnRadius: 500,
+        worldSize: 1000,
         aggroRange: 150,
-        combatManager: combatManager,
+        lootableRange: 20,
         combatService: combatService // Now combatService is properly initialized
     });
+    
+    // Set combat service explicitly to ensure it gets passed to ShipwreckManager
+    if (enemyShipManager && combatService) {
+        enemyShipManager.setCombatService(combatService);
+    }
     
     // Update CombatManager with enemy ship manager reference
     if (combatManager && enemyShipManager) {
@@ -685,7 +690,7 @@ function startGameWithShip() {
     
     // Make sure no target is selected at game start
     if (combatManager && gameUI) {
-        combatManager.setTarget(null);
+        // No need to explicitly clear target, TargetManager already clears it by default
         gameUI.setTarget(null);
         
         // Update the GameUI with a reference to the combatManager

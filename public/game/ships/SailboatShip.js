@@ -13,43 +13,50 @@ class SailboatShip extends BaseShip {
             modelPath: '/assets/models/ships/sailboat-2.glb',
             scale: new THREE.Vector3(1.0, 1.0, 1.0),
             waterOffset: -0.2,
-            speed: 10
+            speed: 10,
+            rotationSpeed: 2.5
         },
         'sailboat-3': {
             modelPath: '/assets/models/ships/sailboat-3.glb',
             scale: new THREE.Vector3(1.0, 1.0, 1.0),
             waterOffset: -0.3,
-            speed: 12
+            speed: 12,
+            rotationSpeed: 2.7
         },
         'sailboat': {
             modelPath: '/assets/models/ships/sailboat.glb',
             scale: new THREE.Vector3(1.0, 1.0, 1.0),
             waterOffset: -0.1,
-            speed: 8
+            speed: 8,
+            rotationSpeed: 2.2
         },
         'ship': {
             modelPath: '/assets/models/ships/ship.glb',
             scale: new THREE.Vector3(0.5, 0.5, 0.5),
             waterOffset: -0.7,
-            speed: 7
+            speed: 7,
+            rotationSpeed: 1.2
         },
         'ship-2': {
             modelPath: '/assets/models/ships/ship-2.glb',
             scale: new THREE.Vector3(0.5, 0.5, 0.5),
             waterOffset: -0.15,
-            speed: 9
+            speed: 9,
+            rotationSpeed: 1.5
         },
         'ship-3': {
             modelPath: '/assets/models/ships/ship-3.glb',
             scale: new THREE.Vector3(0.75, 0.75, 0.75),
             waterOffset: -0.3,
-            speed: 11
+            speed: 11,
+            rotationSpeed: 1.8
         },
         'ship-4': {
             modelPath: '/assets/models/ships/ship-4.glb',
             scale: new THREE.Vector3(0.7, 0.7, 0.7),
             waterOffset: -0.4,
-            speed: 13
+            speed: 13,
+            rotationSpeed: 2.0
         }
     };
 
@@ -61,7 +68,7 @@ class SailboatShip extends BaseShip {
      */
     constructor(scene, options = {}) {
         // Get the ship configuration
-        const modelType = options.modelType || 'sailboat';
+        const modelType = options.modelType || 'ship-3';
         const shipConfig = SailboatShip.SHIP_CONFIGS[modelType];
         
         if (!shipConfig) {
@@ -75,6 +82,7 @@ class SailboatShip extends BaseShip {
             deckColor: options.deckColor || 0xD2B48C,
             sailColor: options.sailColor || 0xFFFFFF,
             waterOffset: options.waterOffset || (shipConfig?.waterOffset || -0.5),
+            rotationSpeed: options.rotationSpeed || (shipConfig?.rotationSpeed || 2.0),
             ...options
         };
         

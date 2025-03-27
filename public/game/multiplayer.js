@@ -384,8 +384,11 @@ class MultiplayerManager {
                 return;
             }
             
-            // Update health if it changed
-            if (playerData.health !== undefined && otherPlayerShip.currentHealth !== playerData.health) {
+            // Check if there's a pending combat action against this player before updating health
+            const hasPendingActions = this.checkPendingCombatActions(playerId);
+
+            // Update health if it changed and there are no pending combat actions
+            if (playerData.health !== undefined && otherPlayerShip.currentHealth !== playerData.health && !hasPendingActions) {
                 this.debug(`Updating health for player ${playerData.displayName || playerId}: ${otherPlayerShip.currentHealth} → ${playerData.health}`);
                 otherPlayerShip.currentHealth = playerData.health;
                 
@@ -422,6 +425,8 @@ class MultiplayerManager {
                         this.debug(`Reset rotation for respawned player ${playerData.displayName || playerId}`);
                     }
                 }
+            } else if (hasPendingActions) {
+                console.log(`[MULTIPLAYER] Ignoring health update from Firebase for player ${playerData.displayName || playerId} due to pending combat actions`);
             }
             
             this.updatePlayerShip(playerData);
@@ -429,6 +434,23 @@ class MultiplayerManager {
             // If ship doesn't exist but player is online, create it
             this.createPlayerShip(playerData);
         }
+    }
+    
+    /**
+     * Check if there are pending combat actions against a player
+     * @param {string} playerId - ID of the player to check
+     * @returns {boolean} True if there are pending actions
+     */
+    checkPendingCombatActions(playerId) {
+        // If no combat manager, can't check pending actions
+        if (!this.combatManager) return false;
+        
+        // Check if the combat manager has any pending actions against this player
+        const pendingActions = this.combatManager.findActionsByTarget ? 
+            this.combatManager.findActionsByTarget(playerId) : [];
+            
+        // Return true if there are any pending actions
+        return pendingActions.length > 0;
     }
     
     /**
@@ -466,6 +488,8 @@ class MultiplayerManager {
             hullColor: 0x8B4513, // Default brown hull
             deckColor: 0xD2B48C, // Default tan deck
             sailColor: 0xFFFFFF, // Default white sail
+            // Make sure rotation speed is set for smooth turning
+            rotationSpeed: 2.0, // Default rotation speed
             // Add custom options for multiplayer ships
             isMultiplayerShip: true
         });
@@ -651,6 +675,8 @@ class MultiplayerManager {
             if (isNearOrigin || playerData.isSunk) {
                 otherPlayerShip.targetPosition = null;
                 otherPlayerShip.isMoving = false;
+                otherPlayerShip.targetRotation = null;
+                otherPlayerShip.hasMovedBefore = false;
             }
         } else {
             // For normal position updates:
@@ -670,6 +696,19 @@ class MultiplayerManager {
                 // Set the ship to move to this position
                 otherPlayerShip.targetPosition = targetPos;
                 otherPlayerShip.isMoving = true;
+                
+                // Calculate direction to target for smooth rotation
+                const direction = new THREE.Vector3()
+                    .subVectors(targetPos, shipObject.position)
+                    .normalize();
+                
+                // Set target rotation for smooth turning
+                otherPlayerShip.targetRotation = Math.atan2(direction.x, direction.z);
+                
+                // For very close targets, force rotation first
+                if (distanceChange < 3) {
+                    otherPlayerShip.hasMovedBefore = false;
+                }
             }
         }
         
@@ -679,9 +718,11 @@ class MultiplayerManager {
         // Update rotation if provided
         if (playerData.rotation) {
             const rotationY = playerData.rotation.y || 0;
-            // Only update rotation directly if there's a significant difference
-            if (Math.abs(shipObject.rotation.y - rotationY) > this.ROTATION_CORRECTION_THRESHOLD) {
-                shipObject.rotation.y = rotationY;
+            // Only update rotation target if there's a significant difference and we're not moving
+            // When moving, the target rotation is calculated based on the destination
+            if (Math.abs(shipObject.rotation.y - rotationY) > this.ROTATION_CORRECTION_THRESHOLD && 
+                !otherPlayerShip.isMoving) {
+                otherPlayerShip.targetRotation = rotationY;
             }
             otherPlayerShip.userData.lastRotation = rotationY;
         }
@@ -706,14 +747,20 @@ class MultiplayerManager {
                 otherPlayerShip.targetPosition = destinationPos;
                 otherPlayerShip.isMoving = true;
                 
-                // Update rotation to face direction of travel
-                const direction = new THREE.Vector3().subVectors(
-                    destinationPos,
-                    shipObject.position
-                ).normalize();
+                // Calculate direction to destination for smooth rotation
+                const direction = new THREE.Vector3()
+                    .subVectors(destinationPos, shipObject.position)
+                    .normalize();
                 
-                shipObject.rotation.y = Math.atan2(direction.x, direction.z);
-                otherPlayerShip.userData.lastRotation = shipObject.rotation.y;
+                // Set target rotation for smooth turning
+                otherPlayerShip.targetRotation = Math.atan2(direction.x, direction.z);
+                otherPlayerShip.userData.lastRotation = otherPlayerShip.targetRotation;
+                
+                // For nearby destinations, force rotation before movement
+                const distanceToDestination = shipObject.position.distanceTo(destinationPos);
+                if (distanceToDestination < 5) {
+                    otherPlayerShip.hasMovedBefore = false;
+                }
             }
         } else {
             // No destination in playerData but we might have an internal one for smoothing
@@ -722,9 +769,9 @@ class MultiplayerManager {
                 otherPlayerShip.userData.destination = null;
                 otherPlayerShip.isMoving = false;
                 
-                // If no destination, maintain the last rotation
+                // If no destination, maintain the last rotation as target
                 if (otherPlayerShip.userData.lastRotation !== undefined) {
-                    shipObject.rotation.y = otherPlayerShip.userData.lastRotation;
+                    otherPlayerShip.targetRotation = otherPlayerShip.userData.lastRotation;
                 }
             }
         }

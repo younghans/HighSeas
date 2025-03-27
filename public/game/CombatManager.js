@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import TargetManager from './TargetManager.js';
 
 /**
  * CombatManager class for handling ship combat mechanics
@@ -17,7 +18,6 @@ class CombatManager {
         this.combatService = options.combatService || null;
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
-        this.currentTarget = null;
         this.cannonballSpeed = 60; // Units per second
         this.cannonballs = [];
         this.cannonballMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
@@ -25,8 +25,17 @@ class CombatManager {
         this.cannonballLifetime = 3000; // 3 seconds
         this.isSpacePressed = false;
         this.isResetting = false;
-        this.debugArrows = [];
         this.showDebugClickBoxes = false; // Show debug click boxes by default
+        
+        // Create target manager
+        this.targetManager = new TargetManager({
+            playerShip: this.playerShip,
+            enemyShipManager: this.enemyShipManager,
+            ui: this.ui,
+            scene: this.scene,
+            camera: this.camera,
+            showDebugClickBoxes: this.showDebugClickBoxes
+        });
         
         // Simplified action tracking system
         this.actionTracker = new Map(); // Single map to track all actions with status
@@ -41,7 +50,6 @@ class CombatManager {
         this.reconciliationInterval = 10000; // 10 seconds between reconciliations
         
         // Bind methods
-        this.handleMouseClick = this.handleMouseClick.bind(this);
         this.handleKeyDown = this.handleKeyDown.bind(this);
         this.handleKeyUp = this.handleKeyUp.bind(this);
         this.update = this.update.bind(this);
@@ -63,121 +71,9 @@ class CombatManager {
      * Initialize event listeners
      */
     initEventListeners() {
-        // Add mouse click listener for target selection
-        document.addEventListener('click', this.handleMouseClick);
-        
         // Add keyboard listeners for firing cannons
         document.addEventListener('keydown', this.handleKeyDown);
         document.addEventListener('keyup', this.handleKeyUp);
-    }
-    
-    /**
-     * Handle mouse click for target selection
-     * @param {MouseEvent} event - Mouse click event
-     */
-    handleMouseClick(event) {
-        // Skip if no player ship, or UI
-        if (!this.playerShip || !this.ui || !this.camera || !this.scene) return;
-        
-        // Skip if player ship is sunk
-        if (this.playerShip.isSunk) return;
-        
-        // Calculate mouse position in normalized device coordinates (-1 to +1)
-        this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-        this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-        
-        // Update the picking ray with the camera and mouse position
-        this.raycaster.setFromCamera(this.mouse, this.camera);
-        
-        // Get all targetable ships
-        const targetableShips = [];
-        
-        // Add AI ships if enemy manager exists
-        if (this.enemyShipManager) {
-            targetableShips.push(...this.enemyShipManager.getEnemyShips());
-        }
-        
-        // Add other player ships from multiplayer system if it exists
-        if (window.multiplayerManager && window.multiplayerManager.otherPlayerShips) {
-            // Convert the Map to an array of ships
-            const otherPlayerShips = Array.from(window.multiplayerManager.otherPlayerShips.values());
-            
-            // Add ships that aren't sunk and aren't the current player
-            otherPlayerShips.forEach(ship => {
-                if (!ship.isSunk && ship.userData && ship.userData.playerId !== this.playerShip.id) {
-                    // Set ID for targeting if not already set
-                    if (!ship.id && ship.userData.playerId) {
-                        ship.id = ship.userData.playerId;
-                    }
-                    targetableShips.push(ship);
-                }
-            });
-        }
-        
-        // First try to detect clicks on the clickable spheres
-        // Create an array of clickable spheres for raycasting
-        const clickableSpheres = [];
-        const shipByClickSphere = new Map(); // Map to track which ship owns which clickable sphere
-        
-        for (const ship of targetableShips) {
-            if (ship.isSunk) continue; // Skip sunk ships
-            
-            const clickSphere = ship.clickBoxSphere;
-            if (clickSphere) {
-                clickableSpheres.push(clickSphere);
-                shipByClickSphere.set(clickSphere, ship);
-            }
-        }
-        
-        // Check for intersections with clickable spheres first
-        if (clickableSpheres.length > 0) {
-            const sphereIntersects = this.raycaster.intersectObjects(clickableSpheres, true);
-            
-            if (sphereIntersects.length > 0) {
-                // Find the ship that owns this clickable sphere
-                const clickedSphere = sphereIntersects[0].object;
-                const clickedShip = shipByClickSphere.get(clickedSphere) || 
-                                   shipByClickSphere.get(clickedSphere.parent);
-                
-                if (clickedShip && !clickedShip.isSunk) {
-                    this.setTarget(clickedShip);
-                    return true; // Indicate that we handled the click
-                }
-            }
-        }
-        
-        // If no clickable sphere was hit, fall back to the mesh-based detection
-        const shipObjects = targetableShips.map(ship => ship.getObject()).filter(obj => obj !== null);
-        
-        // Check for intersections with any targetable ships
-        const intersects = this.raycaster.intersectObjects(shipObjects, true);
-        
-        if (intersects.length > 0) {
-            // Find the ship that was clicked
-            const clickedMesh = intersects[0].object;
-            let clickedShip = null;
-            
-            // Find the ship that owns this mesh
-            for (const ship of targetableShips) {
-                if (!ship.shipMesh) continue;
-                
-                // Check if the clicked mesh is part of this ship
-                if (ship.shipMesh === clickedMesh || 
-                    (ship.shipMesh.children && ship.shipMesh.children.includes(clickedMesh)) ||
-                    clickedMesh.parent === ship.shipMesh) {
-                    clickedShip = ship;
-                    break;
-                }
-            }
-            
-            // If we found a ship and it's not sunk, set it as the target
-            if (clickedShip && !clickedShip.isSunk) {
-                this.setTarget(clickedShip);
-                return true; // Indicate that we handled the click
-            }
-        }
-        
-        return false; // Indicate that we didn't handle the click
     }
     
     /**
@@ -209,88 +105,24 @@ class CombatManager {
     }
     
     /**
-     * Set the current target
-     * @param {BaseShip} ship - The ship to target
-     */
-    setTarget(ship) {
-        // If we had a previous target, hide its health bar
-        if (this.currentTarget && this.currentTarget.setHealthBarVisible) {
-            this.currentTarget.setHealthBarVisible(false);
-        }
-        
-        const previousTargetId = this.currentTarget ? this.currentTarget.id : null;
-        const newTargetId = ship ? ship.id : null;
-        
-        console.log(`[TARGET] ${previousTargetId ? 'Changing' : 'Setting'} target:`, {
-            from: previousTargetId || 'none',
-            to: newTargetId || 'none',
-            shipType: ship ? ship.type || 'unknown' : 'none',
-            shipHealth: ship ? `${ship.currentHealth}/${ship.maxHealth}` : 'N/A',
-            timestamp: new Date().toISOString()
-        });
-        
-        this.currentTarget = ship;
-        
-        // Clean up debug arrows if target is cleared
-        if (!ship && this.debugArrows && this.debugArrows.length > 0) {
-            this.cleanupDebugArrows();
-        }
-        
-        // If we have a new target, show its health bar
-        if (ship && ship.setHealthBarVisible) {
-            ship.setHealthBarVisible(true);
-            
-            // Always show the player ship's health bar when targeting
-            if (this.playerShip && this.playerShip.setHealthBarVisible) {
-                this.playerShip.setHealthBarVisible(true);
-            }
-        } else if (this.playerShip && this.playerShip.setHealthBarVisible) {
-            // If not targeting, only show player's health bar if health is not full
-            if (this.playerShip.currentHealth < this.playerShip.maxHealth) {
-                this.playerShip.setHealthBarVisible(true);
-            } else {
-                this.playerShip.setHealthBarVisible(false);
-            }
-        }
-        
-        // Update UI if available
-        if (this.ui) {
-            this.ui.setTarget(ship);
-        }
-    }
-    
-    /**
-     * Clean up debug arrows
-     */
-    cleanupDebugArrows() {
-        if (this.scene && this.debugArrows) {
-            this.debugArrows.forEach(arrow => {
-                if (arrow) {
-                    this.scene.remove(arrow);
-                    if (arrow.geometry) arrow.geometry.dispose();
-                    if (arrow.material) arrow.material.dispose();
-                }
-            });
-            this.debugArrows = [];
-        }
-    }
-    
-    /**
      * Fire at the current target
      */
     async fireAtCurrentTarget() {
+        // Get the current target from the target manager
+        const currentTarget = this.targetManager.getCurrentTarget();
+        
         // Skip if no player ship or no target
-        if (!this.playerShip || !this.currentTarget) return;
+        if (!this.playerShip || !currentTarget) return;
         
         // Skip if player ship is sunk
         if (this.playerShip.isSunk) return;
         
         // Calculate distance to target
-        const distance = this.playerShip.getPosition().distanceTo(this.currentTarget.getPosition());
+        const distance = this.playerShip.getPosition().distanceTo(currentTarget.getPosition());
         
         // Check if target is in range
         if (distance > this.playerShip.cannonRange) {
-            console.log('[COMBAT] Target out of range:', this.currentTarget.id, `Distance: ${distance.toFixed(1)}/${this.playerShip.cannonRange}`);
+            console.log('[COMBAT] Target out of range:', currentTarget.id, `Distance: ${distance.toFixed(1)}/${this.playerShip.cannonRange}`);
             return;
         }
         
@@ -321,7 +153,7 @@ class CombatManager {
         }
         
         // Calculate miss chance based on orientation and distance
-        const missChance = this.calculateMissChance(this.playerShip, this.currentTarget);
+        const missChance = this.calculateMissChance(this.playerShip, currentTarget);
         
         // Generate a deterministic seed for damage calculation
         // This seed will be shared with the server to ensure both calculate the same damage
@@ -339,10 +171,10 @@ class CombatManager {
             seededRandom() * (this.playerShip.cannonDamage.max - this.playerShip.cannonDamage.min)
         ) : 0;
         
-        console.log(`[COMBAT] Firing at target ${this.currentTarget.id}:`, {
-            targetType: this.currentTarget.type,
+        console.log(`[COMBAT] Firing at target ${currentTarget.id}:`, {
+            targetType: currentTarget.type,
             playerShipId: this.playerShip.id,
-            targetHealth: this.currentTarget.currentHealth,
+            targetHealth: currentTarget.currentHealth,
             damageSeed: damageSeed,
             missChance: missChance.toFixed(2),
             isHit: isHit,
@@ -353,7 +185,7 @@ class CombatManager {
         
         // OPTIMISTIC UI: Always fire the cannonball immediately for visual feedback
         // We'll apply damage on impact, but potentially adjust it later based on server response
-        const cannonballData = this.fireCannonball(this.playerShip, this.currentTarget, damage, !isHit);
+        const cannonballData = this.fireCannonball(this.playerShip, currentTarget, damage, !isHit);
         
         // Update last fired time
         this.playerShip.lastFiredTime = Date.now();
@@ -364,15 +196,15 @@ class CombatManager {
         }
         
         // If targeting another player, broadcast this cannonball through MultiplayerManager
-        if (this.currentTarget.type === 'player' && this.currentTarget.id) {
-            console.log('[COMBAT] Broadcasting cannonball to player:', this.currentTarget.id);
+        if (currentTarget.type === 'player' && currentTarget.id) {
+            console.log('[COMBAT] Broadcasting cannonball to player:', currentTarget.id);
             
             // Log important details before broadcasting
             console.log('[COMBAT] Broadcasting details:', {
                 sourceId: this.playerShip.id,
                 sourceType: this.playerShip.type,
-                targetId: this.currentTarget.id,
-                targetType: this.currentTarget.type,
+                targetId: currentTarget.id,
+                targetType: currentTarget.type,
                 damage: damage,
                 isMiss: !isHit
             });
@@ -396,7 +228,7 @@ class CombatManager {
                 // Now broadcast the cannonball event
                 multiplayer.broadcastCannonballFired(
                     this.playerShip,
-                    this.currentTarget,
+                    currentTarget,
                     damage,
                     !isHit
                 ).catch(err => console.error('[COMBAT] Error broadcasting cannonball:', err));
@@ -416,7 +248,7 @@ class CombatManager {
                     id: actionId,
                     timestamp: Date.now(),
                     source: this.playerShip.id,
-                    target: this.currentTarget.id,
+                    target: currentTarget.id,
                     clientDamage: damage,
                     cannonballRef: cannonballData,
                     status: 'pending' // Status can be: 'pending', 'confirmed', 'rejected', 'expired'
@@ -425,7 +257,7 @@ class CombatManager {
                 console.log(`[ACTION:${actionId}] Created combat action:`, {
                     id: actionId,
                     source: this.playerShip.id,
-                    target: this.currentTarget.id,
+                    target: currentTarget.id,
                     clientDamage: damage,
                     status: 'pending',
                     timestamp: new Date(action.timestamp).toISOString()
@@ -435,15 +267,15 @@ class CombatManager {
                 this.actionTracker.set(actionId, action);
                 
                 // Add to target index for quicker lookups
-                if (!this.actionIndices.byTarget.has(this.currentTarget.id)) {
-                    this.actionIndices.byTarget.set(this.currentTarget.id, new Set());
+                if (!this.actionIndices.byTarget.has(currentTarget.id)) {
+                    this.actionIndices.byTarget.set(currentTarget.id, new Set());
                 }
-                this.actionIndices.byTarget.get(this.currentTarget.id).add(actionId);
+                this.actionIndices.byTarget.get(currentTarget.id).add(actionId);
                 
                 // Server validation happens in parallel with cannonball animation
                 // Send the damage seed to the server so it can calculate the same damage
                 this.combatService.processCombatAction(
-                    this.currentTarget.id,
+                    currentTarget.id,
                     damage,
                     { 
                         actionId: actionId,
@@ -461,7 +293,7 @@ class CombatManager {
                         console.error('[ACTION:ERROR] Server response missing actionId:', result);
                         
                         // Try to find the matching action based on target
-                        const targetActions = this.findActionsByTarget(this.currentTarget.id);
+                        const targetActions = this.findActionsByTarget(currentTarget.id);
                         let matchingAction = null;
                         
                         if (targetActions.length > 0) {
@@ -554,7 +386,7 @@ class CombatManager {
                         
                         // If cannonball already hit (optimistic UI), reconcile the damage
                         if (action.cannonballRef.hasHit) {
-                            this.reconcileDamage(this.currentTarget, action.clientDamage, result.damage);
+                            this.reconcileDamage(currentTarget, action.clientDamage, result.damage);
                         }
                     } else {
                         // Handle rejected action
@@ -1138,48 +970,8 @@ class CombatManager {
         // Check for stale pending actions that have timed out
         this.cleanupStaleActions(currentTime);
         
-        // Update debug arrows if we have a player ship and target
-        if (this.playerShip && this.currentTarget && !this.playerShip.isSunk && !this.currentTarget.isSunk) {
-            this.updateDebugArrows();
-            
-            // Update health bars for player and target when targeting
-            if (this.camera) {
-                if (this.playerShip.updateHealthBar) {
-                    this.playerShip.updateHealthBar(this.camera);
-                }
-                
-                if (this.currentTarget && this.currentTarget.updateHealthBar) {
-                    this.currentTarget.updateHealthBar(this.camera);
-                }
-            }
-        }
-        // Always update player health bar if it exists, even without a target
-        else if (this.playerShip && !this.playerShip.isSunk && this.camera && this.playerShip.updateHealthBar) {
-            // For non-targeting state, check if we need to show/hide the health bar based on health
-            if (this.playerShip.healthBarContainer) {
-                // Show health bar if not at full health
-                if (this.playerShip.currentHealth < this.playerShip.maxHealth) {
-                    this.playerShip.setHealthBarVisible(true);
-                    this.playerShip.updateHealthBar(this.camera);
-                } else if (!this.currentTarget && this.playerShip.healthBarContainer.visible) {
-                    // Hide health bar if at full health and not targeting
-                    this.playerShip.setHealthBarVisible(false);
-                }
-            }
-        }
-        
-        // We no longer need to check for player ship sinking here, as it's handled via schedulePlayerRespawn
-        // However, we still need to handle the target being sunk
-        
-        // Update current target if it exists
-        if (this.currentTarget) {
-            // If target is sunk, clear target
-            if (this.currentTarget.isSunk) {
-                // Clean up debug arrows before clearing target
-                this.cleanupDebugArrows();
-                this.setTarget(null);
-            }
-        }
+        // Update the target manager
+        this.targetManager.update(delta);
         
         // Update all visible enemy health bars
         if (this.enemyShipManager && this.camera) {
@@ -1388,6 +1180,12 @@ class CombatManager {
                             });
                             
                             userData.target.takeDamage(userData.damage);
+                            
+                            // If this is a shot hitting the player, auto-target the attacker if we don't have a target
+                            if (userData.target === this.playerShip && userData.source !== this.playerShip) {
+                                // Auto-target the ship that hit us
+                                this.targetManager.setAutoTarget(userData.source);
+                            }
                         }
                     } else {
                         // Target is already sunk, log this event
@@ -1663,13 +1461,12 @@ class CombatManager {
             });
         }
         
-        // Reset combat state
-        this.setTarget(null);
+        // Reset combat state and clear target
+        this.targetManager.clearTarget();
         this.lastAttackTime = 0;
         
         // Update UI
         if (this.ui) {
-            this.ui.setTarget(null);
             this.ui.update();
         }
         
@@ -1708,6 +1505,12 @@ class CombatManager {
                 playerShip.setHealthBarVisible(false);
             }
         }
+        
+        // Update the target manager with the player ship
+        this.targetManager.setPlayerShip(playerShip);
+        
+        // Clear target when player loads in
+        this.targetManager.clearTarget();
     }
     
     /**
@@ -1727,6 +1530,9 @@ class CombatManager {
                 this.initializeEnemyShip(ship);
             }
         }
+        
+        // Update the target manager with the enemy ship manager
+        this.targetManager.setEnemyShipManager(enemyShipManager);
     }
     
     /**
@@ -1735,6 +1541,7 @@ class CombatManager {
      */
     setUI(ui) {
         this.ui = ui;
+        this.targetManager.setUI(ui);
     }
     
     /**
@@ -1743,6 +1550,7 @@ class CombatManager {
      */
     setScene(scene) {
         this.scene = scene;
+        this.targetManager.setScene(scene);
     }
     
     /**
@@ -1751,6 +1559,7 @@ class CombatManager {
      */
     setCamera(camera) {
         this.camera = camera;
+        this.targetManager.setCamera(camera);
     }
     
     /**
@@ -1762,25 +1571,40 @@ class CombatManager {
     }
     
     /**
+     * Set the multiplayer manager instance
+     * @param {MultiplayerManager} multiplayerManager
+     */
+    setMultiplayerManager(multiplayerManager) {
+        this.multiplayerManager = multiplayerManager;
+        this.targetManager.setMultiplayerManager(multiplayerManager);
+        console.log('[COMBAT] MultiplayerManager reference set');
+    }
+    
+    /**
+     * Toggle visibility of debug click boxes on all ships
+     * @param {boolean} visible - Whether debug click boxes should be visible
+     */
+    toggleDebugClickBoxes(visible) {
+        this.showDebugClickBoxes = visible;
+        this.targetManager.toggleDebugClickBoxes(visible);
+    }
+    
+    /**
      * Clean up resources
      */
     cleanup() {
         // Remove event listeners
-        document.removeEventListener('click', this.handleMouseClick);
         document.removeEventListener('keydown', this.handleKeyDown);
         document.removeEventListener('keyup', this.handleKeyUp);
         
-        // Hide all debug click boxes first
-        this.toggleDebugClickBoxes(false);
+        // Clean up the target manager
+        this.targetManager.cleanup();
         
         // Remove all cannonballs
         if (this.scene) {
             for (const cannonball of this.cannonballs) {
                 this.scene.remove(cannonball);
             }
-            
-            // Clean up debug arrows
-            this.cleanupDebugArrows();
         }
         
         this.cannonballs = [];
@@ -2076,40 +1900,6 @@ class CombatManager {
         
         // Start animation
         animateExplosion(1/60);
-    }
-    
-    /**
-     * Toggle visibility of debug click boxes on all ships
-     * @param {boolean} visible - Whether debug click boxes should be visible
-     */
-    toggleDebugClickBoxes(visible) {
-        this.showDebugClickBoxes = visible;
-        
-        // Update player ship if it exists
-        if (this.playerShip && typeof this.playerShip.setDebugClickBoxVisible === 'function') {
-            this.playerShip.setDebugClickBoxVisible(visible);
-        }
-        
-        // Update all enemy ships if they exist
-        if (this.enemyShipManager) {
-            const enemyShips = this.enemyShipManager.getEnemyShips();
-            for (const ship of enemyShips) {
-                if (typeof ship.setDebugClickBoxVisible === 'function') {
-                    ship.setDebugClickBoxVisible(visible);
-                }
-            }
-        }
-        
-        console.log(`Debug click boxes are now ${visible ? 'visible' : 'hidden'}`);
-    }
-    
-    /**
-     * Set the multiplayer manager instance
-     * @param {MultiplayerManager} multiplayerManager
-     */
-    setMultiplayerManager(multiplayerManager) {
-        this.multiplayerManager = multiplayerManager;
-        console.log('[COMBAT] MultiplayerManager reference set');
     }
 }
 
