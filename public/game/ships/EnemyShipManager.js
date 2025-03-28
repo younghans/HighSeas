@@ -133,7 +133,7 @@ class EnemyShipManager {
             hullColor: 0x800080, // Purple for guardians
             sailColor: 0x000000, // Black sails
             isEnemy: true,
-            maxHealth: 80 + Math.floor(Math.random() * 40), // Same health as regular enemies (80-120)
+            maxHealth: 40 + Math.floor(Math.random() * 20), // Same health as regular enemies (80-120)
             cannonDamage: { min: 5, max: 20 }, // Same damage as regular enemies
             cannonCooldown: 3000, // Same cooldown as regular enemies (3 seconds)
             type: 'guardian'
@@ -288,7 +288,7 @@ class EnemyShipManager {
             hullColor: 0x8B0000, // Dark red hull for enemy ships
             sailColor: 0x000000, // Black sails
             isEnemy: true,
-            maxHealth: 80 + Math.floor(Math.random() * 40), // Random health between 80-120
+            maxHealth: 40 + Math.floor(Math.random() * 20), // Random health between 80-120
             cannonDamage: { min: 5, max: 20 },
             cannonCooldown: 3000, // 3 seconds between shots (adjust as needed)
             type: shipType // Set the ship type for shipwreck creation later

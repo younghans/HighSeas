@@ -706,7 +706,7 @@ class MultiplayerManager {
                 otherPlayerShip.targetRotation = Math.atan2(direction.x, direction.z);
                 
                 // For very close targets, force rotation first
-                if (distanceChange < 3) {
+                if (distanceChange < 4) {
                     otherPlayerShip.hasMovedBefore = false;
                 }
             }

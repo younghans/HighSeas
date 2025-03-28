@@ -119,7 +119,7 @@ class BaseShip {
         this.targetRotation = newRotationY;
         
         // For very close targets (<5 units away), force the ship to be stationary during rotation
-        if (distanceToTarget < 3) {
+        if (distanceToTarget < 4) {
             // Mark as not previously moved to force rotation before movement
             this.hasMovedBefore = false;
         }
