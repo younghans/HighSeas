@@ -681,7 +681,8 @@ class GameCore {
             worldSize: 1000,
             aggroRange: 150,
             lootableRange: 20,
-            combatService: this.combatService // Now combatService is properly initialized
+            combatService: this.combatService, // Now combatService is properly initialized
+            zonesManager: this.world.zones // Pass the zones manager during initialization
         });
         
         // Set combat service explicitly to ensure it gets passed to ShipwreckManager
@@ -800,7 +801,18 @@ class GameCore {
     async loadIslandsFromManifest() {
         try {
             // Use the IslandLoader to load islands from the manifest
-            await this.islandLoader.loadIslandsFromManifest('/game/islands/islands-manifest.json');
+            const result = await this.islandLoader.loadIslandsFromManifest('/game/islands/islands-manifest.json');
+            
+            // Initialize zones with the loaded manifest
+            if (this.world && result.manifest) {
+                this.world.loadIslandsManifest(result.manifest);
+                
+                // Connect zones manager with enemy ship manager if both exist
+                if (this.world.zones && this.enemyShipManager) {
+                    this.enemyShipManager.setZonesManager(this.world.zones);
+                }
+            }
+            
             return true;
         } catch (error) {
             console.error('Error loading islands from manifest:', error);

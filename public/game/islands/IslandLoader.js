@@ -230,7 +230,7 @@ class IslandLoader {
     /**
      * Load multiple islands from a manifest file
      * @param {string} manifestPath - Path to the manifest JSON file
-     * @returns {Promise<Array>} - Array of loaded island data
+     * @returns {Promise<Object>} - Object containing manifest and loaded islands
      */
     async loadIslandsFromManifest(manifestPath) {
         try {
@@ -261,7 +261,11 @@ class IslandLoader {
             const loadedIslands = await Promise.all(loadPromises);
             console.log(`Loaded ${loadedIslands.length} islands from manifest`);
             
-            return loadedIslands;
+            // Return both the manifest and the loaded islands
+            return {
+                manifest: manifest,
+                islands: loadedIslands
+            };
         } catch (error) {
             console.error(`Error loading islands from manifest ${manifestPath}:`, error);
             throw error;

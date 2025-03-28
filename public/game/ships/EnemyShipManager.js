@@ -25,6 +25,12 @@ class EnemyShipManager {
         this.combatService = options.combatService || null;
         this.enemyShipOptions = options.enemyShipOptions || {};
         
+        // Add zones manager reference
+        this.zonesManager = options.zonesManager || null;
+        
+        // Parameters for safe zone avoidance
+        this.safeZoneBuffer = 20; // Keep this distance from safe zones
+        
         // Initialize ShipwreckManager
         this.shipwreckManager = new ShipwreckManager({
             scene: this.scene,
@@ -51,6 +57,107 @@ class EnemyShipManager {
         
         // Initialize enemy ships
         this.init();
+    }
+    
+    /**
+     * Set the zones manager reference
+     * @param {Zones} zonesManager - The zones manager instance
+     */
+    setZonesManager(zonesManager) {
+        this.zonesManager = zonesManager;
+    }
+    
+    /**
+     * Check if a position is within or too close to any safe zone
+     * @param {THREE.Vector3|THREE.Vector2} position - The position to check
+     * @param {number} buffer - Additional buffer distance from safe zone boundary
+     * @returns {boolean} True if position is in or near a safe zone
+     */
+    isNearSafeZone(position, buffer = 0) {
+        if (!this.zonesManager) return false;
+        
+        // Convert Vector3 to Vector2 if needed (ignoring y-coordinate)
+        const x = position.x;
+        const z = position.z !== undefined ? position.z : position.y;
+        
+        return this.zonesManager.isInSafeZone(x, z, buffer);
+    }
+    
+    /**
+     * Find a valid spawn position away from safe zones
+     * @returns {THREE.Vector3} A valid spawn position
+     */
+    findValidSpawnPosition() {
+        const maxAttempts = 50;
+        let position;
+        let isValid = false;
+        let attempts = 0;
+        
+        while (!isValid && attempts < maxAttempts) {
+            // Generate random position within world bounds
+            position = new THREE.Vector3(
+                (Math.random() - 0.5) * this.worldSize,
+                0, // Ensure Y is exactly at water level
+                (Math.random() - 0.5) * this.worldSize
+            );
+            
+            // Check if position is far enough from player
+            const playerPos = this.playerShip ? this.playerShip.getPosition() : new THREE.Vector3();
+            const distanceToPlayer = position.distanceTo(playerPos);
+            
+            // Check if position is valid (away from player and not in/near safe zone)
+            isValid = distanceToPlayer > 300 && 
+                     distanceToPlayer < this.spawnRadius && 
+                     !this.isNearSafeZone(position, this.safeZoneBuffer);
+            
+            attempts++;
+        }
+        
+        // If couldn't find a valid position after max attempts, use the last generated one
+        // but enforce minimum distance from safe zones
+        if (!isValid && this.zonesManager) {
+            // Find the nearest safe zone and move away from it if needed
+            const nearestSafeZone = this.findNearestSafeZone(position);
+            if (nearestSafeZone) {
+                const directionFromSafeZone = new THREE.Vector2(
+                    position.x - nearestSafeZone.position.x,
+                    position.z - nearestSafeZone.position.y
+                ).normalize();
+                
+                // Move position outside of safe zone plus buffer
+                const distanceNeeded = nearestSafeZone.radius + this.safeZoneBuffer + 10;
+                position.x = nearestSafeZone.position.x + directionFromSafeZone.x * distanceNeeded;
+                position.z = nearestSafeZone.position.y + directionFromSafeZone.y * distanceNeeded;
+            }
+        }
+        
+        return position;
+    }
+    
+    /**
+     * Find the nearest safe zone to a position
+     * @param {THREE.Vector3} position - The position to check from
+     * @returns {Object|null} The nearest safe zone or null if none
+     */
+    findNearestSafeZone(position) {
+        if (!this.zonesManager || !this.zonesManager.safeZones || this.zonesManager.safeZones.length === 0) {
+            return null;
+        }
+        
+        let nearestZone = null;
+        let minDistance = Infinity;
+        
+        for (const zone of this.zonesManager.safeZones) {
+            const pos2D = new THREE.Vector2(position.x, position.z);
+            const distance = pos2D.distanceTo(zone.position);
+            
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestZone = zone;
+            }
+        }
+        
+        return nearestZone;
     }
     
     /**
@@ -246,34 +353,8 @@ class EnemyShipManager {
             return null;
         }
         
-        // Generate random position away from player
-        let position;
-        if (this.playerShip) {
-            const playerPos = this.playerShip.getPosition();
-            
-            // Generate position at least 300 units away from player
-            let tooClose = true;
-            while (tooClose) {
-                position = new THREE.Vector3(
-                    (Math.random() - 0.5) * this.worldSize,
-                    0, // Ensure Y is exactly at water level
-                    (Math.random() - 0.5) * this.worldSize
-                );
-                
-                // Check if position is far enough from player
-                const distance = position.distanceTo(playerPos);
-                if (distance > 300 && distance < this.spawnRadius) {
-                    tooClose = false;
-                }
-            }
-        } else {
-            // No player ship, just spawn randomly
-            position = new THREE.Vector3(
-                (Math.random() - 0.5) * this.worldSize,
-                0, // Ensure Y is exactly at water level
-                (Math.random() - 0.5) * this.worldSize
-            );
-        }
+        // Find a valid spawn position (away from player and safe zones)
+        const position = this.findValidSpawnPosition();
         
         // Get a random ship type 
         const shipOptions = this.getRandomEnemyShipOptions();
@@ -625,6 +706,7 @@ class EnemyShipManager {
                     guardianShip.moveTo(targetPos);
                 } else if (!guardianShip.isMoving) {
                     // At good distance but not moving, circle around player
+                    const now = Date.now();
                     const circlePos = new THREE.Vector3(
                         playerPos.x + Math.cos(now * 0.0007) * idealDistance,
                         0, // Always set Y to water level
@@ -655,6 +737,71 @@ class EnemyShipManager {
                 }
                 break;
         }
+    }
+    
+    /**
+     * Find a valid patrol target that's not in/near a safe zone
+     * @param {THREE.Vector3} currentPosition - The ship's current position
+     * @returns {THREE.Vector3} A valid patrol target
+     */
+    getValidPatrolTarget(currentPosition) {
+        const maxAttempts = 20;
+        let targetPos;
+        let isValid = false;
+        let attempts = 0;
+        
+        while (!isValid && attempts < maxAttempts) {
+            // Generate a random position within reasonable distance
+            const maxDistance = 800;
+            const minDistance = 200;
+            
+            // Random angle
+            const angle = Math.random() * Math.PI * 2;
+            
+            // Random distance between min and max
+            const distance = minDistance + Math.random() * (maxDistance - minDistance);
+            
+            // Calculate target position
+            targetPos = new THREE.Vector3(
+                currentPosition.x + Math.cos(angle) * distance,
+                0,
+                currentPosition.z + Math.sin(angle) * distance
+            );
+            
+            // Check if position is valid (not in/near safe zone)
+            isValid = !this.isNearSafeZone(targetPos, this.safeZoneBuffer);
+            
+            attempts++;
+        }
+        
+        // If couldn't find a valid position, use a position away from the nearest safe zone
+        if (!isValid && this.zonesManager) {
+            const nearestSafeZone = this.findNearestSafeZone(currentPosition);
+            if (nearestSafeZone) {
+                // Move directly away from the safe zone
+                const directionFromSafeZone = new THREE.Vector2(
+                    currentPosition.x - nearestSafeZone.position.x,
+                    currentPosition.z - nearestSafeZone.position.y
+                ).normalize();
+                
+                // Set target position away from safe zone at a reasonable distance
+                const distance = 300 + Math.random() * 200; // 300-500 units away
+                targetPos = new THREE.Vector3(
+                    currentPosition.x + directionFromSafeZone.x * distance,
+                    0,
+                    currentPosition.z + directionFromSafeZone.y * distance
+                );
+            } else {
+                // Fallback to a random position if no safe zones
+                targetPos = new THREE.Vector3(
+                    (Math.random() - 0.5) * this.worldSize,
+                    0,
+                    (Math.random() - 0.5) * this.worldSize
+                );
+            }
+        }
+        
+        return targetPos;
     }
     
     /**
@@ -699,42 +846,105 @@ class EnemyShipManager {
         // Calculate distance to player
         const distanceToPlayer = enemyPos.distanceTo(playerPos);
         
-        // Check if we should change state
-        const now = Date.now();
-        if (now - enemyShip.lastStateChange > enemyShip.stateChangeCooldown) {
-            // Decide next state based on distance to player
-            if (distanceToPlayer < this.aggroRange && !this.playerShip.isSunk) {
-                // Player is in range and not sunk, attack
-                enemyShip.aiState = 'attack';
-                enemyShip.targetShip = this.playerShip;
-            } else {
-                // Player is out of range or sunk, patrol
+        // Check if player is in a safe zone
+        const playerInSafeZone = this.isNearSafeZone(playerPos);
+        
+        // Check if we're in or too close to a safe zone
+        const shipInSafeZone = this.isNearSafeZone(enemyPos);
+        
+        // Force evacuation if too close to a safe zone
+        if (shipInSafeZone) {
+            // Override current state to immediately leave the safe zone
+            enemyShip.aiState = 'evade_safe_zone';
+            
+            // Find nearest safe zone to determine direction to move away
+            const nearestSafeZone = this.findNearestSafeZone(enemyPos);
+            if (nearestSafeZone) {
+                // Calculate direction away from safe zone
+                const directionFromSafeZone = new THREE.Vector2(
+                    enemyPos.x - nearestSafeZone.position.x,
+                    enemyPos.z - nearestSafeZone.position.y
+                ).normalize();
+                
+                // Set target to move away from safe zone
+                const escapeDistance = 100 + Math.random() * 100; // 100-200 units away
+                enemyShip.patrolTarget = new THREE.Vector3(
+                    nearestSafeZone.position.x + directionFromSafeZone.x * escapeDistance,
+                    0,
+                    nearestSafeZone.position.y + directionFromSafeZone.y * escapeDistance
+                );
+                
+                // Immediately start moving to the target
+                enemyShip.moveTo(enemyShip.patrolTarget);
+            }
+        } else {
+            // Check if we're currently attacking but player has entered a safe zone
+            if (enemyShip.aiState === 'attack' && playerInSafeZone) {
+                // Player entered a safe zone, switch to patrol mode immediately
+                console.log('Player entered safe zone, enemy ship switching to patrol');
                 enemyShip.aiState = 'patrol';
                 enemyShip.targetShip = null;
                 
-                // Set random patrol target
-                enemyShip.patrolTarget = new THREE.Vector3(
-                    (Math.random() - 0.5) * this.worldSize,
-                    0, // Always set Y to water level
-                    (Math.random() - 0.5) * this.worldSize
-                );
+                // Force a new patrol target and immediate movement
+                enemyShip.patrolTarget = this.getValidPatrolTarget(enemyPos);
+                enemyShip.lastStateChange = Date.now();
+                
+                // Important: Immediately start moving to the new patrol target
+                enemyShip.moveTo(enemyShip.patrolTarget);
             }
-            
-            enemyShip.lastStateChange = now;
+            // Not in a safe zone, consider state changes based on cooldown
+            else if (Date.now() - enemyShip.lastStateChange > enemyShip.stateChangeCooldown) {
+                // Decide next state based on distance to player and safe zones
+                if (distanceToPlayer < this.aggroRange && !this.playerShip.isSunk && !playerInSafeZone) {
+                    // Player is in range, not in a safe zone, and not sunk - attack
+                    enemyShip.aiState = 'attack';
+                    enemyShip.targetShip = this.playerShip;
+                } else {
+                    // Otherwise patrol
+                    enemyShip.aiState = 'patrol';
+                    enemyShip.targetShip = null;
+                    
+                    // Set valid patrol target away from safe zones
+                    enemyShip.patrolTarget = this.getValidPatrolTarget(enemyPos);
+                    
+                    // Ensure we start moving if we're not already
+                    if (!enemyShip.isMoving) {
+                        enemyShip.moveTo(enemyShip.patrolTarget);
+                    }
+                }
+                
+                enemyShip.lastStateChange = Date.now();
+            }
         }
         
         // Handle AI state
         switch (enemyShip.aiState) {
+            case 'evade_safe_zone':
+                // Move away from safe zone
+                if (!enemyShip.isMoving) {
+                    enemyShip.moveTo(enemyShip.patrolTarget);
+                }
+                
+                // Check if we've successfully left the safe zone area
+                if (!this.isNearSafeZone(enemyPos, this.safeZoneBuffer * 0.5)) {
+                    // Successfully left the safe zone with some margin, resume patrol
+                    enemyShip.aiState = 'patrol';
+                    enemyShip.patrolTarget = this.getValidPatrolTarget(enemyPos);
+                    enemyShip.lastStateChange = Date.now();
+                    
+                    // Ensure movement continues to the new target
+                    enemyShip.moveTo(enemyShip.patrolTarget);
+                }
+                break;
+                
             case 'patrol':
                 // If no patrol target, set one
                 if (!enemyShip.patrolTarget) {
-                    enemyShip.patrolTarget = new THREE.Vector3(
-                        (Math.random() - 0.5) * this.worldSize,
-                        0, // Always set Y to water level
-                        (Math.random() - 0.5) * this.worldSize
-                    );
+                    enemyShip.patrolTarget = this.getValidPatrolTarget(enemyPos);
+                    enemyShip.lastStateChange = Date.now();
                     
-                    enemyShip.lastStateChange = now;
+                    // Ensure movement starts
+                    enemyShip.moveTo(enemyShip.patrolTarget);
                     break;
                 }
                 
@@ -743,7 +953,7 @@ class EnemyShipManager {
                     enemyShip.patrolTarget.y = 0;
                 }
                 
-                // Move towards patrol target
+                // Move towards patrol target if not already moving
                 if (!enemyShip.isMoving) {
                     enemyShip.moveTo(enemyShip.patrolTarget);
                 }
@@ -752,43 +962,44 @@ class EnemyShipManager {
                 const distanceToTarget = enemyPos.distanceTo(enemyShip.patrolTarget);
                 if (distanceToTarget < 10) {
                     // Set new patrol target
-                    enemyShip.patrolTarget = new THREE.Vector3(
-                        (Math.random() - 0.5) * this.worldSize,
-                        0, // Always set Y to water level
-                        (Math.random() - 0.5) * this.worldSize
-                    );
+                    enemyShip.patrolTarget = this.getValidPatrolTarget(enemyPos);
+                    enemyShip.lastStateChange = Date.now();
                     
-                    enemyShip.lastStateChange = now;
+                    // Immediately start moving to the new target
+                    enemyShip.moveTo(enemyShip.patrolTarget);
                     break;
                 }
                 
-                // Check if player is in range
-                if (distanceToPlayer < this.aggroRange && !this.playerShip.isSunk) {
-                    // Player is in range and not sunk, switch to attack
+                // Check if player is in range and not in a safe zone
+                if (distanceToPlayer < this.aggroRange && !this.playerShip.isSunk && !playerInSafeZone) {
+                    // Switch to attack
                     enemyShip.aiState = 'attack';
                     enemyShip.targetShip = this.playerShip;
-                    enemyShip.lastStateChange = now;
+                    enemyShip.lastStateChange = Date.now();
                 }
                 break;
                 
             case 'attack':
-                // If player is sunk or out of range, switch to patrol
-                if (this.playerShip.isSunk || distanceToPlayer > this.aggroRange * 1.5) {
+                // If player is sunk, in a safe zone, or out of range, switch to patrol
+                if (this.playerShip.isSunk || playerInSafeZone || distanceToPlayer > this.aggroRange * 1.5) {
                     enemyShip.aiState = 'patrol';
                     enemyShip.targetShip = null;
                     
-                    // Set random patrol target
-                    enemyShip.patrolTarget = new THREE.Vector3(
-                        (Math.random() - 0.5) * this.worldSize,
-                        0, // Always set Y to water level
-                        (Math.random() - 0.5) * this.worldSize
-                    );
+                    // Set valid patrol target away from safe zones
+                    enemyShip.patrolTarget = this.getValidPatrolTarget(enemyPos);
+                    enemyShip.lastStateChange = Date.now();
                     
-                    enemyShip.lastStateChange = now;
+                    // For debugging - log that ship is switching to patrol mode
+                    if (playerInSafeZone) {
+                        console.log('Enemy ship switching to patrol mode: player entered safe zone');
+                    }
+                    
+                    // IMPORTANT: Immediately start moving to new patrol target
+                    enemyShip.moveTo(enemyShip.patrolTarget);
                     break;
                 }
                 
-                // Move towards player but keep some distance
+                // Move towards player but maintain combat distance
                 const targetPos = new THREE.Vector3();
                 const direction = new THREE.Vector3()
                     .subVectors(playerPos, enemyPos)
@@ -796,28 +1007,86 @@ class EnemyShipManager {
                 
                 // Try to maintain a distance of 30-40 units for combat
                 const idealDistance = 35;
+                
+                // Create a potential next position to check against safe zones
+                let nextPosition;
+                
                 if (distanceToPlayer > idealDistance + 10) {
                     // Too far, move closer
-                    targetPos.copy(playerPos).sub(direction.multiplyScalar(idealDistance));
-                    targetPos.y = 0; // Ensure Y is at water level
-                    enemyShip.moveTo(targetPos);
+                    nextPosition = new THREE.Vector3();
+                    nextPosition.copy(playerPos).sub(direction.clone().multiplyScalar(idealDistance));
+                    nextPosition.y = 0;
+                    
+                    // Only move if the next position isn't in a safe zone
+                    if (!this.isNearSafeZone(nextPosition, this.safeZoneBuffer)) {
+                        enemyShip.moveTo(nextPosition);
+                    } else {
+                        // Position is in safe zone, retreat to patrol
+                        enemyShip.aiState = 'patrol';
+                        enemyShip.targetShip = null;
+                        enemyShip.patrolTarget = this.getValidPatrolTarget(enemyPos);
+                        enemyShip.lastStateChange = Date.now();
+                        
+                        // Start moving immediately
+                        enemyShip.moveTo(enemyShip.patrolTarget);
+                    }
                 } else if (distanceToPlayer < idealDistance - 10) {
                     // Too close, back up
-                    targetPos.copy(playerPos).sub(direction.multiplyScalar(idealDistance));
-                    targetPos.y = 0; // Ensure Y is at water level
-                    enemyShip.moveTo(targetPos);
+                    nextPosition = new THREE.Vector3();
+                    nextPosition.copy(playerPos).sub(direction.clone().multiplyScalar(idealDistance));
+                    nextPosition.y = 0;
+                    
+                    // Only move if the next position isn't in a safe zone
+                    if (!this.isNearSafeZone(nextPosition, this.safeZoneBuffer)) {
+                        enemyShip.moveTo(nextPosition);
+                    } else {
+                        // Can't back up properly, switch to circling
+                        const now = Date.now();
+                        const circlePos = new THREE.Vector3(
+                            playerPos.x + Math.cos(now * 0.0005) * idealDistance,
+                            0,
+                            playerPos.z + Math.sin(now * 0.0005) * idealDistance
+                        );
+                        
+                        if (!this.isNearSafeZone(circlePos, this.safeZoneBuffer)) {
+                            enemyShip.moveTo(circlePos);
+                        } else {
+                            // Can't circle either due to safe zone, switch to patrol
+                            enemyShip.aiState = 'patrol';
+                            enemyShip.targetShip = null;
+                            enemyShip.patrolTarget = this.getValidPatrolTarget(enemyPos);
+                            enemyShip.lastStateChange = Date.now();
+                            
+                            // Start moving immediately
+                            enemyShip.moveTo(enemyShip.patrolTarget);
+                        }
+                    }
                 } else if (!enemyShip.isMoving) {
                     // At good distance but not moving, circle around player
+                    const now = Date.now();
                     const circlePos = new THREE.Vector3(
                         playerPos.x + Math.cos(now * 0.0005) * idealDistance,
-                        0, // Always set Y to water level
+                        0,
                         playerPos.z + Math.sin(now * 0.0005) * idealDistance
                     );
-                    enemyShip.moveTo(circlePos);
+                    
+                    // Only move if the circle position isn't in a safe zone
+                    if (!this.isNearSafeZone(circlePos, this.safeZoneBuffer)) {
+                        enemyShip.moveTo(circlePos);
+                    } else {
+                        // Circle position is in safe zone, find a new valid patrol target
+                        enemyShip.aiState = 'patrol';
+                        enemyShip.targetShip = null;
+                        enemyShip.patrolTarget = this.getValidPatrolTarget(enemyPos);
+                        enemyShip.lastStateChange = Date.now();
+                        
+                        // Start moving immediately
+                        enemyShip.moveTo(enemyShip.patrolTarget);
+                    }
                 }
                 
-                // Check if player is in range and enemy can fire
-                if (distanceToPlayer <= enemyShip.cannonRange && enemyShip.canFire()) {
+                // Check if player is in range and enemy can fire (and player is not in safe zone)
+                if (!playerInSafeZone && distanceToPlayer <= enemyShip.cannonRange && enemyShip.canFire()) {
                     // Determine if shot is a hit or miss (70% hit chance)
                     const isHit = Math.random() >= 0.3;
                     
@@ -826,11 +1095,6 @@ class EnemyShipManager {
                         enemyShip.cannonDamage.min + 
                         Math.random() * (enemyShip.cannonDamage.max - enemyShip.cannonDamage.min)
                     ) : 0;
-                    
-                    // Remove direct damage application - damage will be applied when cannonball hits
-                    // if (isHit) {
-                    //    this.playerShip.takeDamage(damage);
-                    // }
                     
                     // Update last fired time
                     enemyShip.lastFiredTime = Date.now();
@@ -841,6 +1105,15 @@ class EnemyShipManager {
                     }
                 }
                 break;
+        }
+        
+        // Final failsafe: If the ship is not moving and should be, force movement
+        if (!enemyShip.isMoving && enemyShip.aiState !== 'attack') {
+            if (!enemyShip.patrolTarget) {
+                enemyShip.patrolTarget = this.getValidPatrolTarget(enemyPos);
+            }
+            console.log('Failsafe: Enemy ship was not moving, forcing movement to patrol target');
+            enemyShip.moveTo(enemyShip.patrolTarget);
         }
     }
     

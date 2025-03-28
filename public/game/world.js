@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Water } from 'three/addons/objects/Water.js';
 import { Sky } from 'three/addons/objects/Sky.js';
+import Zones from './zones.js';
 
 class World {
     constructor(scene) {
@@ -24,6 +25,16 @@ class World {
         this.createHDWater();
         this.createStars();
         this.createClouds();
+        
+        // Initialize zones manager
+        this.zones = new Zones(scene, this);
+    }
+    
+    // Load islands manifest to initialize zones
+    loadIslandsManifest(islandsManifest) {
+        if (this.zones) {
+            this.zones.loadZones(islandsManifest);
+        }
     }
     
     createSky() {
