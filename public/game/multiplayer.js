@@ -624,13 +624,14 @@ class MultiplayerManager {
             return;
         }
         
-        // this.debug(`Updating ship for player: ${playerData.displayName} (${playerData.id})`, {
-        //     position: playerData.position,
-        //     destination: playerData.destination
-        // });
-        
         // Get the ship object
         const shipObject = otherPlayerShip.getObject();
+        
+        // If ship object doesn't exist yet, wait for it to be created
+        if (!shipObject) {
+            this.debug(`Ship object not ready for player: ${playerData.displayName} (${playerData.id})`);
+            return;
+        }
         
         // Create Vector3 for new position from playerData
         const newPos = new THREE.Vector3(
