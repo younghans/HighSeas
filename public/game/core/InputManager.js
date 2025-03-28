@@ -94,12 +94,8 @@ class InputManager {
     
     // Handle key presses
     onKeyDown(event) {
-        // Space bar for firing cannons
-        if (event.code === 'Space') {
-            if (this.gameCore.combatManager) {
-                this.gameCore.combatManager.fireAtCurrentTarget();
-            }
-        }
+        // Space bar for firing cannons - REMOVED since CombatManager already handles this
+        // This prevents duplicate notifications when firing in safe zones
         
         // Could implement other keyboard shortcuts
     }

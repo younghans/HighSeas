@@ -100,7 +100,7 @@ class TargetInfoDisplay {
         
         // Create fire button
         const fireButton = document.createElement('button');
-        fireButton.textContent = 'FIRE';
+        fireButton.textContent = 'FIRE (SPACE)';
         fireButton.style.flex = '1';
         fireButton.style.padding = '8px 0';
         fireButton.style.backgroundColor = UI_CONSTANTS.COLORS.ERROR;

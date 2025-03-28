@@ -117,6 +117,20 @@ class CombatManager {
         // Skip if player ship is sunk
         if (this.playerShip.isSunk) return;
         
+        // Check if player is in a safe zone
+        if (this.isInSafeZone(this.playerShip.getPosition())) {
+            this.showNotification("These waters are peaceful", 3000, "success");
+            console.log('[COMBAT] Cannot fire from safe zone');
+            return;
+        }
+        
+        // Check if target is in a safe zone
+        if (this.isInSafeZone(currentTarget.getPosition())) {
+            this.showNotification("Cannot attack ships in peaceful waters", 3000, "success");
+            console.log('[COMBAT] Cannot attack target in safe zone');
+            return;
+        }
+        
         // Calculate distance to target
         const distance = this.playerShip.getPosition().distanceTo(currentTarget.getPosition());
         
@@ -1900,6 +1914,44 @@ class CombatManager {
         
         // Start animation
         animateExplosion(1/60);
+    }
+
+    /**
+     * Set the zones manager reference
+     * @param {Zones} zonesManager - The zones manager instance
+     */
+    setZonesManager(zonesManager) {
+        this.zonesManager = zonesManager;
+    }
+
+    /**
+     * Check if a position is within a safe zone
+     * @param {THREE.Vector3} position - The position to check
+     * @returns {boolean} True if the position is in a safe zone
+     */
+    isInSafeZone(position) {
+        if (!this.zonesManager) return false;
+        
+        return this.zonesManager.isInSafeZone(position.x, position.z);
+    }
+
+    /**
+     * Show a notification message
+     * @param {string} message - The message to display
+     * @param {number|string} duration - How long to show the message in milliseconds or type
+     * @param {string} type - Notification type ('success', 'warning', 'error', 'debug')
+     */
+    showNotification(message, duration = 3000, type = null) {
+        // Use the UI's notification system if available
+        if (this.ui && this.ui.showNotification) {
+            this.ui.showNotification(message, duration, type);
+        } else if (window.gameUI && window.gameUI.showNotification) {
+            // Try global gameUI as fallback
+            window.gameUI.showNotification(message, duration, type);
+        } else {
+            // Log to console as a fallback
+            console.log('NOTIFICATION:', message);
+        }
     }
 }
 

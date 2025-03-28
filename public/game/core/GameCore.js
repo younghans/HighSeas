@@ -672,6 +672,12 @@ class GameCore {
             this.combatManager.setCombatService(this.combatService);
         }
         
+        // Connect zones manager to combat manager if available
+        if (this.world && this.world.zones && this.combatManager) {
+            console.log('Connecting Zones to CombatManager');
+            this.combatManager.setZonesManager(this.world.zones);
+        }
+        
         // Initialize EnemyShipManager with the now-initialized combatService
         this.enemyShipManager = new EnemyShipManager({
             scene: this.sceneManager.getScene(),
@@ -807,9 +813,15 @@ class GameCore {
             if (this.world && result.manifest) {
                 this.world.loadIslandsManifest(result.manifest);
                 
-                // Connect zones manager with enemy ship manager if both exist
-                if (this.world.zones && this.enemyShipManager) {
-                    this.enemyShipManager.setZonesManager(this.world.zones);
+                // Connect zones manager with enemy ship manager and combat manager if they exist
+                if (this.world.zones) {
+                    if (this.enemyShipManager) {
+                        this.enemyShipManager.setZonesManager(this.world.zones);
+                    }
+                    
+                    if (this.combatManager) {
+                        this.combatManager.setZonesManager(this.world.zones);
+                    }
                 }
             }
             

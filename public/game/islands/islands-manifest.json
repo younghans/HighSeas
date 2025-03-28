@@ -12,7 +12,7 @@
       },
       "metadata": {
         "name": "Home Island",
-        "safeZone": 350,
+        "safeZone": 400,
         "tradingIsland": true,
         "spawnPoint": true,
         "difficulty": 0
