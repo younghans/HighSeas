@@ -12,6 +12,7 @@ class UIButtonManager {
         // Button references
         this.profileButton = null;
         this.settingsButton = null;
+        this.leaderboardButton = null;
         this.goldButton = null;
         this.inventoryButton = null;
         this.mapButton = null;
@@ -25,6 +26,7 @@ class UIButtonManager {
     init() {
         // Create top buttons
         this.createSettingsButton();
+        this.createLeaderboardButton();
         this.createProfileButton();
         
         // Create bottom buttons
@@ -85,6 +87,31 @@ class UIButtonManager {
         
         if (this.gameUI.topButtonContainer) {
             this.gameUI.topButtonContainer.appendChild(this.profileButton);
+        }
+    }
+    
+    /**
+     * Create leaderboard button
+     */
+    createLeaderboardButton() {
+        // Trophy icon that matches the provided image
+        const leaderboardIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="white" stroke="none">
+            <path d="M18.5,4h-1.7H7.2H5.5C4.7,4,4,4.7,4,5.5v1.8c0,2.4,1.6,4.4,3.8,5c0.3,1.4,1.1,2.6,2.2,3.2v2.6h-2
+                c-0.6,0-1,0.4-1,1V20c0,0.6,0.4,1,1,1h8c0.6,0,1-0.4,1-1v-0.9c0-0.6-0.4-1-1-1h-2v-2.6c1.1-0.7,1.9-1.8,2.2-3.2
+                c2.2-0.6,3.8-2.6,3.8-5V5.5C20,4.7,19.3,4,18.5,4z M6,7.3V6h1v3.2C6.4,8.7,6,8,6,7.3z M18,7.3c0,0.7-0.4,1.4-1,1.9V6h1V7.3z"/>
+        </svg>`;
+        
+        this.leaderboardButton = UIUtils.createIconButton(
+            'leaderboard-button', 
+            leaderboardIcon, 
+            'Leaderboard',
+            () => {
+                UIEventBus.publish('toggleMenu', { type: 'leaderboard', location: 'top' });
+            }
+        );
+        
+        if (this.gameUI.topButtonContainer) {
+            this.gameUI.topButtonContainer.appendChild(this.leaderboardButton);
         }
     }
     
@@ -263,6 +290,7 @@ class UIButtonManager {
     show() {
         if (this.profileButton) this.profileButton.style.display = 'flex';
         if (this.settingsButton) this.settingsButton.style.display = 'flex';
+        if (this.leaderboardButton) this.leaderboardButton.style.display = 'flex';
         if (this.goldButton) this.goldButton.style.display = 'flex';
         if (this.inventoryButton) this.inventoryButton.style.display = 'flex';
         if (this.mapButton) this.mapButton.style.display = 'flex';
@@ -274,6 +302,7 @@ class UIButtonManager {
     hide() {
         if (this.profileButton) this.profileButton.style.display = 'none';
         if (this.settingsButton) this.settingsButton.style.display = 'none';
+        if (this.leaderboardButton) this.leaderboardButton.style.display = 'none';
         if (this.goldButton) this.goldButton.style.display = 'none';
         if (this.inventoryButton) this.inventoryButton.style.display = 'none';
         if (this.mapButton) this.mapButton.style.display = 'none';

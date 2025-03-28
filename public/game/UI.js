@@ -10,6 +10,7 @@ import TargetInfoDisplay from './ui/TargetInfoDisplay.js';
 import CooldownIndicator from './ui/CooldownIndicator.js';
 import DebugPanel from './ui/DebugPanel.js';
 import NotificationSystem from './ui/NotificationSystem.js';
+import LeaderboardComponent from './ui/LeaderboardComponent.js';
 
 /**
  * GameUI class - handles all UI elements in the game
@@ -143,11 +144,15 @@ class GameUI {
         this.chatManager.setProfanityFilter(this.profanityFilterEnabled);
         
         // Create component instances
+        this.leaderboardComponent = new LeaderboardComponent(this);
         this.buttonManager = new UIButtonManager(this);
         this.menuManager = new UIMenuManager(this);
         this.targetInfo = new TargetInfoDisplay(this);
         this.cooldownIndicator = new CooldownIndicator(this);
         this.chatInterface = new ChatInterface(this, this.chatManager);
+        
+        // Initialize the leaderboard component
+        this.leaderboardComponent.initialize();
         
         // Only create debug panel if debug mode is enabled
         if (this.debugMode) {

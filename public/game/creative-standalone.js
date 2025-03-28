@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import IslandGenerator from './IslandGenerator.js';
-import PerlinNoise from './PerlinNoise.js';
+import IslandGenerator from './islands/IslandGenerator.js';
+import PerlinNoise from './islands/PerlinNoise.js';
 import World from './world.js';
 import BuildingManager from './BuildingManager.js';
 import GenericGLBModel from './objects/GenericGLBModel.js';

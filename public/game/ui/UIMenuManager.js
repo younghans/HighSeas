@@ -17,6 +17,7 @@ class UIMenuManager {
         // Menu references
         this.profileMenu = null;
         this.settingsMenu = null;
+        this.leaderboardMenu = null;
         this.inventoryMenu = null;
         this.goldMenu = null;
         this.mapMenu = null;
@@ -31,6 +32,7 @@ class UIMenuManager {
         // Create top menus
         this.createProfileMenu();
         this.createSettingsMenu();
+        this.createLeaderboardMenu();
         
         // Create bottom menus
         this.createInventoryMenu();
@@ -94,6 +96,7 @@ class UIMenuManager {
         // Hide all top menus first
         if (this.profileMenu) this.profileMenu.style.display = 'none';
         if (this.settingsMenu) this.settingsMenu.style.display = 'none';
+        if (this.leaderboardMenu) this.leaderboardMenu.style.display = 'none';
         
         // If we're toggling the currently active menu, just close it
         if (this.activeMenuTop === menuType) {
@@ -118,6 +121,14 @@ class UIMenuManager {
         } else if (menuType === 'settings') {
             if (this.settingsMenu) {
                 this.settingsMenu.style.display = 'block';
+            }
+        } else if (menuType === 'leaderboard') {
+            if (this.leaderboardMenu) {
+                this.leaderboardMenu.style.display = 'block';
+                // Refresh leaderboard data when menu is opened
+                if (this.gameUI.leaderboardComponent) {
+                    this.gameUI.leaderboardComponent.loadLeaderboardData();
+                }
             }
         }
         
@@ -388,6 +399,23 @@ class UIMenuManager {
     }
     
     /**
+     * Create leaderboard menu
+     */
+    createLeaderboardMenu() {
+        // Initialize leaderboard component if it doesn't exist
+        if (!this.gameUI.leaderboardComponent) {
+            return;
+        }
+        
+        // Get the menu from the leaderboard component
+        this.leaderboardMenu = this.gameUI.leaderboardComponent.createLeaderboardMenu();
+        
+        if (this.gameUI.topMenuContainer) {
+            this.gameUI.topMenuContainer.appendChild(this.leaderboardMenu);
+        }
+    }
+    
+    /**
      * Create inventory menu
      */
     createInventoryMenu() {
@@ -442,7 +470,7 @@ class UIMenuManager {
         
         // Description
         const description = document.createElement('p');
-        description.textContent = 'Collect gold by looting shipwrecks and completing quests. Gold can be used to upgrade your ship and purchase items.';
+        description.textContent = 'Collect gold by looting shipwrecks and completing quests. Gold can be used to upgrade your ship and purchase items. (coming soon)';
         description.style.textAlign = 'center';
         description.style.color = 'rgba(255, 255, 255, 0.7)';
         description.style.fontSize = '14px';
@@ -558,6 +586,13 @@ class UIMenuManager {
     hideAllMenus() {
         this.closeTopMenu();
         this.closeBottomMenu();
+        
+        if (this.profileMenu) this.profileMenu.style.display = 'none';
+        if (this.settingsMenu) this.settingsMenu.style.display = 'none';
+        if (this.leaderboardMenu) this.leaderboardMenu.style.display = 'none';
+        if (this.inventoryMenu) this.inventoryMenu.style.display = 'none';
+        if (this.goldMenu) this.goldMenu.style.display = 'none';
+        if (this.mapMenu) this.mapMenu.style.display = 'none';
     }
 }
 

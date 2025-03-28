@@ -8,6 +8,9 @@ const combatFunctions = require('./combat');
 // Import utilities
 const { rateLimiter } = require('./utils');
 
+// Import leaderboard functions
+const leaderboardFunctions = require('./leaderboard');
+
 // Export utilities
 exports.rateLimiter = rateLimiter;
 
@@ -16,3 +19,7 @@ exports.processCombatAction = combatFunctions.processCombatAction;
 exports.lootShipwreck = combatFunctions.lootShipwreck;
 exports.resetPlayerShip = combatFunctions.resetPlayerShip;
 exports.cleanupOldShipwrecks = combatFunctions.cleanupOldShipwrecks;
+
+// Export leaderboard functions
+exports.updateGoldLeaderboard = leaderboardFunctions.updateGoldLeaderboard;
+exports.updateGoldLeaderboardManual = leaderboardFunctions.updateGoldLeaderboardManual;

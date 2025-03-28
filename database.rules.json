@@ -11,6 +11,10 @@
         }
       }
     },
+    "leaderboards": {
+      ".read": "auth != null",
+      ".write": false
+    },
     "shipwrecks": {
       ".read": "auth != null",
       ".write": "auth != null"

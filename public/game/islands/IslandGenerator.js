@@ -217,4 +217,4 @@ class IslandGenerator {
     }
 }
 
-export default IslandGenerator;
+export default IslandGenerator; 
