@@ -394,7 +394,9 @@ class MultiplayerManager {
                 
                 // Update health bar if it exists
                 if (typeof otherPlayerShip.updateHealthBar === 'function' && otherPlayerShip.healthBarContainer) {
-                    otherPlayerShip.updateHealthBar();
+                    // Get the camera from the scene
+                    const camera = this.scene.userData.camera;
+                    otherPlayerShip.updateHealthBar(camera);
                     
                     // Make health bar visible when damaged
                     if (typeof otherPlayerShip.setHealthBarVisible === 'function') {
@@ -882,6 +884,14 @@ class MultiplayerManager {
             
             // Update nametag position
             this.updateNametag(otherPlayerShip);
+            
+            // Update health bar to face camera
+            if (otherPlayerShip.healthBarContainer && otherPlayerShip.healthBarContainer.visible && typeof otherPlayerShip.updateHealthBar === 'function') {
+                const camera = this.scene.userData.camera;
+                if (camera) {
+                    otherPlayerShip.updateHealthBar(camera);
+                }
+            }
         });
     }
     
