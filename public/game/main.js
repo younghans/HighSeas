@@ -15,8 +15,8 @@ import MultiplayerManager from './multiplayer.js';
 import BuildingManager from './BuildingManager.js';
 import IslandInteractionManager from './IslandInteractionManager.js';
 import EnemyShipManager from './ships/EnemyShipManager.js';
-import CombatManager from './CombatManager.js';
-import CombatService from './CombatService.js';
+import CombatManager from './combat/CombatManager.js';
+import CombatService from './combat/CombatService.js';
 
 // Main game variables
 let scene, camera, renderer;
