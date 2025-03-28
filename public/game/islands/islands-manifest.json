@@ -1,0 +1,22 @@
+{
+  "version": "1.0",
+  "description": "Game world islands manifest",
+  "islands": [
+    {
+      "name": "Home Island",
+      "path": "/game/islands/customIslands/test-home-island.json",
+      "position": {
+        "x": 5,
+        "y": 0,
+        "z": 85
+      },
+      "metadata": {
+        "name": "Home Island",
+        "safeZone": 100,
+        "tradingIsland": true,
+        "spawnPoint": true,
+        "difficulty": 0
+      }
+    }
+  ]
+} 

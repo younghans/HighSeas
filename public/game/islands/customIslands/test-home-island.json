@@ -1,0 +1,194 @@
+{
+  "name": "test-home-island",
+  "params": {
+    "size": 400,
+    "resolution": 80,
+    "treeCount": 0,
+    "seed": 53866,
+    "noiseScale": 0.007,
+    "noiseHeight": 72,
+    "falloffFactor": 0.1
+  },
+  "metadata": {
+    "name": "Home Island",
+    "safeZone": 150,
+    "tradingIsland": true,
+    "spawnPoint": true,
+    "difficulty": 0,
+    "description": "The main starting island with trading, ship building, and player services."
+  },
+  "createdAt": "2025-03-28T18:43:54.984Z",
+  "placedObjects": [
+    {
+      "type": "shipBuildingShop",
+      "position": {
+        "x": -38.67868690592495,
+        "y": 1.0806836864425104,
+        "z": 9.107444736461419
+      },
+      "rotation": 3.9269908169872414
+    },
+    {
+      "type": "dock",
+      "position": {
+        "x": 59.98047297872645,
+        "y": 1.9725061010292775,
+        "z": -10.046296022425222
+      },
+      "rotation": 7.0685834705770345
+    },
+    {
+      "type": "tradingHouse",
+      "position": {
+        "x": 57.973007003560475,
+        "y": 4.028544273518973,
+        "z": 4.969211198787336
+      },
+      "rotation": 3.141592653589793
+    },
+    {
+      "type": "tradingHouse",
+      "position": {
+        "x": 70.61871816125256,
+        "y": 5.760999369455831,
+        "z": 1.7266827346407208
+      },
+      "rotation": 10.210176124166829
+    },
+    {
+      "type": "pirateHouse",
+      "position": {
+        "x": 110.35260696914634,
+        "y": 19.283679094357034,
+        "z": -57.73063065709841
+      },
+      "rotation": 0
+    },
+    {
+      "type": "pirateHouse",
+      "position": {
+        "x": 121.50010409423295,
+        "y": 20.001711337167805,
+        "z": -67.0492517867675
+      },
+      "rotation": 0.7853981633974483
+    },
+    {
+      "type": "palmTreeBent",
+      "position": {
+        "x": -62.84690300093929,
+        "y": 2.5660623670410727,
+        "z": -11.813965386605188
+      },
+      "rotation": 0
+    },
+    {
+      "type": "stoneLarge2",
+      "position": {
+        "x": -33.142135051360086,
+        "y": 11.12046225204195,
+        "z": 52.19632133467072
+      },
+      "rotation": 0
+    },
+    {
+      "type": "palmTreeBent",
+      "position": {
+        "x": 9.780711176263338,
+        "y": 2.644017221500884,
+        "z": 19.952519722249463
+      },
+      "rotation": 7.853981633974483
+    },
+    {
+      "type": "palmTreeBent",
+      "position": {
+        "x": 79.86087551189281,
+        "y": 5.395645313090634,
+        "z": -42.47180650055904
+      },
+      "rotation": 2.356194490192345
+    },
+    {
+      "type": "palmTreeBent",
+      "position": {
+        "x": -127.08925509531318,
+        "y": 4.374971755134549,
+        "z": -48.90038618529323
+      },
+      "rotation": 0.7853981633974483
+    },
+    {
+      "type": "palmTreeBent",
+      "position": {
+        "x": 62.89621021529624,
+        "y": 2.8081172831353065,
+        "z": 47.96679100340586
+      },
+      "rotation": 0.7853981633974483
+    },
+    {
+      "type": "palmTreeBent",
+      "position": {
+        "x": 164.02036433005557,
+        "y": 5.284858755322562,
+        "z": -70.9605333322854
+      },
+      "rotation": 0.7853981633974483
+    },
+    {
+      "type": "palmTreeBent",
+      "position": {
+        "x": 149.35353734736233,
+        "y": 4.938771618968154,
+        "z": -96.22135016596252
+      },
+      "rotation": 0.7853981633974483
+    },
+    {
+      "type": "palmTreeLarge",
+      "position": {
+        "x": 119.76079233750636,
+        "y": 19.89230317443655,
+        "z": -57.08857873250555
+      },
+      "rotation": 0
+    },
+    {
+      "type": "palmTreeLarge",
+      "position": {
+        "x": -40.14209783345146,
+        "y": 9.907957731188665,
+        "z": 43.491768100094944
+      },
+      "rotation": 0
+    },
+    {
+      "type": "palmTreeLarge",
+      "position": {
+        "x": -42.23475885356055,
+        "y": 9.959826364257724,
+        "z": 55.90776070811096
+      },
+      "rotation": 0
+    },
+    {
+      "type": "palmTreeLarge",
+      "position": {
+        "x": -1.1486156251891018,
+        "y": 9.336634900349923,
+        "z": 53.464318987520215
+      },
+      "rotation": 0
+    },
+    {
+      "type": "pirateHouse",
+      "position": {
+        "x": 108.15709018419463,
+        "y": 15.449598130402936,
+        "z": -73.79171755255294
+      },
+      "rotation": 2.356194490192345
+    }
+  ]
+}

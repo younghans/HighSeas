@@ -99,39 +99,88 @@ class IslandGenerator {
      * @param {Object} position - The x,z position of the island
      * @param {THREE.PlaneGeometry} customGeometry - The geometry to use for the island
      * @param {number} numTrees - Number of trees to place on the island
+     * @param {Object} customParams - Optional custom parameters for noise generation
+     * @returns {THREE.Mesh} - The created island mesh
      */
-    generateCustomIsland(position, customGeometry, numTrees = 10) {
+    generateCustomIsland(position, customGeometry, numTrees = 10, customParams = null) {
         const positions = customGeometry.attributes.position;
         const colors = new Float32Array(positions.count * 3);
 
-        // Scale height based on the island size - larger islands get taller mountains
-        const sizeScaleFactor = Math.max(customGeometry.parameters.width, customGeometry.parameters.height) / 200;
-        // Increase the height multiplier for larger islands
-        const heightMultiplier = 40 * Math.sqrt(sizeScaleFactor);
+        // Use custom parameters if provided, otherwise use defaults
+        const params = customParams || {};
         
-        // Scale the falloff factor inversely with island size
-        const falloffFactor = 0.2 * (1 / sizeScaleFactor);
-
-        for (let i = 0; i < positions.count; i++) {
-            const x = positions.getX(i);
-            const y = positions.getY(i);
-            const distance = Math.sqrt(x * x + y * y);
-            
-            // Use a smaller frequency for larger islands to maintain realistic terrain
-            const frequency = 0.02 / Math.sqrt(sizeScaleFactor);
-            const height = this.noise.perlin((x + position.x) * frequency, (y + position.z) * frequency) * heightMultiplier - distance * falloffFactor;
-            positions.setZ(i, height);
-
-            const color = new THREE.Color();
-            if (height <= 10 * sizeScaleFactor) {
-                color.set(0xC2B280); // Sandy color
-            } else {
-                color.set(0x6B8E23); // Green color
+        // Check if we need to use a specific seed
+        const useCustomNoise = params.seed !== undefined && params.seed !== null;
+        const islandNoise = useCustomNoise ? new PerlinNoise(params.seed) : this.noise;
+        
+        // If we have all custom parameters, use exact creative mode formula
+        if (params.noiseScale && params.noiseHeight && params.falloffFactor && params.size) {
+            // This is identical to the creative-standalone.js implementation
+            for (let i = 0; i < positions.count; i++) {
+                const x = positions.getX(i);
+                const y = positions.getY(i);
+                const distance = Math.sqrt(x * x + y * y);
+                
+                // Scale the falloff based on the island size - EXACT same formula as creative-standalone.js
+                const maxDimension = Math.max(params.size, params.size) / 2;
+                const scaledDistance = distance / maxDimension * 200; // Scale relative to a 400x400 island
+                
+                // IMPORTANT: For exported islands, we IGNORE the current position when sampling noise
+                // This ensures the island has exactly the same shape regardless of where it's placed
+                const height = islandNoise.perlin(x * params.noiseScale, y * params.noiseScale) * 
+                               params.noiseHeight - scaledDistance * params.falloffFactor;
+                
+                positions.setZ(i, height);
+                
+                const color = new THREE.Color();
+                if (height <= 10) {
+                    color.set(0xC2B280); // Sandy color
+                } else {
+                    color.set(0x6B8E23); // Green color
+                }
+                
+                colors[i * 3] = color.r;
+                colors[i * 3 + 1] = color.g;
+                colors[i * 3 + 2] = color.b;
             }
+        } else {
+            // Get size from geometry and calculate scale factors for procedural islands
+            const sizeX = customGeometry.parameters.width;
+            const sizeY = customGeometry.parameters.height;
+            const sizeScaleFactor = Math.max(sizeX, sizeY) / 200;
+            
+            const noiseScale = params.noiseScale || (0.02 / Math.sqrt(sizeScaleFactor));
+            const noiseHeight = params.noiseHeight || (40 * Math.sqrt(sizeScaleFactor));
+            const falloffFactor = params.falloffFactor || (0.2 * (1 / sizeScaleFactor));
+            
+            // Generate the terrain using procedural formula
+            for (let i = 0; i < positions.count; i++) {
+                const x = positions.getX(i);
+                const y = positions.getY(i);
+                const distance = Math.sqrt(x * x + y * y);
+                
+                // Scale the distance
+                const maxDimension = Math.max(sizeX, sizeY) / 2;
+                const scaledDistance = distance / maxDimension * 200;
+                
+                // Generate height using Perlin noise
+                const height = islandNoise.perlin((x + position.x) * noiseScale, (y + position.z) * noiseScale) * 
+                               noiseHeight - scaledDistance * falloffFactor;
+                
+                positions.setZ(i, height);
 
-            colors[i * 3] = color.r;
-            colors[i * 3 + 1] = color.g;
-            colors[i * 3 + 2] = color.b;
+                // Set color based on height
+                const color = new THREE.Color();
+                if (height <= 10 * sizeScaleFactor) {
+                    color.set(0xC2B280); // Sandy color
+                } else {
+                    color.set(0x6B8E23); // Green color
+                }
+
+                colors[i * 3] = color.r;
+                colors[i * 3 + 1] = color.g;
+                colors[i * 3 + 2] = color.b;
+            }
         }
 
         customGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -145,8 +194,10 @@ class IslandGenerator {
         this.scene.add(island);
         this.islands.push(island);
 
-        // Place trees on the island
-        this._placeTrees(island, customGeometry, numTrees);
+        // Place trees on the island if treeCount is greater than 0
+        if (numTrees > 0) {
+            this._placeTrees(island, customGeometry, numTrees);
+        }
         
         return island;
     }

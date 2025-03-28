@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Water } from 'three/addons/objects/Water.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import IslandGenerator from '../islands/IslandGenerator.js';
+import IslandLoader from '../islands/IslandLoader.js';
 import World from '../world.js';
 import { SailboatShip } from '../ships/index.js';
 import { WindSystem } from '../wind.js';
@@ -35,8 +36,9 @@ class GameCore {
         this.gameStarted = false; // Flag to track if the game has started
         this.multiplayerManager = null;
 
-        // Island generator
+        // Island systems
         this.islandGenerator = null;
+        this.islandLoader = null;
 
         // Add gameUI variable
         this.gameUI = null;
@@ -742,26 +744,93 @@ class GameCore {
         this.gameUI.chatManager.setGameReferences(this.sceneManager.getCamera(), [this.ship]);
     }
     
-    // Generate islands in the ocean
+    // Generate islands in the ocean - updated to use the island loader
     generateIslands() {
-        // Initialize island generator
+        // Initialize island generator for basic islands
         this.islandGenerator = new IslandGenerator(this.sceneManager.getScene());
         
-        // Define island positions
-        const islandPositions = [
-            new THREE.Vector3(500, 0, 300),
-            new THREE.Vector3(-700, 0, -400),
-            new THREE.Vector3(300, 0, -800),
-            new THREE.Vector3(-500, 0, 600),
-            new THREE.Vector3(1000, 0, -200)
-        ];
+        // Initialize island loader
+        this.islandLoader = new IslandLoader({
+            scene: this.sceneManager.getScene()
+        });
         
-        // Generate islands with 15 trees per island
-        this.islandGenerator.generateIslands(islandPositions, 15);
+        // Load islands from manifest file
+        this.loadIslandsFromManifest().then(() => {
+            console.log('Custom islands loaded successfully');
+            
+            // Generate additional procedural islands at specific positions
+            const procedualIslandPositions = [
+                new THREE.Vector3(500, 0, 300),
+                new THREE.Vector3(-700, 0, -400),
+                new THREE.Vector3(300, 0, -800)
+            ];
+            
+            // Generate these islands with 15 trees per island
+            this.islandGenerator.generateIslands(procedualIslandPositions, 15);
+            
+            // Update island references for other systems
+            this.updateIslandReferences();
+        }).catch(error => {
+            console.error('Failed to load custom islands:', error);
+            
+            // Fallback to generating only procedural islands
+            console.log('Falling back to procedural islands only');
+            
+            const islandPositions = [
+                new THREE.Vector3(500, 0, 300),
+                new THREE.Vector3(-700, 0, -400),
+                new THREE.Vector3(300, 0, -800),
+                new THREE.Vector3(-500, 0, 600),
+                new THREE.Vector3(1000, 0, -200)
+            ];
+            
+            // Generate islands with 15 trees per island
+            this.islandGenerator.generateIslands(islandPositions, 15);
+            
+            // Generate a larger custom island
+            const customGeometry = new THREE.PlaneGeometry(400, 400, 80, 80);
+            this.islandGenerator.generateCustomIsland(new THREE.Vector3(-200, 0, 1000), customGeometry, 30);
+        });
+    }
+    
+    /**
+     * Load islands from the manifest file
+     * @returns {Promise} - Resolves when islands are loaded
+     */
+    async loadIslandsFromManifest() {
+        try {
+            // Use the IslandLoader to load islands from the manifest
+            await this.islandLoader.loadIslandsFromManifest('/game/islands/islands-manifest.json');
+            return true;
+        } catch (error) {
+            console.error('Error loading islands from manifest:', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * Update island references for the building manager and island manager
+     */
+    updateIslandReferences() {
+        // Get all islands from both sources
+        const generatorIslands = this.islandGenerator.getIslands();
+        const loaderIslands = this.islandLoader ? this.islandLoader.getIslands().map(i => i.mesh) : [];
         
-        // Generate a larger custom island
-        const customGeometry = new THREE.PlaneGeometry(400, 400, 80, 80);
-        this.islandGenerator.generateCustomIsland(new THREE.Vector3(-200, 0, 1000), customGeometry, 30);
+        // Combine islands from both sources
+        const allIslands = [...generatorIslands, ...loaderIslands];
+        
+        // Update the island generator's islands array
+        this.islandGenerator.islands = allIslands;
+        
+        // Update building manager if it exists
+        if (this.buildingManager) {
+            this.buildingManager.islandGenerator = this.islandGenerator;
+        }
+        
+        // Update island manager if it exists
+        if (this.islandManager) {
+            this.islandManager.islandGenerator = this.islandGenerator;
+        }
     }
 
     animate(delta, elapsedTime) {
