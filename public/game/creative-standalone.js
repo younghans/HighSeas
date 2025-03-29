@@ -21,6 +21,7 @@ class CreativeStandalone {
         this.buildingManager = null;
         this.availableObjects = [];
         this.placedObjects = []; // Array to store information about placed objects
+        this.waterVisible = true; // Add water visibility state
         
         // Default island parameters
         this.islandParams = {
@@ -249,6 +250,10 @@ class CreativeStandalone {
                 <input type="range" id="falloffFactor" min="0.1" max="1.0" step="0.05" value="${this.islandParams.falloffFactor}" style="width: 100%;">
             </div>
             
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                <button id="toggleWater" style="padding: 10px; width: 100%; background-color: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer;">Water: On</button>
+            </div>
+            
             <div style="display: flex; gap: 10px; justify-content: space-between; margin-bottom: 10px;">
                 <button id="saveIsland" style="padding: 10px; flex-grow: 1; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">Save Island</button>
                 <button id="loadIsland" style="padding: 10px; flex-grow: 1; background-color: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer;">Load Island</button>
@@ -307,6 +312,10 @@ class CreativeStandalone {
             this.islandParams.falloffFactor = parseFloat(e.target.value);
             document.getElementById('falloffValue').textContent = this.islandParams.falloffFactor.toFixed(2);
             this.updateIslandPreview();
+        });
+        
+        document.getElementById('toggleWater').addEventListener('click', () => {
+            this.toggleWater();
         });
         
         document.getElementById('saveIsland').addEventListener('click', () => {
@@ -897,6 +906,22 @@ class CreativeStandalone {
                     }
                 }
             });
+        }
+    }
+    
+    // Add a new method to toggle water visibility
+    toggleWater() {
+        if (this.world && this.world.getWater()) {
+            this.waterVisible = !this.waterVisible;
+            const water = this.world.getWater();
+            water.visible = this.waterVisible;
+            
+            // Update the button text
+            const toggleButton = document.getElementById('toggleWater');
+            if (toggleButton) {
+                toggleButton.textContent = this.waterVisible ? 'Water: On' : 'Water: Off';
+                toggleButton.style.backgroundColor = this.waterVisible ? '#2196F3' : '#555555';
+            }
         }
     }
 }

@@ -32,7 +32,7 @@ class NotificationSystem {
      * Show a notification message
      * @param {string} message - The message to show
      * @param {number|string} duration - How long to show the message in milliseconds, or notification type
-     * @param {string} type - Notification type: 'success', 'warning', 'error', 'debug' or null for default
+     * @param {string} type - Notification type: 'success', 'warning', 'error', 'debug', 'zone' or null for default
      */
     show(message, duration = UI_CONSTANTS.NOTIFICATION_DURATION, type = null) {
         // Handle case where duration is actually the type (for backward compatibility)
@@ -45,30 +45,46 @@ class NotificationSystem {
         const notification = document.createElement('div');
         notification.className = 'notification';
         
-        // Set background color based on type
-        let bgColor = 'rgba(0, 0, 0, 0.7)'; // Default
-        if (type === 'success') {
-            bgColor = 'rgba(76, 175, 80, 0.9)'; // Green
-        } else if (type === 'warning') {
-            bgColor = 'rgba(255, 152, 0, 0.9)'; // Orange
-        } else if (type === 'error') {
-            bgColor = 'rgba(244, 67, 54, 0.9)'; // Red
-        } else if (type === 'debug') {
-            bgColor = 'rgba(156, 39, 176, 0.9)'; // Magenta/Purple for debug
+        // Special styling for zone notifications
+        if (type === 'zone') {
+            notification.style.backgroundColor = 'transparent';
+            notification.style.color = 'white';
+            notification.style.fontSize = '22px';
+            notification.style.fontWeight = 'bold';
+            notification.style.textAlign = 'center';
+            notification.style.transition = 'opacity 0.7s';
+            notification.style.opacity = '0';
+            notification.style.textShadow = '0 0 10px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.5)';
+            notification.style.letterSpacing = '1px';
+            notification.style.fontVariant = 'small-caps';
+            notification.style.padding = '15px';
+            notification.textContent = message;
+        } else {
+            // Set background color based on type
+            let bgColor = 'rgba(0, 0, 0, 0.7)'; // Default
+            if (type === 'success') {
+                bgColor = 'rgba(76, 175, 80, 0.9)'; // Green
+            } else if (type === 'warning') {
+                bgColor = 'rgba(255, 152, 0, 0.9)'; // Orange
+            } else if (type === 'error') {
+                bgColor = 'rgba(244, 67, 54, 0.9)'; // Red
+            } else if (type === 'debug') {
+                bgColor = 'rgba(156, 39, 176, 0.9)'; // Magenta/Purple for debug
+            }
+            
+            notification.style.backgroundColor = bgColor;
+            notification.style.color = 'white';
+            notification.style.padding = '10px 20px';
+            notification.style.borderRadius = '5px';
+            notification.style.marginBottom = '10px';
+            notification.style.textAlign = 'center';
+            notification.style.transition = 'opacity 0.5s';
+            notification.style.opacity = '0';
+            notification.style.fontWeight = 'bold';
+            notification.style.fontSize = '16px';
+            notification.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
+            notification.textContent = message;
         }
-        
-        notification.style.backgroundColor = bgColor;
-        notification.style.color = 'white';
-        notification.style.padding = '10px 20px';
-        notification.style.borderRadius = '5px';
-        notification.style.marginBottom = '10px';
-        notification.style.textAlign = 'center';
-        notification.style.transition = 'opacity 0.5s';
-        notification.style.opacity = '0';
-        notification.style.fontWeight = 'bold';
-        notification.style.fontSize = '16px';
-        notification.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
-        notification.textContent = message;
         
         // Add to container
         this.container.appendChild(notification);
@@ -87,6 +103,15 @@ class NotificationSystem {
                 }
             }, 500);
         }, duration);
+    }
+    
+    /**
+     * Show a zone transition notification
+     * @param {string} message - The zone message to show
+     * @param {number} duration - How long to show the message in milliseconds
+     */
+    showZoneNotification(message, duration = 3500) {
+        this.show(message, duration, 'zone');
     }
 }
 

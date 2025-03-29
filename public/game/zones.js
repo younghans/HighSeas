@@ -23,7 +23,8 @@ class Zones {
                     this.addSafeZone(
                         island.position.x,
                         island.position.z,
-                        island.metadata.safeZone
+                        island.metadata.safeZone,
+                        island.metadata.name || island.name
                     );
                 }
             });
@@ -37,13 +38,14 @@ class Zones {
     }
     
     // Add a safe zone at the specified position with the given diameter
-    addSafeZone(x, z, diameter) {
+    addSafeZone(x, z, diameter, name = "Safe Zone") {
         this.safeZones.push({
             position: new THREE.Vector2(x, z),
-            radius: diameter / 2
+            radius: diameter / 2,
+            name: name
         });
         
-        console.log(`Added safe zone at (${x},${z}) with radius ${diameter/2}`);
+        console.log(`Added safe zone "${name}" at (${x},${z}) with radius ${diameter/2}`);
     }
     
     // Check if a position is within any safe zone
@@ -58,6 +60,35 @@ class Zones {
         }
         
         return false;
+    }
+    
+    /**
+     * Get information about a safe zone at a position
+     * @param {number} x - X coordinate
+     * @param {number} z - Z coordinate
+     * @returns {Object|null} Zone information or null if not in a zone
+     */
+    getSafeZoneInfo(x, z) {
+        const position = new THREE.Vector2(x, z);
+        
+        for (let i = 0; i < this.safeZones.length; i++) {
+            const safeZone = this.safeZones[i];
+            const distance = position.distanceTo(safeZone.position);
+            
+            if (distance <= safeZone.radius) {
+                // Return zone info with index
+                return {
+                    index: i,
+                    position: safeZone.position,
+                    radius: safeZone.radius,
+                    name: safeZone.name || "Safe Zone",
+                    distanceFromCenter: distance,
+                    distanceFromEdge: safeZone.radius - distance
+                };
+            }
+        }
+        
+        return null;
     }
     
     // Create visual representation of safe zones with smooth transitions

@@ -56,6 +56,9 @@ class GameCore {
         this.combatManager = null;
         this.combatService = null;
         
+        // Track player zone status
+        this.playerInSafeZone = false;
+        
         // Bind methods to maintain 'this' context
         this.animate = this.animate.bind(this);
     }
@@ -877,6 +880,28 @@ class GameCore {
             
             // Update ship
             this.ship.update(delta, elapsedTime);
+            
+            // Check for zone transitions if we have a zones system
+            if (this.world && this.world.zones && this.gameUI) {
+                const shipPosition = this.ship.getPosition();
+                const inSafeZone = this.world.zones.isInSafeZone(shipPosition.x, shipPosition.z);
+                
+                // Check if player has entered or left a safe zone
+                if (inSafeZone !== this.playerInSafeZone) {
+                    if (inSafeZone) {
+                        // Player entered a safe zone - get zone info if available
+                        const zoneInfo = this.world.zones.getSafeZoneInfo(shipPosition.x, shipPosition.z);
+                        // Use more fun messaging for zone transitions
+                        this.gameUI.notificationSystem.showZoneNotification("entering safe waters...");
+                    } else {
+                        // Player left a safe zone
+                        this.gameUI.notificationSystem.showZoneNotification("entering open waters...");
+                    }
+                    
+                    // Update tracked state
+                    this.playerInSafeZone = inSafeZone;
+                }
+            }
             
             // If ship was moving but has now stopped, sync final position with Firebase
             if (wasMoving && !this.ship.isMoving && this.multiplayerManager) {
