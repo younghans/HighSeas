@@ -409,6 +409,15 @@ class ShipwreckManager {
         // Create a gold particle effect at the shipwreck position
         this.createLootEffect(shipwreck.position);
         
+        // Play coin spill sound if available
+        if (window.spatialAudioManager) {
+            try {
+                window.spatialAudioManager.playCoinSpillSound(shipwreck.position);
+            } catch (e) {
+                console.warn('Error playing coin spill sound:', e);
+            }
+        }
+        
         // Start sinking animation
         this.startShipwreckSinkingAnimation(shipwreck);
         
@@ -484,6 +493,18 @@ class ShipwreckManager {
         
         // Create bubble effect
         shipwreck.bubbles = this.createBubbleEffect(shipwreck.ship.shipMesh.position);
+        
+        // Play ship sink sound
+        if (window.spatialAudioManager) {
+            // Add 1-second delay before playing ship sink sound
+            setTimeout(() => {
+                try {
+                    window.spatialAudioManager.playShipSinkSound(shipwreck.ship.shipMesh.position.clone());
+                } catch (e) {
+                    console.warn('Error playing ship sink sound:', e);
+                }
+            }, 1000); // 1 second delay
+        }
         
         // Initialize sinking shipwrecks array if it doesn't exist
         if (!this.sinkingShipwrecks) {

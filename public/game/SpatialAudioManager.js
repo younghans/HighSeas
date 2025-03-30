@@ -65,7 +65,10 @@ class SpatialAudioManager {
                 // Load cannonball splash sounds
                 this.loadSound('cannonball_ploop1', '/assets/sounds/sfx/cannonball_ploop1.mp3'),
                 this.loadSound('cannonball_ploop2', '/assets/sounds/sfx/cannonball_ploop2.mp3'),
-                this.loadSound('cannonball_ploop3', '/assets/sounds/sfx/cannonball_ploop3.mp3')
+                this.loadSound('cannonball_ploop3', '/assets/sounds/sfx/cannonball_ploop3.mp3'),
+                // Load shipwreck looting sounds
+                this.loadSound('coin_spill', '/assets/sounds/sfx/coin_spill.mp3'),
+                this.loadSound('ship_sink', '/assets/sounds/sfx/ship_sink.mp3')
             ]);
             
             console.log('Spatial audio sounds loaded successfully');
@@ -512,6 +515,58 @@ class SpatialAudioManager {
     }
     
     /**
+     * Play a coin spill sound when a player loots a shipwreck
+     * @param {THREE.Vector3} position - Position of the looted shipwreck
+     * @returns {Object} Sound controller
+     */
+    playCoinSpillSound(position) {
+        // Get user volume setting
+        const userVolume = this.masterVolume;
+        
+        // Check if the sound is loaded
+        if (!this.soundBuffers['coin_spill']) {
+            console.warn(`Cannot play coin spill sound - sound not loaded`);
+            return null;
+        }
+        
+        console.log(`Playing coin spill sound at position: ${position.x.toFixed(1)},${position.y.toFixed(1)},${position.z.toFixed(1)}, volume: ${userVolume}`);
+        
+        // Use spatial audio parameters for coin spill - more prominent
+        return this.playSpatialSound('coin_spill', position, 'sfx', {
+            volume: 1.0 * userVolume, // Full volume for satisfying feedback
+            refDistance: 10, // Hear clearly from a good distance
+            maxDistance: 1000, 
+            rolloffFactor: 0.5 // Low rolloff so it's clearly audible
+        });
+    }
+    
+    /**
+     * Play a ship sink sound when a shipwreck starts to sink after being looted
+     * @param {THREE.Vector3} position - Position of the sinking shipwreck
+     * @returns {Object} Sound controller
+     */
+    playShipSinkSound(position) {
+        // Get user volume setting
+        const userVolume = this.masterVolume;
+        
+        // Check if the sound is loaded
+        if (!this.soundBuffers['ship_sink']) {
+            console.warn(`Cannot play ship sink sound - sound not loaded`);
+            return null;
+        }
+        
+        console.log(`Playing ship sink sound at position: ${position.x.toFixed(1)},${position.y.toFixed(1)},${position.z.toFixed(1)}, volume: ${userVolume}`);
+        
+        // Use spatial audio parameters for ship sinking - atmospheric
+        return this.playSpatialSound('ship_sink', position, 'sfx', {
+            volume: 0.95 * userVolume,
+            refDistance: 30,
+            maxDistance: 800,
+            rolloffFactor: 0.8 // Medium rolloff for atmospheric effect
+        });
+    }
+    
+    /**
      * Initialize the spatial audio system - alias for initialize() for backward compatibility
      * @returns {SpatialAudioManager} This instance, for chaining
      */
@@ -556,6 +611,18 @@ class SpatialAudioManager {
         console.log('Cannonball splash sounds:');
         for (let i = 1; i <= 3; i++) {
             const soundId = `cannonball_ploop${i}`;
+            if (this.soundBuffers[soundId]) {
+                console.log(`✅ ${soundId} loaded successfully`);
+            } else {
+                console.warn(`❌ ${soundId} failed to load`);
+                allSoundsLoaded = false;
+            }
+        }
+        
+        // Check shipwreck looting sounds
+        console.log('Shipwreck looting sounds:');
+        const lootSounds = ['coin_spill', 'ship_sink'];
+        for (const soundId of lootSounds) {
             if (this.soundBuffers[soundId]) {
                 console.log(`✅ ${soundId} loaded successfully`);
             } else {
