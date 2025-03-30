@@ -53,14 +53,26 @@ class SpatialAudioManager {
         // Load cannon sound effects
         try {
             await Promise.all([
-                this.loadSound('cannon_shot1', '/assets/sounds/sfx/cannon_shot.mp3'),
+                this.loadSound('cannon_shot1', '/assets/sounds/sfx/cannon_shot1.mp3'),
                 this.loadSound('cannon_shot2', '/assets/sounds/sfx/cannon_shot2.mp3'),
                 this.loadSound('cannon_shot3', '/assets/sounds/sfx/cannon_shot3.mp3'),
-                this.loadSound('cannon_shot4', '/assets/sounds/sfx/cannon_shot4.mp3')
+                this.loadSound('cannon_shot4', '/assets/sounds/sfx/cannon_shot4.mp3'),
+                // Load cannon impact sounds
+                this.loadSound('cannon_impact1', '/assets/sounds/sfx/cannon_impact1.mp3'),
+                this.loadSound('cannon_impact2', '/assets/sounds/sfx/cannon_impact2.mp3'),
+                this.loadSound('cannon_impact3', '/assets/sounds/sfx/cannon_impact3.mp3'),
+                this.loadSound('cannon_impact4', '/assets/sounds/sfx/cannon_impact4.mp3'),
+                // Load cannonball splash sounds
+                this.loadSound('cannonball_ploop1', '/assets/sounds/sfx/cannonball_ploop1.mp3'),
+                this.loadSound('cannonball_ploop2', '/assets/sounds/sfx/cannonball_ploop2.mp3'),
+                this.loadSound('cannonball_ploop3', '/assets/sounds/sfx/cannonball_ploop3.mp3')
             ]);
             
             console.log('Spatial audio sounds loaded successfully');
             this.initialized = true;
+            
+            // Verify sounds were loaded correctly after a short delay
+            setTimeout(() => this.verifyCannonSoundsLoaded(), 500);
         } catch (error) {
             console.error('Failed to load spatial audio sounds:', error);
         }
@@ -72,11 +84,29 @@ class SpatialAudioManager {
      * Resume audio context (must be called after user interaction)
      */
     resumeAudioContext() {
-        if (this.audioContext && this.audioContext.state === 'suspended') {
-            this.audioContext.resume()
-                .then(() => console.log('Audio context resumed successfully'))
-                .catch(error => console.warn('Failed to resume audio context:', error));
+        if (!this.audioContext) {
+            console.warn('Cannot resume audio context: not initialized');
+            return false;
         }
+        
+        if (this.audioContext.state === 'suspended') {
+            console.log('Attempting to resume audio context...');
+            
+            this.audioContext.resume()
+                .then(() => {
+                    console.log('Audio context resumed successfully');
+                    
+                    // Verify sounds are loaded after context is resumed
+                    setTimeout(() => this.verifyCannonSoundsLoaded(), 500);
+                })
+                .catch(error => {
+                    console.error('Failed to resume audio context:', error);
+                });
+        } else {
+            console.log('Audio context already running:', this.audioContext.state);
+        }
+        
+        return true;
     }
     
     /**
@@ -90,16 +120,24 @@ class SpatialAudioManager {
             return false;
         }
         
+        console.log(`Attempting to load sound "${id}" from ${url}`);
+        
         try {
             const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
             const arrayBuffer = await response.arrayBuffer();
+            console.log(`Sound "${id}" fetched successfully, decoding audio data...`);
+            
             const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
             
             this.soundBuffers[id] = audioBuffer;
-            console.log(`Loaded sound: ${id}`);
+            console.log(`Sound "${id}" loaded and ready to play`);
             return true;
         } catch (error) {
-            console.error(`Error loading sound ${id}:`, error);
+            console.error(`Error loading sound ${id} from ${url}:`, error);
             return false;
         }
     }
@@ -375,6 +413,14 @@ class SpatialAudioManager {
         const randomIndex = Math.floor(Math.random() * 4) + 1;
         const soundId = `cannon_shot${randomIndex}`;
         
+        // Check if the sound is loaded
+        if (!this.soundBuffers[soundId]) {
+            console.warn(`Cannot play cannon sound "${soundId}" - sound not loaded`);
+            return null;
+        }
+        
+        console.log(`Playing cannon sound: ${soundId}, player ship: ${isPlayerShip}, volume: ${userVolume}`);
+        
         // Player's cannons are louder and more prominent
         if (isPlayerShip) {
             return this.playSpatialSound(soundId, position, 'sfx', {
@@ -392,6 +438,139 @@ class SpatialAudioManager {
                 rolloffFactor: 2
             });
         }
+    }
+    
+    /**
+     * Play a cannon impact sound with spatial audio
+     * @param {boolean} isPlayerShip - Whether it's the player's ship being hit
+     * @param {THREE.Vector3} position - Position of the impact
+     * @returns {Object} Sound controller
+     */
+    playCannonImpactSound(isPlayerShip, position) {
+        // Get user volume setting
+        const userVolume = this.masterVolume;
+        
+        // Select a random impact sound (1-4)
+        const randomIndex = Math.floor(Math.random() * 4) + 1;
+        const soundId = `cannon_impact${randomIndex}`;
+        
+        // Check if the sound is loaded
+        if (!this.soundBuffers[soundId]) {
+            console.warn(`Cannot play impact sound "${soundId}" - sound not loaded`);
+            return null;
+        }
+        
+        console.log(`Playing impact sound: ${soundId}, player ship: ${isPlayerShip}, volume: ${userVolume}`);
+        
+        // Impacts on player ship are louder and more prominent
+        if (isPlayerShip) {
+            return this.playSpatialSound(soundId, position, 'sfx', {
+                volume: 1.0 * userVolume,
+                refDistance: 1,
+                maxDistance: 10000,
+                rolloffFactor: 0.1 // Minimal rolloff for player impacts
+            });
+        } else {
+            // Impacts on other ships use full spatial audio
+            return this.playSpatialSound(soundId, position, 'sfx', {
+                volume: 0.9 * userVolume,
+                refDistance: 50, // Slightly closer audible range than firing sounds
+                maxDistance: 500,
+                rolloffFactor: 1.5
+            });
+        }
+    }
+    
+    /**
+     * Play a cannonball splash sound when it hits water
+     * @param {THREE.Vector3} position - Position of the splash
+     * @returns {Object} Sound controller
+     */
+    playCannonballSplashSound(position) {
+        // Get user volume setting
+        const userVolume = this.masterVolume;
+        
+        // Select a random splash sound (1-3)
+        const randomIndex = Math.floor(Math.random() * 3) + 1;
+        const soundId = `cannonball_ploop${randomIndex}`;
+        
+        // Check if the sound is loaded
+        if (!this.soundBuffers[soundId]) {
+            console.warn(`Cannot play splash sound "${soundId}" - sound not loaded`);
+            return null;
+        }
+        
+        console.log(`Playing splash sound: ${soundId}, position: ${position.x.toFixed(1)},${position.y.toFixed(1)},${position.z.toFixed(1)}, volume: ${userVolume}`);
+        
+        // Use spatial audio parameters for water splash
+        return this.playSpatialSound(soundId, position, 'sfx', {
+            volume: 0.95 * userVolume, // Slightly quieter than cannon shots
+            refDistance: 50,
+            maxDistance: 500, // Can't hear splashes from too far away
+            rolloffFactor: 1.05
+        });
+    }
+    
+    /**
+     * Initialize the spatial audio system - alias for initialize() for backward compatibility
+     * @returns {SpatialAudioManager} This instance, for chaining
+     */
+    init() {
+        console.log('SpatialAudioManager.init() called (using initialize() internally)');
+        this.initialize();
+        return this;
+    }
+    
+    /**
+     * Verify that all cannon sounds were loaded correctly
+     */
+    verifyCannonSoundsLoaded() {
+        console.log('Verifying cannon sounds loaded:');
+        let allSoundsLoaded = true;
+        
+        // Check cannon shot sounds
+        console.log('Cannon shot sounds:');
+        for (let i = 1; i <= 4; i++) {
+            const soundId = `cannon_shot${i}`;
+            if (this.soundBuffers[soundId]) {
+                console.log(`✅ ${soundId} loaded successfully`);
+            } else {
+                console.warn(`❌ ${soundId} failed to load`);
+                allSoundsLoaded = false;
+            }
+        }
+        
+        // Check cannon impact sounds
+        console.log('Cannon impact sounds:');
+        for (let i = 1; i <= 4; i++) {
+            const soundId = `cannon_impact${i}`;
+            if (this.soundBuffers[soundId]) {
+                console.log(`✅ ${soundId} loaded successfully`);
+            } else {
+                console.warn(`❌ ${soundId} failed to load`);
+                allSoundsLoaded = false;
+            }
+        }
+        
+        // Check cannonball splash sounds
+        console.log('Cannonball splash sounds:');
+        for (let i = 1; i <= 3; i++) {
+            const soundId = `cannonball_ploop${i}`;
+            if (this.soundBuffers[soundId]) {
+                console.log(`✅ ${soundId} loaded successfully`);
+            } else {
+                console.warn(`❌ ${soundId} failed to load`);
+                allSoundsLoaded = false;
+            }
+        }
+        
+        if (allSoundsLoaded) {
+            console.log('All cannon sounds loaded successfully');
+        } else {
+            console.warn('Some cannon sounds failed to load, there may be audio issues');
+        }
+        
+        return allSoundsLoaded;
     }
     
     /**

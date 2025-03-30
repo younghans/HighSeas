@@ -1106,6 +1106,18 @@ class CombatManager {
                         distanceToTarget: distanceToTargetPos.toFixed(1),
                         flightTime: timestamp - userData.createdAt
                     });
+                    
+                    // Create water splash effect at the impact point
+                    this.createWaterSplashEffect(cannonball.position.clone());
+                    
+                    // Play splash sound when cannonball hits water
+                    if (window.spatialAudioManager) {
+                        try {
+                            window.spatialAudioManager.playCannonballSplashSound(cannonball.position.clone());
+                        } catch (e) {
+                            console.warn('Error playing cannonball splash sound:', e);
+                        }
+                    }
                 }
             }
             // For hits, check if we've reached the target ship - remove isSunk check
@@ -1118,6 +1130,16 @@ class CombatManager {
                     
                     // Create hit effect
                     this.createHitEffect(cannonball.position.clone());
+                    
+                    // Play cannon impact sound with spatial audio if available
+                    if (window.spatialAudioManager) {
+                        try {
+                            const isPlayerShip = userData.target === this.playerShip;
+                            window.spatialAudioManager.playCannonImpactSound(isPlayerShip, cannonball.position.clone());
+                        } catch (e) {
+                            console.warn('Error playing cannon impact sound:', e);
+                        }
+                    }
                     
                     // Only apply damage if the target is not already sunk
                     if (!userData.target.isSunk) {
@@ -1959,6 +1981,170 @@ class CombatManager {
             // Log to console as a fallback
             console.log('NOTIFICATION:', message);
         }
+    }
+
+    /**
+     * Create a water splash effect at the impact point
+     * @param {THREE.Vector3} position - Position of the impact
+     */
+    createWaterSplashEffect(position) {
+        // Create splash geometry
+        const particleCount = 20; 
+        const particles = new THREE.Group();
+        
+        // Create individual particles
+        for (let i = 0; i < particleCount; i++) {
+            // Create particle geometry
+            const size = 0.1 + Math.random() * 0.2; // Small water particles
+            
+            // Water droplets - spheres
+            const geometry = new THREE.SphereGeometry(size, 6, 6);
+            
+            // Water color with some randomness
+            const blueShade = 0.6 + Math.random() * 0.3; // Variations of blue
+            const color = new THREE.Color(0.7 * blueShade, 0.8 * blueShade, blueShade);
+            
+            const material = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.7
+            });
+            
+            // Create particle mesh
+            const particle = new THREE.Mesh(geometry, material);
+            
+            // Position at impact point with random spread mainly upward and outward (not down)
+            particle.position.copy(position).add(
+                new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.8,
+                    Math.random() * 0.2, // Only up, not down
+                    (Math.random() - 0.5) * 0.8
+                )
+            );
+            
+            // Add velocity - mostly upward with some spread
+            const velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 5,  // Horizontal spread
+                2 + Math.random() * 5,      // Mostly upward
+                (Math.random() - 0.5) * 5   // Horizontal spread
+            );
+            
+            // Add particle data
+            particle.userData = {
+                velocity: velocity,
+                lifetime: 0,
+                maxLifetime: 0.3 + Math.random() * 0.4, // Short lifetime for water
+                rotationSpeed: new THREE.Vector3(
+                    Math.random() * 5,
+                    Math.random() * 5,
+                    Math.random() * 5
+                )
+            };
+            
+            // Add to group
+            particles.add(particle);
+        }
+        
+        // Add small circular ripple particles on the water surface
+        for (let i = 0; i < 5; i++) {
+            const size = 0.3 + Math.random() * 0.8 * (i/5); // Larger rings for later rings
+            const ringGeometry = new THREE.RingGeometry(size, size + 0.1, 12);
+            const ringMaterial = new THREE.MeshBasicMaterial({
+                color: 0xaaddff,
+                transparent: true,
+                opacity: 0.4
+            });
+            
+            const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+            
+            // Position at water level with slight random offset
+            ring.position.copy(position);
+            ring.position.y = 0.05; // Just above water
+            ring.position.x += (Math.random() - 0.5) * 0.3;
+            ring.position.z += (Math.random() - 0.5) * 0.3;
+            
+            // Orient horizontally
+            ring.rotation.x = -Math.PI / 2;
+            
+            ring.userData = {
+                isRing: true,
+                initialSize: size,
+                growFactor: 0.8 + Math.random() * 0.6,
+                lifetime: 0,
+                maxLifetime: 0.6 + Math.random() * 0.4
+            };
+            
+            particles.add(ring);
+        }
+        
+        // Add to scene
+        this.scene.add(particles);
+        
+        // Set up animation
+        const animateSplash = (delta) => {
+            let allExpired = true;
+            
+            // Update all particles
+            for (let i = particles.children.length - 1; i >= 0; i--) {
+                const particle = particles.children[i];
+                
+                // Update lifetime
+                particle.userData.lifetime += delta;
+                
+                // Check if expired
+                if (particle.userData.lifetime >= particle.userData.maxLifetime) {
+                    // Remove particle
+                    particles.remove(particle);
+                    particle.geometry.dispose();
+                    particle.material.dispose();
+                } else {
+                    // Update based on particle type
+                    if (particle.userData.isRing) {
+                        // Expand the ring over time
+                        const growScale = 1 + (particle.userData.lifetime / particle.userData.maxLifetime) * particle.userData.growFactor;
+                        particle.scale.set(growScale, growScale, 1);
+                        
+                        // Fade out
+                        particle.material.opacity = 0.4 * (1 - Math.pow(particle.userData.lifetime / particle.userData.maxLifetime, 2));
+                    } else {
+                        // Regular water droplet particles
+                        // Update position based on velocity
+                        particle.position.add(particle.userData.velocity.clone().multiplyScalar(delta));
+                        
+                        // Apply gravity
+                        particle.userData.velocity.y -= 9.8 * delta;
+                        
+                        // Add rotation for realism
+                        particle.rotation.x += particle.userData.rotationSpeed.x * delta;
+                        particle.rotation.y += particle.userData.rotationSpeed.y * delta;
+                        particle.rotation.z += particle.userData.rotationSpeed.z * delta;
+                        
+                        // If particle goes below water, make it disappear quickly
+                        if (particle.position.y < 0) {
+                            particle.userData.lifetime = particle.userData.maxLifetime * 0.9; // Speed up its death
+                            particle.material.opacity *= 0.8; // Fade faster
+                        } else {
+                            // Normal fade out
+                            particle.material.opacity = 0.7 * (1 - particle.userData.lifetime / particle.userData.maxLifetime);
+                        }
+                    }
+                    
+                    allExpired = false;
+                }
+            }
+            
+            // Remove group if all particles expired
+            if (allExpired) {
+                this.scene.remove(particles);
+                return;
+            }
+            
+            // Continue animation
+            requestAnimationFrame(() => animateSplash(Math.min(1/60, delta)));
+        };
+        
+        // Start animation
+        animateSplash(1/60);
     }
 }
 
