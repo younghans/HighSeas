@@ -21,6 +21,8 @@ import CombatService from '../combat/CombatService.js';
 import PortalManager from './PortalManager.js';
 import SceneManager from './SceneManager.js';
 import InputManager from './InputManager.js';
+import SoundManager from '../SoundManager.js';
+import SpatialAudioManager from '../SpatialAudioManager.js';
 
 class GameCore {
     constructor() {
@@ -55,6 +57,12 @@ class GameCore {
         this.enemyShipManager = null;
         this.combatManager = null;
         this.combatService = null;
+        
+        // Sound manager
+        this.soundManager = null;
+        
+        // Spatial audio manager
+        this.spatialAudioManager = null;
         
         // Track player zone status
         this.playerInSafeZone = false;
@@ -103,6 +111,19 @@ class GameCore {
             transitionDuration: 3
         });
         
+        // Initialize sound manager
+        this.soundManager = new SoundManager().init();
+        
+        // Make sound manager globally accessible
+        window.soundManager = this.soundManager;
+        
+        // Initialize spatial audio manager
+        this.spatialAudioManager = new SpatialAudioManager();
+        this.spatialAudioManager.initialize(); // This loads the sounds asynchronously
+        
+        // Make spatial audio manager globally accessible
+        window.spatialAudioManager = this.spatialAudioManager;
+        
         // Generate islands
         this.generateIslands();
         
@@ -116,6 +137,13 @@ class GameCore {
         if (!window.animationFrameId) {
             this.sceneManager.startAnimationLoop(this.animate);
         }
+        
+        // Add event listener to ensure audio context gets resumed after user interaction
+        document.addEventListener('click', () => {
+            if (this.spatialAudioManager) {
+                this.spatialAudioManager.resumeAudioContext();
+            }
+        }, { once: true });
     }
     
     // Setup controls for the main menu (orbiting camera)
@@ -571,6 +599,16 @@ class GameCore {
         // Show the game UI
         this.gameUI.show();
         
+        // Set up ambient ocean sound (with regular sound manager)
+        if (this.soundManager) {
+            this.soundManager.playOceanAmbientOnInteraction(this.gameUI);
+        }
+        
+        // Ensure spatial audio context is resumed after user interaction
+        if (this.spatialAudioManager) {
+            this.spatialAudioManager.resumeAudioContext();
+        }
+        
         // Create an empty island menu container if it doesn't exist
         if (!document.getElementById('islandMenu')) {
             const menu = document.createElement('div');
@@ -936,6 +974,24 @@ class GameCore {
             // Update camera to follow ship using SceneManager helper
             if (this.ship) {
                 this.sceneManager.updateCameraToFollowTarget(this.ship);
+            }
+            
+            // Update spatial audio listener position based on camera
+            if (this.spatialAudioManager && this.sceneManager) {
+                try {
+                    this.spatialAudioManager.updateListener(
+                        this.sceneManager.getCamera(),
+                        this.ship.getPosition()
+                    );
+                } catch (e) {
+                    console.warn('Error updating spatial audio listener:', e);
+                    // If there's a critical error with the spatial audio system, disable it to prevent game freeze
+                    if (e instanceof ReferenceError || e instanceof TypeError) {
+                        console.error('Disabling spatial audio due to critical error');
+                        this.spatialAudioManager = null;
+                        window.spatialAudioManager = null;
+                    }
+                }
             }
         }
         

@@ -312,6 +312,77 @@ class UIMenuManager {
     createSettingsMenu() {
         this.settingsMenu = UIUtils.createMenu('settings-menu', 'Settings', UI_CONSTANTS.COLORS.INFO);
         
+        // Create sound volume slider
+        const volumeContainer = document.createElement('div');
+        volumeContainer.style.display = 'flex';
+        volumeContainer.style.flexDirection = 'column';
+        volumeContainer.style.marginBottom = '20px';
+        volumeContainer.style.width = '100%';
+        
+        const volumeLabel = document.createElement('label');
+        volumeLabel.htmlFor = 'sound-volume-slider';
+        volumeLabel.textContent = 'Sound Volume';
+        volumeLabel.style.marginBottom = '8px';
+        
+        const sliderContainer = document.createElement('div');
+        sliderContainer.style.display = 'flex';
+        sliderContainer.style.alignItems = 'center';
+        sliderContainer.style.width = '100%';
+        
+        // Create volume icons
+        const volumeLowIcon = document.createElement('span');
+        volumeLowIcon.innerHTML = '🔈';
+        volumeLowIcon.style.marginRight = '8px';
+        
+        const volumeHighIcon = document.createElement('span');
+        volumeHighIcon.innerHTML = '🔊';
+        volumeHighIcon.style.marginLeft = '8px';
+        
+        // Create the slider
+        const volumeSlider = document.createElement('input');
+        volumeSlider.type = 'range';
+        volumeSlider.id = 'sound-volume-slider';
+        volumeSlider.min = '0';
+        volumeSlider.max = '100';
+        // Get saved volume or default to 50
+        const savedVolume = localStorage.getItem('soundVolume');
+        volumeSlider.value = savedVolume !== null ? savedVolume : '50';
+        volumeSlider.style.flex = '1';
+        volumeSlider.style.cursor = 'pointer';
+        
+        // Update volume value display and save to localStorage when slider changes
+        volumeSlider.addEventListener('input', () => {
+            const volumeValue = parseInt(volumeSlider.value);
+            
+            // Update the game's sound volume setting immediately for responsive feedback
+            if (this.gameUI) {
+                this.gameUI.setSoundVolume(volumeValue);
+            }
+        });
+        
+        // Save value to localStorage only when the user finishes adjustment
+        volumeSlider.addEventListener('change', () => {
+            const volumeValue = parseInt(volumeSlider.value);
+            localStorage.setItem('soundVolume', volumeValue);
+            
+            // Final update to ensure consistency
+            if (this.gameUI) {
+                this.gameUI.setSoundVolume(volumeValue);
+            }
+        });
+        
+        // Assemble the slider container
+        sliderContainer.appendChild(volumeLowIcon);
+        sliderContainer.appendChild(volumeSlider);
+        sliderContainer.appendChild(volumeHighIcon);
+        
+        // Add to volume container
+        volumeContainer.appendChild(volumeLabel);
+        volumeContainer.appendChild(sliderContainer);
+        
+        // Add to settings menu
+        this.settingsMenu.appendChild(volumeContainer);
+        
         // Create profanity filter toggle
         const filterContainer = document.createElement('div');
         filterContainer.style.display = 'flex';

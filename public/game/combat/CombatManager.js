@@ -960,8 +960,15 @@ class CombatManager {
         this.scene.add(cannonball);
         this.cannonballs.push(cannonball);
         
-        // Play cannon fire sound (if available)
-        // TODO: Add sound effects
+        // Play cannon fire sound with spatial audio if available
+        if (window.spatialAudioManager) {
+            try {
+                const isPlayerShip = source === this.playerShip;
+                window.spatialAudioManager.playCannonSound(isPlayerShip, sourcePos);
+            } catch (e) {
+                console.warn('Error playing cannon sound:', e);
+            }
+        }
         
         // Return the userData for later reference
         return userData;

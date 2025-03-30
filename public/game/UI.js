@@ -30,6 +30,8 @@ class GameUI {
         // Load saved settings
         this.profanityFilterEnabled = localStorage.getItem('profanityFilter') !== 'false';
         this.debugMode = localStorage.getItem('debugMode') === 'true';
+        this.soundVolume = localStorage.getItem('soundVolume') !== null ? 
+                          parseInt(localStorage.getItem('soundVolume')) : 50;
         
         // Initialize UI containers
         this.initContainers();
@@ -297,6 +299,26 @@ class GameUI {
         if (this.menuManager) {
             this.menuManager.closeBottomMenu();
         }
+    }
+    
+    /**
+     * Set the sound volume
+     * @param {number} volume - The volume level (0-100)
+     */
+    setSoundVolume(volume) {
+        this.soundVolume = volume;
+        
+        // Update regular sound manager
+        if (window.soundManager) {
+            window.soundManager.updateFromGameUI(volume);
+        }
+        
+        // Also update spatial audio manager if available
+        if (window.spatialAudioManager) {
+            window.spatialAudioManager.updateFromGameUI(volume);
+        }
+        
+        console.log(`Game volume set to ${volume}%`);
     }
 }
 

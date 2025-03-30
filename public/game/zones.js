@@ -170,13 +170,16 @@ class Zones {
             fragmentShader: gradientShader.fragmentShader,
             transparent: true,
             side: THREE.DoubleSide,
-            depthWrite: false
+            depthWrite: false,
+            depthTest: true,
+            blending: THREE.AdditiveBlending
         });
 
         // Create mesh with the gradient shader
         const gradientDisk = new THREE.Mesh(geometry, material);
-        gradientDisk.position.set(position.x, 0.2, position.y);
+        gradientDisk.position.set(position.x, 0.5, position.y); // Increased height from 0.2 to 0.5
         gradientDisk.rotation.x = -Math.PI / 2;
+        gradientDisk.renderOrder = 1; // Ensure it renders after the water
         
         this.scene.add(gradientDisk);
         this.debugHelpers.push(gradientDisk);
