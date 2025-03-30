@@ -2,6 +2,7 @@ import UI_CONSTANTS from './UIConstants.js';
 import UIUtils from './UIUtils.js';
 import UIEventBus from './UIEventBus.js';
 import DebugPanel from './DebugPanel.js';
+import UsernameValidator from './UsernameValidator.js';
 
 /**
  * Manages all UI menus
@@ -255,7 +256,7 @@ class UIMenuManager {
         saveButton.addEventListener('click', (event) => {
             event.stopPropagation();
             const newUsername = usernameInput.value.trim();
-            if (newUsername) {
+            if (newUsername && UsernameValidator.validateUsername(newUsername)) {
                 this.saveUsername(newUsername);
             }
         });
@@ -597,6 +598,11 @@ class UIMenuManager {
     saveUsername(username) {
         // Sanitize the username input (assuming DOMPurify is available globally)
         const sanitizedUsername = window.DOMPurify ? DOMPurify.sanitize(username) : username;
+        
+        // Validate the username
+        if (!UsernameValidator.validateUsername(sanitizedUsername)) {
+            return;
+        }
         
         // If we have access to Firebase auth and the user is logged in
         if (this.gameUI.auth && this.gameUI.auth.getCurrentUser()) {
