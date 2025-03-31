@@ -13,7 +13,7 @@ class SailboatShip extends BaseShip {
             modelPath: '/assets/models/ships/sailboat-2.glb',
             scale: new THREE.Vector3(1.0, 1.0, 1.0),
             waterOffset: -0.2,
-            speed: 10,
+            speed: 8,
             rotationSpeed: 2.5,
             // Combat attributes
             maxHealth: 100,
@@ -25,7 +25,7 @@ class SailboatShip extends BaseShip {
             modelPath: '/assets/models/ships/sailboat-3.glb',
             scale: new THREE.Vector3(1.0, 1.0, 1.0),
             waterOffset: -0.3,
-            speed: 12,
+            speed: 9,
             rotationSpeed: 2.7,
             // Combat attributes - slightly better than sloop
             maxHealth: 90,
@@ -37,11 +37,11 @@ class SailboatShip extends BaseShip {
             modelPath: '/assets/models/ships/sailboat.glb',
             scale: new THREE.Vector3(1.0, 1.0, 1.0),
             waterOffset: -0.1,
-            speed: 8,
+            speed: 9,
             rotationSpeed: 2.2,
             // Combat attributes - weaker but agile
-            maxHealth: 80,
-            cannonRange: 90,
+            maxHealth: 100,
+            cannonRange: 100,
             cannonDamage: { min: 6, max: 20 },
             cannonCooldown: 1500 // 1.3 seconds between shots (faster firing)
         },
@@ -50,11 +50,11 @@ class SailboatShip extends BaseShip {
             scale: new THREE.Vector3(0.75, 0.75, 0.75),
             waterOffset: -0.3,
             speed: 11,
-            rotationSpeed: 1.8,
+            rotationSpeed: 1.5,
             // Combat attributes - balanced medium ship
-            maxHealth: 120,
-            cannonRange: 120,
-            cannonDamage: { min: 12, max: 30 },
+            maxHealth: 100,
+            cannonRange: 100,
+            cannonDamage: { min: 8, max: 30 },
             cannonCooldown: 1500 // 1.6 seconds between shots
         },
         'brig': {
