@@ -16,6 +16,31 @@ class Shipwright {
         this.activeModels = [];
         this.activeScenes = [];
         
+        // Firebase database references
+        this.database = null;
+        this.auth = null;
+        this.playerRef = null;
+        
+        // Initialize Firebase references if available
+        if (window.firebase && window.auth) {
+            this.database = firebase.database();
+            this.auth = window.auth;
+            
+            // Set up player reference if user is authenticated
+            if (this.auth.currentUser) {
+                this.playerRef = this.database.ref(`players/${this.auth.currentUser.uid}`);
+            }
+            
+            // Listen for auth state changes
+            this.auth.onAuthStateChanged(user => {
+                if (user) {
+                    this.playerRef = this.database.ref(`players/${user.uid}`);
+                } else {
+                    this.playerRef = null;
+                }
+            });
+        }
+        
         // Create shipwright menu if it doesn't exist
         const existingMenu = document.getElementById('shipwrightMenu');
         if (!existingMenu) {
@@ -136,12 +161,46 @@ class Shipwright {
         
         // Ship types from SailboatShip.js
         const shipTypes = [
-            { id: 'sloop', name: 'Sloop', description: 'A balanced ship with decent speed and maneuverability.' },
-            { id: 'skiff', name: 'Skiff', description: 'Fast and nimble, but with less firepower.' },
-            { id: 'dinghy', name: 'Dinghy', description: 'Small and agile, perfect for beginners.' },
-            { id: 'cutter', name: 'Cutter', description: 'A medium-sized vessel with good all-round capabilities.' },
-            { id: 'brig', name: 'Brig', description: 'Slow but powerful, with superior firepower.' }
+            { 
+                id: 'sloop', 
+                name: 'Sloop', 
+                description: 'A balanced ship with decent speed and maneuverability.',
+                price: 0, // Free/default ship
+                unlocked: true 
+            },
+            { 
+                id: 'skiff', 
+                name: 'Skiff', 
+                description: 'Fast and nimble, but with less firepower.',
+                price: 1000 
+            },
+            { 
+                id: 'dinghy', 
+                name: 'Dinghy', 
+                description: 'Small and agile, perfect for beginners.',
+                price: 800 
+            },
+            { 
+                id: 'cutter', 
+                name: 'Cutter', 
+                description: 'A medium-sized vessel with good all-round capabilities.',
+                price: 1500 
+            },
+            { 
+                id: 'brig', 
+                name: 'Brig', 
+                description: 'Slow but powerful, with superior firepower.',
+                price: 2000 
+            }
         ];
+        
+        // Track player's unlocked ships
+        this.playerUnlockedShips = ['sloop']; // Default: sloop is always unlocked
+        this.currentShipType = 'sloop'; // Default ship
+        this.playerGold = 0;
+
+        // Load player's unlocked ships from Firebase
+        this.loadPlayerShipData();
         
         // Create ship selection items
         shipTypes.forEach(ship => {
@@ -153,15 +212,22 @@ class Shipwright {
             shipItem.style.borderRadius = '5px';
             shipItem.style.cursor = 'pointer';
             shipItem.style.transition = 'background-color 0.2s';
-            shipItem.style.backgroundColor = 'rgba(139, 69, 19, 0.1)';
             
             // On hover effect
             shipItem.addEventListener('mouseover', () => {
-                shipItem.style.backgroundColor = 'rgba(139, 69, 19, 0.2)';
+                if (this.playerUnlockedShips.includes(ship.id)) {
+                    shipItem.style.backgroundColor = 'rgba(139, 69, 19, 0.2)';
+                } else {
+                    shipItem.style.backgroundColor = 'rgba(139, 69, 19, 0.1)';
+                }
             });
             
             shipItem.addEventListener('mouseout', () => {
-                shipItem.style.backgroundColor = 'rgba(139, 69, 19, 0.1)';
+                if (this.playerUnlockedShips.includes(ship.id)) {
+                    shipItem.style.backgroundColor = 'rgba(139, 69, 19, 0.1)';
+                } else {
+                    shipItem.style.backgroundColor = 'rgba(100, 100, 100, 0.1)';
+                }
             });
             
             // Image container for ship profile
@@ -216,6 +282,27 @@ class Shipwright {
             descriptionElement.style.fontSize = 'min(12px, 2.5vw)'; // Responsive font size
             descriptionElement.style.color = '#5D4037';
             infoContainer.appendChild(descriptionElement);
+            
+            // Set initial style based on unlock status and add lock icon if ship is locked
+            if (!this.playerUnlockedShips.includes(ship.id)) {
+                shipItem.style.backgroundColor = 'rgba(100, 100, 100, 0.1)';
+                shipItem.style.opacity = '0.8';
+                
+                // Add lock icon
+                const lockIcon = document.createElement('div');
+                lockIcon.innerHTML = '🔒';
+                lockIcon.style.marginLeft = '10px';
+                lockIcon.style.fontSize = '14px';
+                infoContainer.appendChild(lockIcon);
+                
+                // Add price tag
+                const priceTag = document.createElement('div');
+                priceTag.textContent = `${ship.price} gold`;
+                priceTag.style.fontSize = '12px';
+                priceTag.style.color = '#FFD700';
+                priceTag.style.marginTop = '2px';
+                infoContainer.appendChild(priceTag);
+            }
             
             shipItem.appendChild(infoContainer);
             
@@ -509,7 +596,22 @@ class Shipwright {
         
         // "Purchase" or "Select" button
         const actionButton = document.createElement('button');
-        actionButton.textContent = 'Select Ship';
+        
+        // Set button text based on whether the ship is unlocked or not
+        const isUnlocked = this.playerUnlockedShips.includes(ship.id);
+        const isCurrentShip = this.currentShipType === ship.id;
+        
+        if (isCurrentShip) {
+            actionButton.textContent = 'Current Ship';
+            actionButton.disabled = true;
+            actionButton.style.backgroundColor = '#6B4513';
+            actionButton.style.cursor = 'default';
+        } else if (isUnlocked) {
+            actionButton.textContent = 'Select Ship';
+        } else {
+            actionButton.textContent = `Purchase - ${ship.price} Gold`;
+        }
+        
         actionButton.style.background = '#8B4513';
         actionButton.style.color = '#f5e8c0';
         actionButton.style.border = 'none';
@@ -521,40 +623,60 @@ class Shipwright {
         actionButton.style.marginTop = '10px';
         actionButton.style.marginBottom = '20px'; // Add bottom margin for small screens
         
-        actionButton.addEventListener('mouseover', () => {
-            actionButton.style.backgroundColor = '#A0522D';
-        });
-        
-        actionButton.addEventListener('mouseout', () => {
-            actionButton.style.backgroundColor = '#8B4513';
-        });
+        // Only add hover effects if the button isn't disabled
+        if (!isCurrentShip) {
+            actionButton.addEventListener('mouseover', () => {
+                actionButton.style.backgroundColor = '#A0522D';
+            });
+            
+            actionButton.addEventListener('mouseout', () => {
+                actionButton.style.backgroundColor = '#8B4513';
+            });
+        }
         
         actionButton.addEventListener('click', () => {
-            console.log(`Selected ship for purchase/use: ${ship.name}`);
-            // Here you would implement the actual ship selection/purchase logic
+            // If Firebase isn't available or user isn't logged in, show error message
+            if (!this.auth || !this.auth.currentUser || !this.playerRef) {
+                this.showNotification('You must be logged in to purchase or select ships', 'error');
+                return;
+            }
             
-            // Show a "coming soon" message for now
-            const notification = document.createElement('div');
-            notification.textContent = 'Coming soon!';
-            notification.style.position = 'absolute';
-            notification.style.bottom = '100px';
-            notification.style.left = '50%';
-            notification.style.transform = 'translateX(-50%)';
-            notification.style.padding = '10px 20px';
-            notification.style.backgroundColor = '#8B4513';
-            notification.style.color = '#f5e8c0';
-            notification.style.borderRadius = '5px';
-            notification.style.fontFamily = 'serif';
-            
-            document.body.appendChild(notification);
-            
-            // Remove after 2 seconds
-            setTimeout(() => {
-                document.body.removeChild(notification);
-            }, 2000);
+            if (isCurrentShip) {
+                // Already using this ship
+                return;
+            } else if (isUnlocked) {
+                // Ship is already unlocked, select it
+                this.selectShip(ship.id);
+            } else {
+                // Ship needs to be purchased
+                this.purchaseShip(ship);
+            }
         });
         
         rightPage.appendChild(actionButton);
+        
+        // Add a small note about current gold if this ship needs purchasing
+        if (!isUnlocked) {
+            const goldNote = document.createElement('div');
+            goldNote.style.fontSize = '14px';
+            goldNote.style.fontStyle = 'italic';
+            goldNote.style.color = '#5D4037';
+            goldNote.style.textAlign = 'center';
+            goldNote.style.marginBottom = '10px';
+            
+            // Check if player has enough gold
+            const hasEnoughGold = this.playerGold >= ship.price;
+            
+            if (hasEnoughGold) {
+                goldNote.textContent = `You have ${this.playerGold} gold available`;
+                goldNote.style.color = '#008000'; // Green color
+            } else {
+                goldNote.textContent = `You need ${ship.price - this.playerGold} more gold`;
+                goldNote.style.color = '#FF0000'; // Red color
+            }
+            
+            rightPage.appendChild(goldNote);
+        }
     }
     
     /**
@@ -944,6 +1066,333 @@ class Shipwright {
                 </div>
             `;
         });
+    }
+    
+    /**
+     * Load player's ship data from Firebase
+     */
+    loadPlayerShipData() {
+        if (!this.auth || !this.auth.currentUser || !this.playerRef) {
+            console.log('Cannot load player ship data - not logged in');
+            return;
+        }
+        
+        this.playerRef.once('value').then(snapshot => {
+            const playerData = snapshot.val();
+            
+            if (playerData) {
+                // Set player gold
+                this.playerGold = playerData.gold || 0;
+                
+                // Set current ship type
+                if (playerData.modelType) {
+                    this.currentShipType = playerData.modelType;
+                }
+                
+                // Load unlocked ships
+                if (playerData.unlockedShips && Array.isArray(playerData.unlockedShips)) {
+                    this.playerUnlockedShips = playerData.unlockedShips;
+                    
+                    // Make sure sloop is always in the unlocked ships
+                    if (!this.playerUnlockedShips.includes('sloop')) {
+                        this.playerUnlockedShips.push('sloop');
+                    }
+                }
+                
+                console.log('Loaded player ship data:', {
+                    gold: this.playerGold,
+                    currentShip: this.currentShipType,
+                    unlockedShips: this.playerUnlockedShips
+                });
+            }
+        }).catch(error => {
+            console.error('Error loading player ship data:', error);
+        });
+    }
+    
+    /**
+     * Purchase a ship
+     * @param {Object} ship - The ship to purchase
+     */
+    purchaseShip(ship) {
+        // Check if player has enough gold
+        if (this.playerGold < ship.price) {
+            this.showNotification(`Not enough gold! You need ${ship.price - this.playerGold} more gold.`, 'error');
+            return;
+        }
+        
+        // Check if Firebase is available
+        if (!window.firebase) {
+            this.showNotification('Cannot connect to server. Try again later.', 'error');
+            return;
+        }
+        
+        // Show confirmation dialog
+        if (confirm(`Are you sure you want to purchase the ${ship.name} for ${ship.price} gold?`)) {
+            // Show loading notification
+            this.showNotification(`Processing your purchase...`, 'info', 2000);
+            
+            // Use Firebase Cloud Function to securely handle the purchase
+            const unlockShipFunction = firebase.functions().httpsCallable('unlockShip');
+            
+            unlockShipFunction({ shipId: ship.id })
+                .then(result => {
+                    // Get data from the function result
+                    const data = result.data;
+                    
+                    if (data.success) {
+                        // Update local data
+                        this.playerGold = data.newGold;
+                        this.playerUnlockedShips = data.unlockedShips;
+                        
+                        // Show success notification
+                        this.showNotification(`Successfully purchased the ${ship.name}!`, 'success');
+                        
+                        // Trigger gold update event to refresh UI
+                        const goldUpdatedEvent = new CustomEvent('playerGoldUpdated', {
+                            detail: { gold: data.price }
+                        });
+                        document.dispatchEvent(goldUpdatedEvent);
+                        
+                        // Ask if player wants to select this ship
+                        if (confirm(`Would you like to select the ${ship.name} as your current ship?`)) {
+                            // If they want to select it, the menu will close in the selectShip method
+                            this.selectShip(ship.id);
+                        } else {
+                            // Refresh the page to show updated unlock status
+                            this.updateRightPage(document.querySelector('.right-page'), ship);
+                        }
+                    } else {
+                        // Handle failure cases
+                        if (data.alreadyOwned) {
+                            this.showNotification(`You already own the ${ship.name}.`, 'info');
+                            // Update local unlocked ships to include this ship
+                            if (!this.playerUnlockedShips.includes(ship.id)) {
+                                this.playerUnlockedShips.push(ship.id);
+                                // Refresh the display
+                                this.updateRightPage(document.querySelector('.right-page'), ship);
+                            }
+                        } else if (data.insufficientFunds) {
+                            this.showNotification(`Not enough gold to purchase the ${ship.name}.`, 'error');
+                        } else {
+                            this.showNotification(data.message || 'Failed to purchase ship', 'error');
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error purchasing ship:', error);
+                    this.showNotification(`Error: ${error.message || 'Failed to purchase ship'}`, 'error');
+                });
+        }
+    }
+    
+    /**
+     * Select a ship as the player's current ship
+     * @param {string} shipId - The ID of the ship to select
+     */
+    selectShip(shipId) {
+        // Check Firebase connection
+        if (!this.auth || !this.auth.currentUser || !this.playerRef) {
+            this.showNotification('Cannot connect to server. Try again later.', 'error');
+            return;
+        }
+        
+        // Check if ship is unlocked
+        if (!this.playerUnlockedShips.includes(shipId)) {
+            this.showNotification('You must purchase this ship first!', 'error');
+            return;
+        }
+        
+        // Show loading notification
+        this.showNotification(`Preparing your ${shipId}...`, 'info', 2000);
+        
+        // Close the Shipwright menu
+        this.hide();
+        
+        // Update Firebase first
+        this.playerRef.update({
+            modelType: shipId
+        }).then(() => {
+            // Update local data
+            this.currentShipType = shipId;
+            
+            // Get current player's ship
+            const playerShip = window.playerShip;
+            
+            if (!playerShip) {
+                console.error('Player ship not found');
+                this.showNotification('Unable to find your ship. Please rejoin the game.', 'error');
+                return;
+            }
+            
+            // Store current ship position and rotation
+            const currentPosition = playerShip.getPosition().clone();
+            const currentRotation = { y: playerShip.getObject().rotation.y };
+            
+            // Update the ship model type
+            playerShip.modelType = shipId;
+            
+            // Get reference to scene
+            const scene = playerShip.scene;
+            
+            try {
+                // First, clean up the existing ship's resources
+                console.log('Cleaning up existing ship mesh and resources');
+                
+                // Clean up the old ship's wake particle system if it exists
+                if (playerShip.wakeParticleSystem) {
+                    console.log('Cleaning up wake particle system');
+                    if (typeof playerShip.wakeParticleSystem.cleanup === 'function') {
+                        playerShip.wakeParticleSystem.cleanup();
+                    } else if (typeof playerShip.wakeParticleSystem.dispose === 'function') {
+                        playerShip.wakeParticleSystem.dispose();
+                    }
+                    playerShip.wakeParticleSystem = null;
+                }
+                
+                // Clear health bar reference
+                playerShip.healthBarContainer = null;
+                playerShip.healthBarBackground = null;
+                playerShip.healthBarForeground = null;
+                
+                // We don't need to explicitly remove the clickable sphere since it's a child of the ship mesh
+                playerShip.clickBoxSphere = null;
+                
+                // Remove old ship mesh from scene
+                if (playerShip.shipMesh) {
+                    console.log('Removing old ship mesh from scene');
+                    scene.remove(playerShip.shipMesh);
+                    playerShip.shipMesh = null;
+                }
+                
+                // Set loading state
+                playerShip.isLoading = true;
+                
+                // Create the new ship with the selected model type
+                console.log(`Creating new ship with model type: ${shipId}`);
+                playerShip.createShip();
+                
+                // Set up a check to wait for ship loading to complete
+                const checkShipLoaded = () => {
+                    if (playerShip.isLoading) {
+                        // Ship is still loading, check again after a delay
+                        setTimeout(checkShipLoaded, 100);
+                    } else {
+                        // Ship has finished loading, restore position and rotation
+                        console.log('Ship loaded, restoring position and rotation');
+                        
+                        // Restore position
+                        playerShip.setPosition(currentPosition);
+                        
+                        // Restore rotation
+                        if (playerShip.shipMesh) {
+                            playerShip.shipMesh.rotation.y = currentRotation.y;
+                            playerShip.rotation.y = currentRotation.y;
+                        }
+                        
+                        // Create the clickable sphere for the new ship
+                        if (typeof playerShip.createClickBoxSphere === 'function') {
+                            playerShip.createClickBoxSphere();
+                        }
+                        
+                        // Initialize wake particle system
+                        playerShip.initWakeParticleSystem();
+                        
+                        // Create health bar
+                        playerShip.createHealthBar();
+                        
+                        // If player health is not full, make health bar visible
+                        if (playerShip.currentHealth < playerShip.maxHealth) {
+                            playerShip.setHealthBarVisible(true);
+                        }
+                        
+                        // Update game UI references if they exist
+                        if (window.gameUI) {
+                            window.gameUI.setPlayerShip(playerShip);
+                            
+                            // Update any ship stats displays
+                            const event = new CustomEvent('playerShipUpdated', {
+                                detail: { ship: playerShip }
+                            });
+                            document.dispatchEvent(event);
+                        }
+                        
+                        // Update multiplayer data
+                        if (window.multiplayerManager) {
+                            window.multiplayerManager.updatePlayerPosition(playerShip, true);
+                        }
+                        
+                        // Show success notification
+                        this.showNotification(`You are now sailing a ${shipId}!`, 'success');
+                        
+                        // Refresh the ship display
+                        document.querySelectorAll('.ship-item').forEach(item => {
+                            if (item.textContent.toLowerCase().includes(shipId.toLowerCase())) {
+                                item.click();
+                            }
+                        });
+                    }
+                };
+                
+                // Start checking if ship has loaded
+                checkShipLoaded();
+                
+            } catch (error) {
+                console.error('Error recreating ship:', error);
+                this.showNotification('Failed to change ship. Please try again or rejoin the game.', 'error');
+            }
+        }).catch(error => {
+            console.error('Error updating ship type in database:', error);
+            this.showNotification('Failed to select ship. Please try again.', 'error');
+        });
+    }
+    
+    /**
+     * Show a notification to the user
+     * @param {string} message - The message to show
+     * @param {string} type - The type of notification ('success', 'error', 'info')
+     * @param {number} duration - How long to show the notification in ms (default: 3000)
+     */
+    showNotification(message, type = 'info', duration = 3000) {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.textContent = message;
+        notification.style.position = 'fixed';
+        notification.style.bottom = '20px';
+        notification.style.left = '50%';
+        notification.style.transform = 'translateX(-50%)';
+        notification.style.padding = '10px 20px';
+        notification.style.borderRadius = '5px';
+        notification.style.fontFamily = 'serif';
+        notification.style.fontSize = '16px';
+        notification.style.zIndex = '2000';
+        
+        // Set colors based on type
+        switch (type) {
+            case 'success':
+                notification.style.backgroundColor = '#4CAF50';
+                notification.style.color = 'white';
+                break;
+            case 'error':
+                notification.style.backgroundColor = '#F44336';
+                notification.style.color = 'white';
+                break;
+            case 'info':
+            default:
+                notification.style.backgroundColor = '#2196F3';
+                notification.style.color = 'white';
+                break;
+        }
+        
+        // Add to document
+        document.body.appendChild(notification);
+        
+        // Remove after duration
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, duration);
     }
 }
 

@@ -11,6 +11,9 @@ const { rateLimiter } = require('./utils');
 // Import leaderboard functions
 const leaderboardFunctions = require('./leaderboard');
 
+// Import economy functions
+const economyFunctions = require('./economy');
+
 // Export utilities
 exports.rateLimiter = rateLimiter;
 
@@ -23,3 +26,6 @@ exports.cleanupOldShipwrecks = combatFunctions.cleanupOldShipwrecks;
 // Export leaderboard functions
 exports.updateGoldLeaderboard = leaderboardFunctions.updateGoldLeaderboard;
 exports.updateGoldLeaderboardManual = leaderboardFunctions.updateGoldLeaderboardManual;
+
+// Export economy functions
+exports.unlockShip = economyFunctions.unlockShip;

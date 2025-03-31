@@ -8,6 +8,10 @@
         "gold": {
           ".read": "auth != null",
           ".write": false
+        },
+        "unlockedShips": {
+          ".read": "auth != null",
+          ".write": false
         }
       }
     },

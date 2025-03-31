@@ -509,10 +509,34 @@ class GameCore {
         // Reset camera position for gameplay
         this.sceneManager.getCamera().position.set(0, 10, 20);
         
+        // Check if the player has a saved ship type in Firebase
+        if (Auth.isAuthenticated()) {
+            const userId = Auth.getCurrentUser().uid;
+            const playerRef = firebase.database().ref(`players/${userId}`);
+            
+            playerRef.once('value')
+                .then(snapshot => {
+                    const playerData = snapshot.val();
+                    const shipModelType = playerData && playerData.modelType ? playerData.modelType : 'sloop';
+                    this.createPlayerShip(shipModelType);
+                })
+                .catch(error => {
+                    console.error('Error loading player ship type:', error);
+                    // Fallback to default ship
+                    this.createPlayerShip('sloop');
+                });
+        } else {
+            // No authentication, use default ship
+            this.createPlayerShip('sloop');
+        }
+    }
+    
+    // Helper method to create the player ship with specified model type
+    createPlayerShip(modelType) {
         // Create ship with custom speed but don't position it yet
         // The position will be set by the multiplayer system
         this.ship = new SailboatShip(this.sceneManager.getScene(), { 
-            modelType: 'sloop', // Use the sloop as the default player ship
+            modelType: modelType, // Use the specified model type
             // Set a default position that will be overridden by multiplayer
             position: new THREE.Vector3(0, 0, 0)
             // Combat attributes are now defined in the ship configuration
@@ -527,7 +551,7 @@ class GameCore {
         // Make ship available globally for multiplayer combat interactions
         window.playerShip = this.ship;
         
-        console.log('Ship created with initial position:', this.ship.getPosition());
+        console.log('Ship created with model type:', modelType, 'and initial position:', this.ship.getPosition());
         
         // Setup gameplay controls with the new ship
         this.setupGameplayControls();
@@ -536,6 +560,11 @@ class GameCore {
         this.updateUIForGameplay();
         
         // Initialize game UI
+        this.initializeGameUI();
+    }
+    
+    // Initialize the game UI
+    initializeGameUI() {
         if (!this.gameUI) {
             this.gameUI = new GameUI({
                 auth: Auth,

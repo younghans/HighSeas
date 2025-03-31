@@ -207,7 +207,8 @@ class MultiplayerManager {
                             maxHealth: 100, // Add maxHealth to initial data
                             isSunk: false, // Always ensure player is not sunk when joining
                             gold: existingPlayerData && existingPlayerData.gold ? existingPlayerData.gold : 0, // Initialize gold or preserve existing gold
-                            modelType: modelType // Store the player's ship model type
+                            modelType: modelType, // Store the player's ship model type
+                            unlockedShips: existingPlayerData && existingPlayerData.unlockedShips ? existingPlayerData.unlockedShips : ['sloop']
                         };
                         
                         this.debug(`Setting player display name: ${initialData.displayName} with model type: ${initialData.modelType}`);
@@ -1388,11 +1389,19 @@ class MultiplayerManager {
                 // But we can still try to send the update - it might complete
                 this.playerRef.update(updateData);
                 this.debug('Final position saved:', updateData.position);
+                
+                // Also set player offline when the window is closed
+                this.setPlayerOffline();
             } catch (error) {
                 console.error('Error saving final position:', error);
             }
         }
     }
+    
+    /**
+     * NOTE: This method has been deprecated and replaced by the unlockShip Cloud Function
+     * for better security. It remains here for reference only and should not be used.
+     */
 }
 
 export default MultiplayerManager; 

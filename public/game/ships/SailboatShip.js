@@ -143,6 +143,30 @@ class SailboatShip extends BaseShip {
      * Create the sailboat ship mesh using the GLB model
      */
     createShip() {
+        // Remove any existing ship mesh if recreating
+        if (this.shipMesh && this.scene) {
+            console.log(`Removing existing ship mesh before creating new ${this.modelType} ship`);
+            this.scene.remove(this.shipMesh);
+            
+            // Dispose of geometries and materials
+            this.shipMesh.traverse(child => {
+                if (child.isMesh) {
+                    if (child.geometry) {
+                        child.geometry.dispose();
+                    }
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(mat => {
+                                if (mat) mat.dispose();
+                            });
+                        } else {
+                            child.material.dispose();
+                        }
+                    }
+                }
+            });
+        }
+        
         const shipGroup = new THREE.Group();
         
         // Get the ship configuration
@@ -151,18 +175,27 @@ class SailboatShip extends BaseShip {
             console.error(`Invalid ship model type: ${this.modelType}. Using default sloop.`);
         }
         
+        // Get ship model path from config or use fallback
+        const modelPath = shipConfig ? shipConfig.modelPath : SailboatShip.SHIP_CONFIGS['sloop'].modelPath;
+        
         // Create GLTFLoader
         const loader = new GLTFLoader();
         
+        // Set isLoading flag to true
+        this.isLoading = true;
+        
+        console.log(`Loading ${this.modelType} ship model from: ${modelPath}`);
+        
         // Load the GLB model
         loader.load(
-            shipConfig.modelPath,
+            modelPath,
             (gltf) => {
                 // Clone the model to avoid sharing references
                 const model = gltf.scene.clone();
                 
                 // Scale the model appropriately
-                model.scale.copy(shipConfig.scale);
+                const scale = shipConfig ? shipConfig.scale : SailboatShip.SHIP_CONFIGS['sloop'].scale;
+                model.scale.copy(scale);
                 
                 // Add shadows to all meshes
                 model.traverse((child) => {
@@ -175,7 +208,7 @@ class SailboatShip extends BaseShip {
                 // Add the model to the ship group
                 shipGroup.add(model);
                 
-                // Position the ship at the origin point
+                // Position the ship at the origin point, using the current position
                 shipGroup.position.set(
                     this.position.x,
                     this.waterOffset,
@@ -183,7 +216,7 @@ class SailboatShip extends BaseShip {
                 );
                 
                 // Rotate the ship to face forward
-                shipGroup.rotation.y = Math.PI;
+                shipGroup.rotation.y = this.rotation.y || Math.PI;
                 
                 // Ensure ship renders properly with wind particles
                 shipGroup.renderOrder = 0;
@@ -203,18 +236,24 @@ class SailboatShip extends BaseShip {
                     width: Math.abs(box.max.z - box.min.z)
                 };
                 
-                // Create the clickable sphere around the ship
-                this.createClickBoxSphere();
-                
-                // Initialize wake particle system after ship mesh is created
-                this.initWakeParticleSystem();
-                
-                // Create the health bar after the ship mesh is loaded
-                this.createHealthBar();
-                
-                // Make health bar visible if health is not full
-                if (this.currentHealth < this.maxHealth) {
-                    this.setHealthBarVisible(true);
+                // Update ship stats from configuration
+                if (shipConfig) {
+                    this.speed = shipConfig.speed || this.speed;
+                    this.rotationSpeed = shipConfig.rotationSpeed || this.rotationSpeed;
+                    this.maxHealth = shipConfig.maxHealth || this.maxHealth;
+                    this.cannonRange = shipConfig.cannonRange || this.cannonRange;
+                    this.cannonDamage = shipConfig.cannonDamage || this.cannonDamage;
+                    this.cannonCooldown = shipConfig.cannonCooldown || this.cannonCooldown;
+                    this.waterOffset = shipConfig.waterOffset || this.waterOffset;
+                    
+                    console.log(`Updated ship stats for ${this.modelType}:`, {
+                        speed: this.speed,
+                        rotationSpeed: this.rotationSpeed,
+                        maxHealth: this.maxHealth,
+                        cannonRange: this.cannonRange,
+                        cannonDamage: this.cannonDamage,
+                        cannonCooldown: this.cannonCooldown
+                    });
                 }
                 
                 // Mark loading as complete
