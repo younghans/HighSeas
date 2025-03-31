@@ -11,16 +11,38 @@ class InputManager {
         this.raycaster = new THREE.Raycaster();
         this.inputMode = 'menu'; // 'menu' or 'gameplay'
         
+        // Window focus tracking
+        this.windowHasFocus = true;
+        
         // Bind methods to maintain context
         this.onMouseClick = this.onMouseClick.bind(this);
         this.onMouseMove = this.onMouseMove.bind(this);
         this.onKeyDown = this.onKeyDown.bind(this);
+        this.onWindowBlur = this.onWindowBlur.bind(this);
+        this.onWindowFocus = this.onWindowFocus.bind(this);
     }
     
     // Initialize input handling
     initialize() {
         this.setInputMode('menu');
+        
+        // Add window focus/blur events
+        window.addEventListener('blur', this.onWindowBlur);
+        window.addEventListener('focus', this.onWindowFocus);
+        
         return this;
+    }
+    
+    // Handle window blur event (losing focus)
+    onWindowBlur() {
+        console.log('Window lost focus - disabling game input');
+        this.windowHasFocus = false;
+    }
+    
+    // Handle window focus event (gaining focus)
+    onWindowFocus() {
+        console.log('Window gained focus - enabling game input');
+        this.windowHasFocus = true;
     }
     
     // Set up event listeners based on current mode
@@ -86,6 +108,9 @@ class InputManager {
     
     // Track mouse movement for hover effects
     onMouseMove(event) {
+        // Don't process mouse movement if window doesn't have focus
+        if (!this.windowHasFocus) return;
+        
         this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         
@@ -94,6 +119,9 @@ class InputManager {
     
     // Handle key presses
     onKeyDown(event) {
+        // Don't process key presses if window doesn't have focus
+        if (!this.windowHasFocus) return;
+        
         // Space bar for firing cannons - REMOVED since CombatManager already handles this
         // This prevents duplicate notifications when firing in safe zones
         
@@ -102,6 +130,12 @@ class InputManager {
     
     // Handle mouse clicks in gameplay mode
     onMouseClick(event) {
+        // Don't process clicks if window doesn't have focus
+        if (!this.windowHasFocus) {
+            console.log('Ignoring click because window does not have focus');
+            return;
+        }
+        
         // Only handle left clicks
         if (event.button !== 0) return;
         
@@ -273,6 +307,10 @@ class InputManager {
     // Clean up resources
     dispose() {
         this.removeEventListeners();
+        
+        // Remove window focus/blur event listeners
+        window.removeEventListener('blur', this.onWindowBlur);
+        window.removeEventListener('focus', this.onWindowFocus);
     }
 }
 
