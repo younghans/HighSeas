@@ -509,114 +509,168 @@ class GameCore {
         // Reset camera position for gameplay
         this.sceneManager.getCamera().position.set(0, 10, 20);
         
-        // Create ship with custom speed but don't position it yet
-        // The position will be set by the multiplayer system
-        this.ship = new SailboatShip(this.sceneManager.getScene(), { 
-            modelType: 'sloop', // Use the sloop as the default player ship
-            // Set a default position that will be overridden by multiplayer
-            position: new THREE.Vector3(0, 0, 0)
-            // Combat attributes are now defined in the ship configuration
-        });
-        
-        // Set the ship's ID to match the user's Firebase auth ID
-        if (Auth && Auth.getCurrentUser()) {
-            this.ship.id = Auth.getCurrentUser().uid;
-            console.log('Set ship ID to match user ID:', this.ship.id);
-        }
-        
-        // Make ship available globally for multiplayer combat interactions
-        window.playerShip = this.ship;
-        
-        console.log('Ship created with initial position:', this.ship.getPosition());
-        
-        // Setup gameplay controls with the new ship
-        this.setupGameplayControls();
-        
-        // Update UI for gameplay
-        this.updateUIForGameplay();
-        
-        // Initialize game UI
-        if (!this.gameUI) {
-            this.gameUI = new GameUI({
-                auth: Auth,
-                playerShip: this.ship, // Pass player ship to UI for health display
-                onLogout: () => {
-                    console.log('Logout callback triggered - setting player offline');
-                    
-                    // Set player offline before handling logout
-                    if (this.multiplayerManager && this.multiplayerManager.playerRef) {
-                        try {
-                            // Use Firebase directly to update the player status
-                            // This ensures we're using the authenticated reference that still exists
-                            const playerRef = this.multiplayerManager.playerRef;
-                            playerRef.update({
-                                isOnline: false,
-                                lastUpdated: firebase.database.ServerValue.TIMESTAMP
-                            }).then(() => {
-                                console.log('Successfully set player as offline during logout');
-                            }).catch(error => {
-                                console.error('Error setting player offline during logout:', error);
-                            });
-                        } catch (error) {
-                            console.error('Error in logout process:', error);
+        // Load player position from Firebase first
+        this.loadPlayerPosition()
+            .then(playerData => {
+                // Now load the player's saved ship model
+                return this.loadPlayerShipModel()
+                    .then(modelType => {
+                        console.log(`Creating player ship with model type: ${modelType}`);
+                        
+                        // Get position from playerData or use default
+                        const position = playerData && playerData.position
+                            ? new THREE.Vector3(
+                                playerData.position.x, 
+                                0, 
+                                playerData.position.z
+                              )
+                            : new THREE.Vector3(0, 0, 0);
+                            
+                        console.log('Starting player at position:', position);
+                        
+                        // Create ship with the saved model type and position
+                        this.ship = new SailboatShip(this.sceneManager.getScene(), { 
+                            modelType: modelType, // Use the loaded model type
+                            position: position // Use loaded position
+                        });
+                        
+                        // Set rotation if available
+                        if (playerData && playerData.rotation && this.ship.getObject()) {
+                            this.ship.getObject().rotation.y = playerData.rotation.y || 0;
+                            
+                            // Also update the ship's internal rotation tracking
+                            this.ship.targetRotation = playerData.rotation.y || 0;
                         }
-                    }
-                    
-                    // Handle logout by hiding the game UI
-                    if (this.gameUI) {
-                        this.gameUI.hide();
-                    }
-                }
+                        
+                        // Set the ship's ID to match the user's Firebase auth ID
+                        if (Auth && Auth.getCurrentUser()) {
+                            this.ship.id = Auth.getCurrentUser().uid;
+                            console.log('Set ship ID to match user ID:', this.ship.id);
+                        }
+                        
+                        // Make ship available globally for multiplayer combat interactions
+                        window.playerShip = this.ship;
+                        
+                        console.log('Ship created with initial position:', this.ship.getPosition());
+                        
+                        // Setup gameplay controls with the new ship
+                        this.setupGameplayControls();
+                        
+                        // Update UI for gameplay
+                        this.updateUIForGameplay();
+                        
+                        // Initialize game UI
+                        if (!this.gameUI) {
+                            this.gameUI = new GameUI({
+                                auth: Auth,
+                                playerShip: this.ship, // Pass player ship to UI for health display
+                                onLogout: () => {
+                                    console.log('Logout callback triggered - setting player offline');
+                                    
+                                    // Set player offline before handling logout
+                                    if (this.multiplayerManager && this.multiplayerManager.playerRef) {
+                                        try {
+                                            // Use Firebase directly to update the player status
+                                            // This ensures we're using the authenticated reference that still exists
+                                            const playerRef = this.multiplayerManager.playerRef;
+                                            playerRef.update({
+                                                isOnline: false,
+                                                lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                                            }).then(() => {
+                                                console.log('Successfully set player as offline during logout');
+                                            }).catch(error => {
+                                                console.error('Error setting player offline during logout:', error);
+                                            });
+                                        } catch (error) {
+                                            console.error('Error in logout process:', error);
+                                        }
+                                    }
+                                    
+                                    // Handle logout by hiding the game UI
+                                    if (this.gameUI) {
+                                        this.gameUI.hide();
+                                    }
+                                }
+                            });
+                            
+                            // Make gameUI accessible globally for ship sink events
+                            window.gameUI = this.gameUI;
+                        } else {
+                            // Update player ship reference in UI
+                            this.gameUI.setPlayerShip(this.ship);
+                            
+                            // Clear any previous target
+                            this.gameUI.setTarget(null);
+                        }
+                        
+                        // Make sure player ship has a health bar
+                        if (this.ship && !this.ship.healthBarContainer) {
+                            this.ship.createHealthBar();
+                            
+                            // Set initial visibility based on health
+                            if (this.ship.currentHealth < this.ship.maxHealth) {
+                                this.ship.setHealthBarVisible(true);
+                            } else {
+                                this.ship.setHealthBarVisible(false);
+                            }
+                        }
+                        
+                        // Show the game UI
+                        this.gameUI.show();
+                        
+                        // Set up ambient ocean sound (with regular sound manager)
+                        if (this.soundManager) {
+                            this.soundManager.playOceanAmbientOnInteraction(this.gameUI);
+                        }
+                        
+                        // Ensure spatial audio context is resumed after user interaction
+                        if (this.spatialAudioManager) {
+                            this.spatialAudioManager.resumeAudioContext();
+                        }
+                        
+                        // Create an empty island menu container if it doesn't exist
+                        if (!document.getElementById('islandMenu')) {
+                            const menu = document.createElement('div');
+                            menu.id = 'islandMenu';
+                            menu.style.display = 'none';
+                            document.body.appendChild(menu);
+                        }
+                        
+                        // When using the player's saved position, initialize multiplayer first
+                        // to make sure all position synchronization is correctly set up
+                        if (Auth.isAuthenticated()) {
+                            // Initialize multiplayer first with the already positioned ship
+                            // This avoids having the multiplayer position override our loaded position
+                            this.initMultiplayer();
+                            
+                            // After multiplayer is initialized, continue with the rest of the setup
+                            // Note: The below initialization doesn't depend on player position
+                            this.finishGameInitialization();
+                        } else {
+                            // If not authenticated, just finish initialization
+                            this.finishGameInitialization();
+                        }
+                        
+                        // Point camera at the ship's position
+                        if (this.ship && this.sceneManager) {
+                            this.sceneManager.updateCameraToFollowTarget(this.ship);
+                        }
+                        
+                        // Explicitly update player position in Firebase to ensure it's current
+                        if (this.multiplayerManager && this.ship) {
+                            setTimeout(() => {
+                                this.multiplayerManager.updatePlayerPosition(this.ship, true);
+                            }, 1000); // slight delay to ensure everything's initialized
+                        }
+                    });
             });
-            
-            // Make gameUI accessible globally for ship sink events
-            window.gameUI = this.gameUI;
-        } else {
-            // Update player ship reference in UI
-            this.gameUI.setPlayerShip(this.ship);
-            
-            // Clear any previous target
-            this.gameUI.setTarget(null);
-        }
-        
-        // Make sure player ship has a health bar
-        if (this.ship && !this.ship.healthBarContainer) {
-            this.ship.createHealthBar();
-            
-            // Set initial visibility based on health
-            if (this.ship.currentHealth < this.ship.maxHealth) {
-                this.ship.setHealthBarVisible(true);
-            } else {
-                this.ship.setHealthBarVisible(false);
-            }
-        }
-        
-        // Show the game UI
-        this.gameUI.show();
-        
-        // Set up ambient ocean sound (with regular sound manager)
-        if (this.soundManager) {
-            this.soundManager.playOceanAmbientOnInteraction(this.gameUI);
-        }
-        
-        // Ensure spatial audio context is resumed after user interaction
-        if (this.spatialAudioManager) {
-            this.spatialAudioManager.resumeAudioContext();
-        }
-        
-        // Create an empty island menu container if it doesn't exist
-        if (!document.getElementById('islandMenu')) {
-            const menu = document.createElement('div');
-            menu.id = 'islandMenu';
-            menu.style.display = 'none';
-            document.body.appendChild(menu);
-        }
-        
-        // Initialize multiplayer if user is authenticated
-        if (Auth.isAuthenticated()) {
-            this.initMultiplayer();
-        }
-        
+    }
+    
+    /**
+     * Complete game initialization after ship and multiplayer are set up
+     * This separates position-dependent and position-independent initialization steps
+     */
+    finishGameInitialization() {
         // Initialize BuildingManager
         this.buildingManager = new BuildingManager({
             scene: this.sceneManager.getScene(),
@@ -635,7 +689,7 @@ class GameCore {
             }
         }).init();
         
-        // Initialize IslandInteractionManager after multiplayer is initialized
+        // Initialize IslandInteractionManager
         this.islandManager = new IslandInteractionManager({
             scene: this.sceneManager.getScene(),
             camera: this.sceneManager.getCamera(),
@@ -784,7 +838,73 @@ class GameCore {
         });
 
         // After creating UI and setting up the game
-        this.gameUI.chatManager.setGameReferences(this.sceneManager.getCamera(), [this.ship]);
+        if (this.gameUI && this.gameUI.chatManager) {
+            this.gameUI.chatManager.setGameReferences(this.sceneManager.getCamera(), [this.ship]);
+        }
+    }
+    
+    /**
+     * Load the player's position from Firebase
+     * @returns {Promise<Object>} Promise that resolves with player data or null if not found
+     */
+    loadPlayerPosition() {
+        if (!Auth || !Auth.isAuthenticated()) {
+            return Promise.resolve(null); // Default if not authenticated
+        }
+        
+        const user = Auth.getCurrentUser();
+        const playerId = user.uid;
+        
+        // Create a reference to the player in Firebase
+        const playerRef = firebase.database().ref(`players/${playerId}`);
+        
+        return playerRef.once('value')
+            .then(snapshot => {
+                if (snapshot.exists()) {
+                    const playerData = snapshot.val();
+                    console.log('Loaded player position data:', playerData.position);
+                    return playerData;
+                } else {
+                    console.log('No player position data found, using default position');
+                    return null;
+                }
+            })
+            .catch(error => {
+                console.error('Error loading player position:', error);
+                return null; // Default on error
+            });
+    }
+    
+    /**
+     * Load the player's saved ship model from Firebase
+     * @returns {Promise<string>} Promise that resolves with the ship model type
+     */
+    loadPlayerShipModel() {
+        if (!Auth || !Auth.isAuthenticated()) {
+            return Promise.resolve('sloop'); // Default if not authenticated
+        }
+        
+        const user = Auth.getCurrentUser();
+        const playerId = user.uid;
+        
+        // Create a reference to the player in Firebase
+        const playerRef = firebase.database().ref(`players/${playerId}`);
+        
+        return playerRef.once('value')
+            .then(snapshot => {
+                if (snapshot.exists()) {
+                    const playerData = snapshot.val();
+                    // Return the saved model type or default to 'sloop'
+                    return playerData.modelType || 'sloop';
+                } else {
+                    console.log('No player data found, using default ship');
+                    return 'sloop';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading player ship model:', error);
+                return 'sloop'; // Default on error
+            });
     }
     
     // Generate islands in the ocean - updated to use the island loader
