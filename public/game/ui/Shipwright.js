@@ -243,9 +243,12 @@ class Shipwright {
             // Then update in Firebase
             const playerRef = this.database.ref(`players/${uid}`);
             
-            // Update the model type
+            // Update the model type and reset health to max
             return playerRef.update({
                 modelType: shipId,
+                health: window.playerShip ? window.playerShip.maxHealth : 100, // Use the new ship's max health
+                maxHealth: window.playerShip ? window.playerShip.maxHealth : 100, // Also update max health value
+                isSunk: false, // Ensure the ship is not marked as sunk
                 lastUpdated: firebase.database.ServerValue.TIMESTAMP
             })
             .then(() => {
@@ -253,6 +256,15 @@ class Shipwright {
                 
                 // Update local property
                 this.currentShipType = shipId;
+                
+                // Force an immediate position update to sync the new ship model to all other players
+                if (window.multiplayerManager && window.playerShip) {
+                    console.log('Forcing multiplayer sync to update ship model for other players');
+                    // Use a slight delay to ensure the update happens after Firebase data is saved
+                    setTimeout(() => {
+                        window.multiplayerManager.updatePlayerPosition(window.playerShip, true);
+                    }, 100);
+                }
                 
                 return true;
             })
@@ -335,7 +347,12 @@ class Shipwright {
             }
             newShip.targetRotation = playerShip.targetRotation;
             
-            // Make new ship available globally
+            // Reset health to max for the new ship
+            // Each ship type has its own maxHealth value as defined in SailboatShip.SHIP_CONFIGS
+            newShip.currentHealth = newShip.maxHealth;
+            console.log(`Reset ship health to max: ${newShip.currentHealth}/${newShip.maxHealth}`);
+            
+            // Make ship available globally
             window.playerShip = newShip;
             
             // Update GameCore's ship reference if it exists
@@ -995,7 +1012,7 @@ class Shipwright {
             rightPage.appendChild(statusText);
             
             // "Purchase" or "Select" button
-            const actionButton = document.createElement('button');
+            let actionButton = document.createElement('button');
             
             // Set button text and state based on unlock status
             if (isCurrentShip) {
@@ -1090,6 +1107,55 @@ class Shipwright {
                                 
                                 // Show success notification
                                 this.showNotification(`${ship.name} purchased!`);
+                                
+                                // Update local unlocked ships array to include the newly purchased ship
+                                // This ensures isShipUnlocked() will return the correct value
+                                if (!this.unlockedShips.includes(ship.id)) {
+                                    this.unlockedShips.push(ship.id);
+                                }
+                                
+                                // Important: Update the button's click handler to use select logic now
+                                // Remove previous click handler by cloning and replacing the button
+                                const newButton = actionButton.cloneNode(true);
+                                actionButton.parentNode.replaceChild(newButton, actionButton);
+                                actionButton = newButton;
+                                console.log('Successfully replaced purchase button with select button');
+                                
+                                // Add the select ship click handler to the new button
+                                actionButton.addEventListener('click', () => {
+                                    console.log(`Selecting newly purchased ship: ${ship.name}`);
+                                    
+                                    this.setPlayerShipModel(ship.id)
+                                        .then(success => {
+                                            if (success) {
+                                                // Update button to show it's the current ship
+                                                actionButton.textContent = 'Current Ship';
+                                                actionButton.disabled = true;
+                                                actionButton.style.opacity = '0.6';
+                                                actionButton.style.cursor = 'default';
+                                                
+                                                // Update status message
+                                                statusText.textContent = 'This is your current ship.';
+                                                
+                                                // Show success notification
+                                                this.showNotification(`Now sailing: ${ship.name}!`);
+                                                
+                                                // Close the shipwright menu after successful selection
+                                                this.hide();
+                                            } else {
+                                                this.showNotification('Error selecting ship', 'error');
+                                            }
+                                        });
+                                });
+                                
+                                // Add the same hover effects as before
+                                actionButton.addEventListener('mouseover', () => {
+                                    actionButton.style.backgroundColor = '#A0522D';
+                                });
+                                
+                                actionButton.addEventListener('mouseout', () => {
+                                    actionButton.style.backgroundColor = '#8B4513';
+                                });
                             } else {
                                 this.showNotification('Purchase failed', 'error');
                             }

@@ -897,8 +897,33 @@ class GameCore {
                     // Return the saved model type or default to 'sloop'
                     return playerData.modelType || 'sloop';
                 } else {
-                    console.log('No player data found, using default ship');
-                    return 'sloop';
+                    console.log('No player data found, creating default profile with sloop model');
+                    // For new users, create default profile data
+                    const initialData = {
+                        id: playerId,
+                        displayName: user.displayName || user.email || 'Sailor',
+                        position: {x: 0, y: 0, z: 0},
+                        rotation: {y: 0},
+                        modelType: 'sloop',
+                        health: 100,
+                        maxHealth: 100,
+                        isSunk: false,
+                        gold: 0,
+                        unlockedShips: ['sloop'],
+                        isOnline: true,
+                        lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                    };
+                    
+                    // Set default profile data
+                    return playerRef.set(initialData)
+                        .then(() => {
+                            console.log('Created default player profile');
+                            return 'sloop';
+                        })
+                        .catch(error => {
+                            console.error('Error creating default profile:', error);
+                            return 'sloop';
+                        });
                 }
             })
             .catch(error => {

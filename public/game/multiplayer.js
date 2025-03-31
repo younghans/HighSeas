@@ -172,12 +172,6 @@ class MultiplayerManager {
                     y: existingPlayerData && existingPlayerData.rotation ? existingPlayerData.rotation.y : playerShip.getObject().rotation.y
                 };
                 
-                // this.debug('Setting initial position and rotation:', {
-                //     position: initialPosition,
-                //     rotation: initialRotation,
-                //     source: existingPlayerData ? 'loaded from Firebase' : 'current ship position'
-                // });
-                
                 // If we have saved position data and the onPlayerPositionLoaded callback, update the ship now
                 if (existingPlayerData && existingPlayerData.position && this.onPlayerPositionLoaded) {
                     this.debug('Calling onPlayerPositionLoaded with saved position data');
@@ -191,10 +185,11 @@ class MultiplayerManager {
                         // Re-get the user after reload to ensure we have the latest data
                         const freshUser = this.auth.getCurrentUser();
                         
-                        // Get the player's ship model type
-                        const modelType = playerShip.modelType || 'cutter';
+                        // Get the player's ship model type - default to 'sloop' for new users
+                        const modelType = playerShip.modelType || (existingPlayerData && existingPlayerData.modelType) || 'sloop';
                         
                         // Set initial player data with the updated user information
+                        // Always ensure all required fields are set with defaults for new users
                         const initialData = {
                             id: this.playerId,
                             displayName: freshUser.displayName || freshUser.email || 'Sailor',
@@ -203,17 +198,22 @@ class MultiplayerManager {
                             destination: null,
                             lastUpdated: firebase.database.ServerValue.TIMESTAMP,
                             isOnline: true,
-                            health: 100, // Always reset health to full when joining
-                            maxHealth: 100, // Add maxHealth to initial data
-                            isSunk: false, // Always ensure player is not sunk when joining
-                            gold: existingPlayerData && existingPlayerData.gold ? existingPlayerData.gold : 0, // Initialize gold or preserve existing gold
-                            modelType: modelType // Store the player's ship model type
+                            health: existingPlayerData && existingPlayerData.health ? existingPlayerData.health : 100,
+                            maxHealth: existingPlayerData && existingPlayerData.maxHealth ? existingPlayerData.maxHealth : 100,
+                            isSunk: existingPlayerData && existingPlayerData.isSunk ? existingPlayerData.isSunk : false,
+                            gold: existingPlayerData && existingPlayerData.gold ? existingPlayerData.gold : 0,
+                            modelType: modelType,
+                            // Ensure unlocked ships exists for all users
+                            unlockedShips: existingPlayerData && existingPlayerData.unlockedShips 
+                                ? existingPlayerData.unlockedShips 
+                                : ['sloop']
                         };
                         
-                        this.debug(`Setting player display name: ${initialData.displayName} with model type: ${initialData.modelType}`);
+                        this.debug(`Setting player data for ${initialData.displayName} with model ${initialData.modelType} and unlocked ships: ${JSON.stringify(initialData.unlockedShips)}`);
                         
-                        // Update the database with the player's data
-                        return this.playerRef.update(initialData)
+                        // Update the database with the player's complete data
+                        // Use set instead of update to ensure all fields are written for new users
+                        return this.playerRef.set(initialData)
                             .then(() => {
                                 this.debug('Player data synced to server:', initialData);
                                 
@@ -488,13 +488,10 @@ class MultiplayerManager {
     createPlayerShip(playerData) {
         if (!playerData.isOnline) return;
         
-        // this.debug(`Creating ship for player: ${playerData.displayName} (${playerData.id})`, {
-        //     position: playerData.position,
-        //     rotation: playerData.rotation
-        // });
+        this.debug(`Creating ship for player: ${playerData.displayName} (${playerData.id})`);
         
-        // Get the player's ship model type from Firebase data or use default
-        const modelType = playerData.modelType || 'cutter';
+        // Get the modelType from playerData or default to 'sloop'
+        const modelType = playerData.modelType || 'sloop';
         
         // Create a SailboatShip for the other player
         const otherPlayerShip = new SailboatShip(this.scene, {
@@ -632,6 +629,18 @@ class MultiplayerManager {
         
         // If ship doesn't exist yet, create it
         if (!otherPlayerShip) {
+            this.createPlayerShip(playerData);
+            return;
+        }
+        
+        // Check if ship model type has changed
+        if (playerData.modelType && otherPlayerShip.modelType !== playerData.modelType) {
+            this.debug(`Player ${playerData.displayName} changed ship model to: ${playerData.modelType}`);
+            
+            // Remove the old ship
+            this.removePlayerShip(playerData.id);
+            
+            // Create a new ship with the updated model type
             this.createPlayerShip(playerData);
             return;
         }
