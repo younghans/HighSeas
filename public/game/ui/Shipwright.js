@@ -1,6 +1,8 @@
 /**
  * Shipwright menu component that displays as an open book in the center of the screen
  */
+import SailboatShip from '../ships/SailboatShip.js';
+
 class Shipwright {
     /**
      * Create a new Shipwright menu
@@ -423,48 +425,48 @@ class Shipwright {
         // Get ship attributes based on SailboatShip.js
         const shipAttributes = {
             'sloop': {
-                speed: 8,
-                maneuverability: 'Medium',
-                health: 100,
-                cannons: 'Standard',
-                special: 'Balanced vessel'
+                speed: SailboatShip.SHIP_CONFIGS.sloop.speed,
+                rotationSpeed: SailboatShip.SHIP_CONFIGS.sloop.rotationSpeed,
+                health: SailboatShip.SHIP_CONFIGS.sloop.maxHealth,
+                cannonDamage: `${SailboatShip.SHIP_CONFIGS.sloop.cannonDamage.min}-${SailboatShip.SHIP_CONFIGS.sloop.cannonDamage.max}`,
+                cannonRange: SailboatShip.SHIP_CONFIGS.sloop.cannonRange
             },
             'skiff': {
-                speed: 9,
-                maneuverability: 'High',
-                health: 90,
-                cannons: 'Light',
-                special: 'Fast and agile'
+                speed: SailboatShip.SHIP_CONFIGS.skiff.speed,
+                rotationSpeed: SailboatShip.SHIP_CONFIGS.skiff.rotationSpeed,
+                health: SailboatShip.SHIP_CONFIGS.skiff.maxHealth,
+                cannonDamage: `${SailboatShip.SHIP_CONFIGS.skiff.cannonDamage.min}-${SailboatShip.SHIP_CONFIGS.skiff.cannonDamage.max}`,
+                cannonRange: SailboatShip.SHIP_CONFIGS.skiff.cannonRange
             },
             'dinghy': {
-                speed: 9,
-                maneuverability: 'Very High',
-                health: 100,
-                cannons: 'Light',
-                special: 'Extremely agile'
+                speed: SailboatShip.SHIP_CONFIGS.dinghy.speed,
+                rotationSpeed: SailboatShip.SHIP_CONFIGS.dinghy.rotationSpeed,
+                health: SailboatShip.SHIP_CONFIGS.dinghy.maxHealth,
+                cannonDamage: `${SailboatShip.SHIP_CONFIGS.dinghy.cannonDamage.min}-${SailboatShip.SHIP_CONFIGS.dinghy.cannonDamage.max}`,
+                cannonRange: SailboatShip.SHIP_CONFIGS.dinghy.cannonRange
             },
             'cutter': {
-                speed: 11,
-                maneuverability: 'Medium',
-                health: 100,
-                cannons: 'Medium',
-                special: 'Fast attacker'
+                speed: SailboatShip.SHIP_CONFIGS.cutter.speed,
+                rotationSpeed: SailboatShip.SHIP_CONFIGS.cutter.rotationSpeed,
+                health: SailboatShip.SHIP_CONFIGS.cutter.maxHealth,
+                cannonDamage: `${SailboatShip.SHIP_CONFIGS.cutter.cannonDamage.min}-${SailboatShip.SHIP_CONFIGS.cutter.cannonDamage.max}`,
+                cannonRange: SailboatShip.SHIP_CONFIGS.cutter.cannonRange
             },
             'brig': {
-                speed: 7,
-                maneuverability: 'Low',
-                health: 150,
-                cannons: 'Heavy',
-                special: 'High firepower'
+                speed: SailboatShip.SHIP_CONFIGS.brig.speed,
+                rotationSpeed: SailboatShip.SHIP_CONFIGS.brig.rotationSpeed,
+                health: SailboatShip.SHIP_CONFIGS.brig.maxHealth,
+                cannonDamage: `${SailboatShip.SHIP_CONFIGS.brig.cannonDamage.min}-${SailboatShip.SHIP_CONFIGS.brig.cannonDamage.max}`,
+                cannonRange: SailboatShip.SHIP_CONFIGS.brig.cannonRange
             }
         };
         
         const attributes = shipAttributes[ship.id] || {
             speed: '?',
-            maneuverability: '?',
+            rotationSpeed: '?',
             health: '?',
-            cannons: '?',
-            special: '?'
+            cannonDamage: '?',
+            cannonRange: '?'
         };
         
         // Create stats table
@@ -477,10 +479,10 @@ class Shipwright {
         // Add stats rows
         const stats = [
             { name: 'Speed', value: attributes.speed },
-            { name: 'Maneuverability', value: attributes.maneuverability },
+            { name: 'Rotation Speed', value: attributes.rotationSpeed },
             { name: 'Hull Strength', value: attributes.health },
-            { name: 'Cannons', value: attributes.cannons },
-            { name: 'Special', value: attributes.special }
+            { name: 'Cannon Damage', value: attributes.cannonDamage },
+            { name: 'Cannon Range', value: attributes.cannonRange }
         ];
         
         stats.forEach(stat => {
