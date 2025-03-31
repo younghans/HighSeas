@@ -105,6 +105,7 @@ class MultiplayerManager {
                 // Update online status and current position
                 const currentPosition = this.playerShip.getPosition();
                 const currentRotation = { y: this.playerShip.getObject().rotation.y };
+                const modelType = this.playerShip.modelType || 'cutter';
                 
                 this.playerRef.update({
                     isOnline: true,
@@ -114,7 +115,8 @@ class MultiplayerManager {
                         z: currentPosition.z
                     },
                     rotation: currentRotation,
-                    lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                    lastUpdated: firebase.database.ServerValue.TIMESTAMP,
+                    modelType: modelType
                 }).then(() => {
                     this.debug('Successfully reconnected and synced state');
                 }).catch(error => {
@@ -189,6 +191,9 @@ class MultiplayerManager {
                         // Re-get the user after reload to ensure we have the latest data
                         const freshUser = this.auth.getCurrentUser();
                         
+                        // Get the player's ship model type
+                        const modelType = playerShip.modelType || 'cutter';
+                        
                         // Set initial player data with the updated user information
                         const initialData = {
                             id: this.playerId,
@@ -201,10 +206,11 @@ class MultiplayerManager {
                             health: 100, // Always reset health to full when joining
                             maxHealth: 100, // Add maxHealth to initial data
                             isSunk: false, // Always ensure player is not sunk when joining
-                            gold: existingPlayerData && existingPlayerData.gold ? existingPlayerData.gold : 0 // Initialize gold or preserve existing gold
+                            gold: existingPlayerData && existingPlayerData.gold ? existingPlayerData.gold : 0, // Initialize gold or preserve existing gold
+                            modelType: modelType // Store the player's ship model type
                         };
                         
-                        this.debug(`Setting player display name: ${initialData.displayName}`);
+                        this.debug(`Setting player display name: ${initialData.displayName} with model type: ${initialData.modelType}`);
                         
                         // Update the database with the player's data
                         return this.playerRef.update(initialData)
@@ -295,6 +301,9 @@ class MultiplayerManager {
         // Get the current position using the getPosition method
         const currentPosition = playerShip.getPosition();
         
+        // Get the player's ship model type
+        const modelType = playerShip.modelType || 'cutter';
+        
         // Update player data
         const updateData = {
             position: {
@@ -310,7 +319,8 @@ class MultiplayerManager {
                 y: 0, // Force destination y to always be 0
                 z: playerShip.targetPosition.z
             } : null,
-            lastUpdated: firebase.database.ServerValue.TIMESTAMP
+            lastUpdated: firebase.database.ServerValue.TIMESTAMP,
+            modelType: modelType // Include the model type in updates
         };
         
         this.playerRef.update(updateData);
@@ -483,6 +493,9 @@ class MultiplayerManager {
         //     rotation: playerData.rotation
         // });
         
+        // Get the player's ship model type from Firebase data or use default
+        const modelType = playerData.modelType || 'cutter';
+        
         // Create a SailboatShip for the other player
         const otherPlayerShip = new SailboatShip(this.scene, {
             // Use the default speed (10)
@@ -493,7 +506,8 @@ class MultiplayerManager {
             // Make sure rotation speed is set for smooth turning
             rotationSpeed: 2.0, // Default rotation speed
             // Add custom options for multiplayer ships
-            isMultiplayerShip: true
+            isMultiplayerShip: true,
+            modelType: modelType // Use the player's actual model type
         });
         
         // Set ship ID to player ID for targeting
@@ -1354,6 +1368,7 @@ class MultiplayerManager {
             // Get current position and rotation
             const currentPosition = this.playerShip.getPosition();
             const currentRotation = { y: this.playerShip.getObject().rotation.y };
+            const modelType = this.playerShip.modelType || 'cutter';
             
             // Create update data
             const updateData = {
@@ -1363,7 +1378,8 @@ class MultiplayerManager {
                     z: currentPosition.z
                 },
                 rotation: currentRotation,
-                lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                lastUpdated: firebase.database.ServerValue.TIMESTAMP,
+                modelType: modelType
             };
             
             // Use synchronous approach for beforeunload

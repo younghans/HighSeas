@@ -18,7 +18,7 @@ import { SailboatShip } from './ships/index.js';
 
 // Create a new ship with a specific model type
 const ship = new SailboatShip(scene, {
-    modelType: 'sailboat-3',  // Choose from available model types
+    modelType: 'skiff',  // Choose from available model types
     speed: 100,
     waterOffset: -0.3
 });
@@ -26,17 +26,51 @@ const ship = new SailboatShip(scene, {
 
 ## Available Ship Models
 
-SailboatShip supports various GLB model types:
+SailboatShip supports various GLB model types, each with different performance and combat characteristics:
 
-- `sailboat`: Basic sailboat model
-- `sailboat-2`: Alternative sailboat design
-- `sailboat-3`: Advanced sailboat design
-- `ship`: Standard ship model
+- `dinghy`: Small, lightweight rowing boat
+  - Fast firing rate (1.3s cooldown)
+  - Lower health (80)
+  - Shorter cannon range (90)
+  - Weaker cannons (6-20 damage)
+
+- `sloop`: Small maneuverable sailing ship
+  - Balanced combat attributes
+  - Medium health (100)
+  - Medium cannon range (100)
+  - Standard cannons (8-25 damage)
+
+- `skiff`: Light, fast rowing or sailing boat
+  - Fast and agile
+  - Less health (90)
+  - Good cannon range (110)
+  - Powerful cannons (10-28 damage)
+
+- `brig`: Two-masted square-rigged ship
+  - Slow but powerful
+  - High health (150)
+  - Long cannon range (130)
+  - Heavy cannons (15-35 damage)
+
 - `ship-2`: Alternative ship design
-- `ship-3`: Larger ship model
-- `ship-4`: Advanced ship model
+  - Good all-rounder
+  - High health (130)
+  - Good range (125)
+  - Strong cannons (13-32 damage)
 
-Each model has predefined settings for scale, water offset, and default speed.
+- `cutter`: Fast, medium-sized sailing vessel
+  - Balanced medium ship
+  - Good health (120)
+  - Good range (120)
+  - Strong cannons (12-30 damage)
+
+- `cutter-2`: Advanced sailing vessel
+  - Top tier combat ship
+  - Very good health (140)
+  - Excellent range (140)
+  - Powerful cannons (16-38 damage)
+
+Each model has predefined settings for scale, water offset, speed, and combat attributes.
 
 ## Adding New Ship Models
 

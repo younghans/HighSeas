@@ -13,7 +13,7 @@ class SoundManager {
         // Volume settings (0.0 to 1.0)
         this.masterVolume = 0.5; // Default to 50%
         this.categoryVolumes = {
-            ambient: 1.0,
+            ambient: 0.7, // Reduced from 1.0 to 0.7 to make ocean loop quieter
             sfx: 1.0,
             music: 1.0
         };

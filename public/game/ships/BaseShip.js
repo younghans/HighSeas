@@ -546,9 +546,10 @@ class BaseShip {
     
     /**
      * Get the current health percentage
-     * @returns {number} Health percentage (0-100)
+     * @returns {number} Health percentage between 0-100
      */
     getHealthPercentage() {
+        if (!this.maxHealth) return 0;
         return (this.currentHealth / this.maxHealth) * 100;
     }
     

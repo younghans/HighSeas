@@ -14,6 +14,7 @@ class UIButtonManager {
         this.settingsButton = null;
         this.leaderboardButton = null;
         this.goldButton = null;
+        this.shipStatsButton = null;
         this.inventoryButton = null;
         this.mapButton = null;
         
@@ -31,6 +32,7 @@ class UIButtonManager {
         
         // Create bottom buttons
         this.createGoldButton();
+        this.createShipStatsButton();
         this.createInventoryButton();
         this.createMapButton();
         
@@ -191,6 +193,38 @@ class UIButtonManager {
     }
     
     /**
+     * Create ship stats button
+     */
+    createShipStatsButton() {
+        // Ship helm/steering wheel icon with extended spokes
+        const shipStatsIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="8"></circle>
+            <circle cx="12" cy="12" r="3"></circle>
+            <line x1="12" y1="2" x2="12" y2="9"></line>
+            <line x1="12" y1="15" x2="12" y2="22"></line>
+            <line x1="2" y1="12" x2="9" y2="12"></line>
+            <line x1="15" y1="12" x2="22" y2="12"></line>
+            <line x1="4.93" y1="4.93" x2="8.46" y2="8.46"></line>
+            <line x1="15.54" y1="15.54" x2="19.07" y2="19.07"></line>
+            <line x1="4.93" y1="19.07" x2="8.46" y2="15.54"></line>
+            <line x1="15.54" y1="8.46" x2="19.07" y2="4.93"></line>
+        </svg>`;
+        
+        this.shipStatsButton = UIUtils.createIconButton(
+            'ship-stats-button', 
+            shipStatsIcon, 
+            'Ship Stats',
+            () => {
+                UIEventBus.publish('toggleMenu', { type: 'shipStats', location: 'bottom' });
+            }
+        );
+        
+        if (this.gameUI.bottomButtonContainer) {
+            this.gameUI.bottomButtonContainer.appendChild(this.shipStatsButton);
+        }
+    }
+    
+    /**
      * Create inventory button
      */
     createInventoryButton() {
@@ -288,10 +322,14 @@ class UIButtonManager {
      * Show all buttons
      */
     show() {
-        if (this.profileButton) this.profileButton.style.display = 'flex';
+        // Show top buttons
         if (this.settingsButton) this.settingsButton.style.display = 'flex';
+        if (this.profileButton) this.profileButton.style.display = 'flex';
         if (this.leaderboardButton) this.leaderboardButton.style.display = 'flex';
+        
+        // Show bottom buttons
         if (this.goldButton) this.goldButton.style.display = 'flex';
+        if (this.shipStatsButton) this.shipStatsButton.style.display = 'flex';
         if (this.inventoryButton) this.inventoryButton.style.display = 'flex';
         if (this.mapButton) this.mapButton.style.display = 'flex';
     }
@@ -300,10 +338,14 @@ class UIButtonManager {
      * Hide all buttons
      */
     hide() {
-        if (this.profileButton) this.profileButton.style.display = 'none';
+        // Hide top buttons
         if (this.settingsButton) this.settingsButton.style.display = 'none';
+        if (this.profileButton) this.profileButton.style.display = 'none';
         if (this.leaderboardButton) this.leaderboardButton.style.display = 'none';
+        
+        // Hide bottom buttons
         if (this.goldButton) this.goldButton.style.display = 'none';
+        if (this.shipStatsButton) this.shipStatsButton.style.display = 'none';
         if (this.inventoryButton) this.inventoryButton.style.display = 'none';
         if (this.mapButton) this.mapButton.style.display = 'none';
     }

@@ -9,54 +9,89 @@ import BaseShip from './BaseShip.js';
 class SailboatShip extends BaseShip {
     // Ship model configurations
     static SHIP_CONFIGS = {
-        'sailboat-2': {
+        'sloop': {
             modelPath: '/assets/models/ships/sailboat-2.glb',
             scale: new THREE.Vector3(1.0, 1.0, 1.0),
             waterOffset: -0.2,
             speed: 10,
-            rotationSpeed: 2.5
+            rotationSpeed: 2.5,
+            // Combat attributes
+            maxHealth: 100,
+            cannonRange: 100,
+            cannonDamage: { min: 8, max: 25 },
+            cannonCooldown: 1500 // 1.5 seconds between shots
         },
-        'sailboat-3': {
+        'skiff': {
             modelPath: '/assets/models/ships/sailboat-3.glb',
             scale: new THREE.Vector3(1.0, 1.0, 1.0),
             waterOffset: -0.3,
             speed: 12,
-            rotationSpeed: 2.7
+            rotationSpeed: 2.7,
+            // Combat attributes - slightly better than sloop
+            maxHealth: 90,
+            cannonRange: 110,
+            cannonDamage: { min: 10, max: 28 },
+            cannonCooldown: 1500 // 1.4 seconds between shots
         },
-        'sailboat': {
+        'dinghy': {
             modelPath: '/assets/models/ships/sailboat.glb',
             scale: new THREE.Vector3(1.0, 1.0, 1.0),
             waterOffset: -0.1,
             speed: 8,
-            rotationSpeed: 2.2
+            rotationSpeed: 2.2,
+            // Combat attributes - weaker but agile
+            maxHealth: 80,
+            cannonRange: 90,
+            cannonDamage: { min: 6, max: 20 },
+            cannonCooldown: 1500 // 1.3 seconds between shots (faster firing)
         },
-        'ship': {
+        'cutter': {
+            modelPath: '/assets/models/ships/ship-3.glb',
+            scale: new THREE.Vector3(0.75, 0.75, 0.75),
+            waterOffset: -0.3,
+            speed: 11,
+            rotationSpeed: 1.8,
+            // Combat attributes - balanced medium ship
+            maxHealth: 120,
+            cannonRange: 120,
+            cannonDamage: { min: 12, max: 30 },
+            cannonCooldown: 1500 // 1.6 seconds between shots
+        },
+        'brig': {
             modelPath: '/assets/models/ships/ship.glb',
             scale: new THREE.Vector3(0.5, 0.5, 0.5),
             waterOffset: -0.7,
             speed: 7,
-            rotationSpeed: 1.2
+            rotationSpeed: 1.2,
+            // Combat attributes - slow but powerful
+            maxHealth: 150,
+            cannonRange: 130,
+            cannonDamage: { min: 15, max: 35 },
+            cannonCooldown: 1500 // 1.8 seconds between shots
         },
         'ship-2': {
             modelPath: '/assets/models/ships/ship-2.glb',
             scale: new THREE.Vector3(0.5, 0.5, 0.5),
             waterOffset: -0.15,
             speed: 9,
-            rotationSpeed: 1.5
+            rotationSpeed: 1.5,
+            // Combat attributes - good all-rounder
+            maxHealth: 130,
+            cannonRange: 125,
+            cannonDamage: { min: 13, max: 32 },
+            cannonCooldown: 1500 // 1.7 seconds between shots
         },
-        'ship-3': {
-            modelPath: '/assets/models/ships/ship-3.glb',
-            scale: new THREE.Vector3(0.75, 0.75, 0.75),
-            waterOffset: -0.3,
-            speed: 11,
-            rotationSpeed: 1.8
-        },
-        'ship-4': {
+        'cutter-2': {
             modelPath: '/assets/models/ships/ship-4.glb',
             scale: new THREE.Vector3(0.7, 0.7, 0.7),
             waterOffset: -0.4,
             speed: 13,
-            rotationSpeed: 2.0
+            rotationSpeed: 2.0,
+            // Combat attributes - top tier vessel
+            maxHealth: 140,
+            cannonRange: 140,
+            cannonDamage: { min: 16, max: 38 },
+            cannonCooldown: 1500 // 1.65 seconds between shots
         }
     };
 
@@ -64,15 +99,15 @@ class SailboatShip extends BaseShip {
      * Create a new SailboatShip
      * @param {THREE.Scene} scene - The scene to add the ship to
      * @param {Object} options - Ship configuration options
-     * @param {string} options.modelType - Type of ship to create ('sailboat-2', 'sailboat-3', or 'sailboat')
+     * @param {string} options.modelType - Type of ship to create ('sloop', 'skiff', 'dinghy', 'cutter', etc.)
      */
     constructor(scene, options = {}) {
         // Get the ship configuration
-        const modelType = options.modelType || 'ship-3';
+        const modelType = options.modelType || 'cutter';
         const shipConfig = SailboatShip.SHIP_CONFIGS[modelType];
         
         if (!shipConfig) {
-            console.error(`Invalid ship model type: ${modelType}. Using default sailboat-2.`);
+            console.error(`Invalid ship model type: ${modelType}. Using default sloop.`);
         }
 
         // Set default options for a SailboatShip before calling super
@@ -83,6 +118,11 @@ class SailboatShip extends BaseShip {
             sailColor: options.sailColor || 0xFFFFFF,
             waterOffset: options.waterOffset || (shipConfig?.waterOffset || -0.5),
             rotationSpeed: options.rotationSpeed || (shipConfig?.rotationSpeed || 2.0),
+            // Apply combat attributes from ship config
+            maxHealth: options.maxHealth || (shipConfig?.maxHealth || 100),
+            cannonRange: options.cannonRange || (shipConfig?.cannonRange || 100),
+            cannonDamage: options.cannonDamage || (shipConfig?.cannonDamage || { min: 8, max: 25 }),
+            cannonCooldown: options.cannonCooldown || (shipConfig?.cannonCooldown || 1500),
             ...options
         };
         
@@ -108,7 +148,7 @@ class SailboatShip extends BaseShip {
         // Get the ship configuration
         const shipConfig = SailboatShip.SHIP_CONFIGS[this.modelType];
         if (!shipConfig) {
-            console.error(`Invalid ship model type: ${this.modelType}. Using default sailboat-2.`);
+            console.error(`Invalid ship model type: ${this.modelType}. Using default sloop.`);
         }
         
         // Create GLTFLoader

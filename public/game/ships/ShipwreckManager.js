@@ -1052,7 +1052,7 @@ class ShipwreckManager {
             // Use damaged/wrecked appearance
             hullColor: 0x8B4513, // Brown
             type: shipType,
-            modelType: 'sailboat-2' // Use the new model type
+            modelType: 'sloop' // Use the sloop model type
         });
         
         // Store the position for easier access

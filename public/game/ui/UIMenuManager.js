@@ -3,6 +3,7 @@ import UIUtils from './UIUtils.js';
 import UIEventBus from './UIEventBus.js';
 import DebugPanel from './DebugPanel.js';
 import UsernameValidator from './UsernameValidator.js';
+import ShipStats from './ShipStats.js';
 
 /**
  * Manages all UI menus
@@ -21,7 +22,11 @@ class UIMenuManager {
         this.leaderboardMenu = null;
         this.inventoryMenu = null;
         this.goldMenu = null;
+        this.shipStatsMenu = null;
         this.mapMenu = null;
+        
+        // Component references
+        this.shipStats = null;
         
         this.init();
     }
@@ -38,6 +43,7 @@ class UIMenuManager {
         // Create bottom menus
         this.createInventoryMenu();
         this.createGoldMenu();
+        this.createShipStatsMenu();
         this.createMapMenu();
         
         // Listen for menu toggle events
@@ -144,6 +150,7 @@ class UIMenuManager {
         // Hide all bottom menus first
         if (this.inventoryMenu) this.inventoryMenu.style.display = 'none';
         if (this.goldMenu) this.goldMenu.style.display = 'none';
+        if (this.shipStatsMenu) this.shipStatsMenu.style.display = 'none';
         if (this.mapMenu) this.mapMenu.style.display = 'none';
         
         // If we're toggling the currently active menu, just close it
@@ -167,6 +174,23 @@ class UIMenuManager {
         } else if (menuType === 'gold') {
             if (this.goldMenu) {
                 this.goldMenu.style.display = 'block';
+            }
+        } else if (menuType === 'shipStats') {
+            if (this.shipStatsMenu) {
+                this.shipStatsMenu.style.display = 'block';
+                
+                // Make sure the ship stats component gets the latest player ship
+                if (this.shipStats) {
+                    // Try to get player ship directly from game objects
+                    if (this.gameUI && this.gameUI.playerShip) {
+                        this.shipStats.playerShip = this.gameUI.playerShip;
+                    } else if (window.combatManager && window.combatManager.playerShip) {
+                        this.shipStats.playerShip = window.combatManager.playerShip;
+                    }
+                    
+                    // Refresh stats with latest ship data
+                    this.shipStats.refreshStats();
+                }
             }
         } else if (menuType === 'map') {
             if (this.mapMenu) {
@@ -555,6 +579,20 @@ class UIMenuManager {
     }
     
     /**
+     * Create ship stats menu
+     */
+    createShipStatsMenu() {
+        // Create the ship stats component
+        this.shipStats = new ShipStats(this.gameUI);
+        
+        // Add the menu to the bottom container
+        if (this.gameUI.bottomMenuContainer && this.shipStats.shipStatsMenu) {
+            this.gameUI.bottomMenuContainer.appendChild(this.shipStats.shipStatsMenu);
+            this.shipStatsMenu = this.shipStats.shipStatsMenu;
+        }
+    }
+    
+    /**
      * Create map menu
      */
     createMapMenu() {
@@ -661,15 +699,29 @@ class UIMenuManager {
      * Hide all menus
      */
     hideAllMenus() {
-        this.closeTopMenu();
-        this.closeBottomMenu();
-        
+        // Hide top menus
         if (this.profileMenu) this.profileMenu.style.display = 'none';
         if (this.settingsMenu) this.settingsMenu.style.display = 'none';
         if (this.leaderboardMenu) this.leaderboardMenu.style.display = 'none';
+        
+        // Hide bottom menus
         if (this.inventoryMenu) this.inventoryMenu.style.display = 'none';
         if (this.goldMenu) this.goldMenu.style.display = 'none';
+        if (this.shipStatsMenu) this.shipStatsMenu.style.display = 'none';
         if (this.mapMenu) this.mapMenu.style.display = 'none';
+        
+        // Reset active menu trackers
+        this.activeMenuTop = null;
+        this.activeMenuBottom = null;
+        
+        // Hide containers
+        if (this.gameUI.topMenuContainer) {
+            this.gameUI.topMenuContainer.style.display = 'none';
+        }
+        
+        if (this.gameUI.bottomMenuContainer) {
+            this.gameUI.bottomMenuContainer.style.display = 'none';
+        }
     }
 }
 

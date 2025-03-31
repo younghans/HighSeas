@@ -251,11 +251,17 @@ class GameUI {
     }
     
     /**
-     * Set the player ship reference
-     * @param {Object} playerShip - The player's ship
+     * Set the player ship
+     * @param {BaseShip} playerShip - The player's ship
      */
     setPlayerShip(playerShip) {
         this.playerShip = playerShip;
+        
+        // Dispatch event to update ship stats
+        const event = new CustomEvent('playerShipUpdated', {
+            detail: { ship: playerShip }
+        });
+        document.dispatchEvent(event);
     }
     
     /**

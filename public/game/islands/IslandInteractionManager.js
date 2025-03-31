@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import Shipwright from '../ui/Shipwright.js';
 
 /**
  * IslandInteractionManager handles island interaction functionality
@@ -17,6 +18,9 @@ class IslandInteractionManager {
         this.buildingManager = options.buildingManager;
         this.gameUI = options.gameUI;
         this.multiplayerManager = options.multiplayerManager;
+        
+        // Initialize shipwright
+        this.shipwright = new Shipwright({ gameUI: this.gameUI });
         
         // Island interaction variables
         this.selectedIsland = null;
@@ -196,6 +200,11 @@ class IslandInteractionManager {
                 this.hideIslandMenu();
             }
             
+            // Close shipwright menu if it exists
+            if (this.shipwright) {
+                this.shipwright.hide();
+            }
+            
             // Exit build mode if active via the building manager
             if (this.buildingManager && this.buildingManager.isInBuildMode()) {
                 this.buildingManager.exitBuildMode();
@@ -245,15 +254,19 @@ class IslandInteractionManager {
         menu.innerHTML = `
             <h2>Island Menu</h2>
             <p>You've discovered ${island.name || 'an island'}!</p>
-            <button id="exploreButton">Explore Island</button>
+            <button id="shipwrightButton">Shipwright</button>
             <button id="buildButton">Building Mode</button>
             <button id="closeMenuButton">Close</button>
         `;
         
         // Add event listeners to buttons
-        document.getElementById('exploreButton').addEventListener('click', () => {
-            console.log('Exploring island...');
-            // Add exploration functionality here
+        document.getElementById('shipwrightButton').addEventListener('click', () => {
+            console.log('Opening shipwright menu...');
+            // Hide the island menu
+            this.hideIslandMenu();
+            
+            // Open the shipwright menu
+            this.toggleMenu('shipwrightMenu', true);
         });
         
         document.getElementById('buildButton').addEventListener('click', () => {
@@ -304,6 +317,17 @@ class IslandInteractionManager {
      * @param {Function} setupFn - Optional function to run when showing the menu
      */
     toggleMenu(menuId, show, setupFn = null) {
+        // Handle shipwright menu separately
+        if (menuId === 'shipwrightMenu') {
+            if (this.shipwright) {
+                console.log(`Toggling shipwright menu, show: ${show}`);
+                this.shipwright.toggle(show);
+                return;
+            } else {
+                console.error('Shipwright instance not found!');
+            }
+        }
+        
         const menu = document.getElementById(menuId);
         
         if (!menu) {

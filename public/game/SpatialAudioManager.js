@@ -533,10 +533,10 @@ class SpatialAudioManager {
         
         // Use spatial audio parameters for coin spill - more prominent
         return this.playSpatialSound('coin_spill', position, 'sfx', {
-            volume: 1.0 * userVolume, // Full volume for satisfying feedback
-            refDistance: 10, // Hear clearly from a good distance
-            maxDistance: 1000, 
-            rolloffFactor: 0.5 // Low rolloff so it's clearly audible
+            volume: 2 * userVolume, // Increased from 1.0 to 1.5 for louder reward sound
+            refDistance: 8, // Reduced from 10 to bring the sound closer 
+            maxDistance: 1200, // Increased from 1000 to hear from further away
+            rolloffFactor: 0.4 // Reduced from 0.5 for even less distance attenuation
         });
     }
     
@@ -559,7 +559,7 @@ class SpatialAudioManager {
         
         // Use spatial audio parameters for ship sinking - atmospheric
         return this.playSpatialSound('ship_sink', position, 'sfx', {
-            volume: 0.95 * userVolume,
+            volume: 1.3 * userVolume,
             refDistance: 30,
             maxDistance: 800,
             rolloffFactor: 0.8 // Medium rolloff for atmospheric effect

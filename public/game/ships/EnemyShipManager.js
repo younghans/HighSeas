@@ -235,7 +235,7 @@ class EnemyShipManager {
         const guardianShip = new SailboatShip(this.scene, {
             position: position,
             rotation: { y: Math.random() * Math.PI * 2 },
-            modelType: 'sailboat-3',
+            modelType: 'skiff',
             speed: 3 + Math.random() * 3, // Same speed as regular enemies (3-6)
             hullColor: 0x800080, // Purple for guardians
             sailColor: 0x000000, // Black sails
@@ -243,6 +243,7 @@ class EnemyShipManager {
             maxHealth: 40 + Math.floor(Math.random() * 20), // Same health as regular enemies (80-120)
             cannonDamage: { min: 5, max: 20 }, // Same damage as regular enemies
             cannonCooldown: 3000, // Same cooldown as regular enemies (3 seconds)
+            cannonRange: 50, // Set cannon range to 50
             type: 'guardian'
         });
         
@@ -364,7 +365,7 @@ class EnemyShipManager {
         const enemyShip = new SailboatShip(this.scene, {
             position: position,
             rotation: { y: Math.random() * Math.PI * 2 },
-            modelType: 'sailboat-2',
+            modelType: 'sloop',
             speed: 3 + Math.random() * 3, // Random speed between 3-6
             hullColor: 0x8B0000, // Dark red hull for enemy ships
             sailColor: 0x000000, // Black sails
@@ -372,6 +373,7 @@ class EnemyShipManager {
             maxHealth: 40 + Math.floor(Math.random() * 20), // Random health between 80-120
             cannonDamage: { min: 5, max: 20 },
             cannonCooldown: 3000, // 3 seconds between shots (adjust as needed)
+            cannonRange: 50, // Set cannon range to 50
             type: shipType // Set the ship type for shipwreck creation later
         });
         

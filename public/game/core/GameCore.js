@@ -512,15 +512,10 @@ class GameCore {
         // Create ship with custom speed but don't position it yet
         // The position will be set by the multiplayer system
         this.ship = new SailboatShip(this.sceneManager.getScene(), { 
-            modelType: 'ship-3', // Use sailboat-3 model
-            // speed: 50,
+            modelType: 'sloop', // Use the sloop as the default player ship
             // Set a default position that will be overridden by multiplayer
-            position: new THREE.Vector3(0, 0, 0),
-            // Add combat properties
-            maxHealth: 100,
-            cannonRange: 100,
-            cannonDamage: { min: 8, max: 25 },
-            cannonCooldown: 1500 // 1.5 seconds between shots
+            position: new THREE.Vector3(0, 0, 0)
+            // Combat attributes are now defined in the ship configuration
         });
         
         // Set the ship's ID to match the user's Firebase auth ID
