@@ -499,12 +499,10 @@ class MultiplayerManager {
         // Create a SailboatShip for the other player
         const otherPlayerShip = new SailboatShip(this.scene, {
             // Use the default speed (10)
-            speed: 10, // Explicitly set speed to match local player
             hullColor: 0x8B4513, // Default brown hull
             deckColor: 0xD2B48C, // Default tan deck
             sailColor: 0xFFFFFF, // Default white sail
             // Make sure rotation speed is set for smooth turning
-            rotationSpeed: 2.0, // Default rotation speed
             // Add custom options for multiplayer ships
             isMultiplayerShip: true,
             modelType: modelType // Use the player's actual model type
