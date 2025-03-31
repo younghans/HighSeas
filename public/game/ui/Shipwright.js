@@ -59,8 +59,8 @@ class Shipwright {
         menu.style.top = '50%';
         menu.style.left = '50%';
         menu.style.transform = 'translate(-50%, -50%)';
-        menu.style.width = '600px'; // Wider than standard menus to look like an open book
-        menu.style.height = '400px';
+        menu.style.maxWidth = '1200px'; // Set a max width so it doesn't get too large
+        menu.style.maxHeight = '800px'; // Set a max height so it doesn't get too large
         menu.style.display = 'none';
         menu.style.zIndex = '1000'; // Use a high z-index value to ensure it's on top
         
@@ -68,6 +68,7 @@ class Shipwright {
         const bookContainer = document.createElement('div');
         bookContainer.className = 'book-container';
         bookContainer.style.display = 'flex';
+        bookContainer.style.flexDirection = 'row'; // Default to row for desktop
         bookContainer.style.width = '100%';
         bookContainer.style.height = '100%';
         bookContainer.style.backgroundColor = '#8B4513'; // Brown color for book cover
@@ -75,12 +76,40 @@ class Shipwright {
         bookContainer.style.boxShadow = '0 10px 20px rgba(0, 0, 0, 0.5)';
         bookContainer.style.overflow = 'hidden';
         
+        // Handle all responsive adjustments in one function
+        const handleResponsiveChanges = () => {
+            // Size adjustments
+            if (window.innerWidth < 768) {
+                // Mobile: 90% of viewport and vertical layout
+                menu.style.width = '90%';
+                menu.style.height = '90%';
+                bookContainer.style.flexDirection = 'column';
+            } else {
+                // Desktop: 80% of viewport and horizontal layout
+                menu.style.width = '80%';
+                menu.style.height = '80%';
+                bookContainer.style.flexDirection = 'row';
+            }
+        };
+        
+        // Apply initial responsive settings
+        handleResponsiveChanges();
+        
+        // Listen for window resize to update all responsive elements
+        window.addEventListener('resize', handleResponsiveChanges);
+        
+        // Store cleanup function
+        this.cleanupFunctions = this.cleanupFunctions || [];
+        this.cleanupFunctions.push(() => {
+            window.removeEventListener('resize', handleResponsiveChanges);
+        });
+        
         // Left page
         const leftPage = document.createElement('div');
         leftPage.className = 'book-page left-page';
         leftPage.style.flex = '1';
         leftPage.style.background = '#f5e8c0'; // Parchment-like color
-        leftPage.style.padding = '20px';
+        leftPage.style.padding = 'min(20px, 3vw)'; // Responsive padding
         leftPage.style.boxShadow = 'inset -5px 0 10px rgba(0, 0, 0, 0.1)';
         leftPage.style.display = 'flex';
         leftPage.style.flexDirection = 'column';
@@ -93,8 +122,9 @@ class Shipwright {
         leftTitle.textContent = 'Shipwright';
         leftTitle.style.color = '#8B4513';
         leftTitle.style.fontFamily = 'serif';
+        leftTitle.style.fontSize = 'min(24px, 5vw)'; // Responsive font size
         leftTitle.style.textAlign = 'center';
-        leftTitle.style.marginBottom = '20px';
+        leftTitle.style.marginBottom = 'min(20px, 3vh)'; // Responsive margin
         leftPage.appendChild(leftTitle);
         
         // Ship selection container
@@ -102,7 +132,7 @@ class Shipwright {
         shipSelectionContainer.style.width = '100%';
         shipSelectionContainer.style.display = 'flex';
         shipSelectionContainer.style.flexDirection = 'column';
-        shipSelectionContainer.style.gap = '15px';
+        shipSelectionContainer.style.gap = 'min(15px, 2vh)'; // Responsive gap
         
         // Ship types from SailboatShip.js
         const shipTypes = [
@@ -174,7 +204,7 @@ class Shipwright {
             const nameElement = document.createElement('div');
             nameElement.textContent = ship.name;
             nameElement.style.fontFamily = 'serif';
-            nameElement.style.fontSize = '16px';
+            nameElement.style.fontSize = 'min(16px, 3vw)'; // Responsive font size
             nameElement.style.fontWeight = 'bold';
             nameElement.style.color = '#5D4037';
             infoContainer.appendChild(nameElement);
@@ -183,7 +213,7 @@ class Shipwright {
             const descriptionElement = document.createElement('div');
             descriptionElement.textContent = ship.description;
             descriptionElement.style.fontFamily = 'serif';
-            descriptionElement.style.fontSize = '12px';
+            descriptionElement.style.fontSize = 'min(12px, 2.5vw)'; // Responsive font size
             descriptionElement.style.color = '#5D4037';
             infoContainer.appendChild(descriptionElement);
             
@@ -217,7 +247,7 @@ class Shipwright {
         rightPage.className = 'book-page right-page';
         rightPage.style.flex = '1';
         rightPage.style.background = '#f5e8c0'; // Parchment-like color
-        rightPage.style.padding = '20px';
+        rightPage.style.padding = 'min(20px, 3vw)'; // Responsive padding
         rightPage.style.boxShadow = 'inset 5px 0 10px rgba(0, 0, 0, 0.1)';
         rightPage.style.display = 'flex';
         rightPage.style.flexDirection = 'column';
@@ -354,15 +384,18 @@ class Shipwright {
         shipTitle.textContent = ship.name;
         shipTitle.style.color = '#8B4513';
         shipTitle.style.fontFamily = 'serif';
+        shipTitle.style.fontSize = 'min(24px, 5vw)'; // Responsive font size
         shipTitle.style.textAlign = 'center';
-        shipTitle.style.marginBottom = '20px';
+        shipTitle.style.marginBottom = 'min(20px, 3vh)'; // Responsive margin
         rightPage.appendChild(shipTitle);
         
         // Ship model viewer container
         const shipViewerContainer = document.createElement('div');
-        shipViewerContainer.style.width = '180px';
-        shipViewerContainer.style.height = '130px'; // Restored to previous height
-        shipViewerContainer.style.marginBottom = '15px'; // Restored margin
+        shipViewerContainer.style.width = '40%'; // Responsive width
+        shipViewerContainer.style.height = '30%'; // Responsive height
+        shipViewerContainer.style.minWidth = '180px'; // Minimum width
+        shipViewerContainer.style.minHeight = '130px'; // Minimum height
+        shipViewerContainer.style.marginBottom = '15px';
         shipViewerContainer.style.position = 'relative';
         
         // Get model path based on SailboatShip.js
@@ -384,6 +417,7 @@ class Shipwright {
         // Ship stats table
         const statsContainer = document.createElement('div');
         statsContainer.style.width = '90%';
+        statsContainer.style.maxWidth = '400px';
         statsContainer.style.marginBottom = '20px';
         
         // Get ship attributes based on SailboatShip.js
@@ -455,14 +489,14 @@ class Shipwright {
             
             const nameCell = document.createElement('td');
             nameCell.textContent = stat.name;
-            nameCell.style.padding = '8px 4px';
+            nameCell.style.padding = 'min(8px, 1.5vw) min(4px, 1vw)'; // Responsive padding
             nameCell.style.fontWeight = 'bold';
-            nameCell.style.fontSize = '14px';
+            nameCell.style.fontSize = 'min(14px, 2.5vw)'; // Responsive font size
             
             const valueCell = document.createElement('td');
             valueCell.textContent = stat.value;
-            valueCell.style.padding = '8px 4px';
-            valueCell.style.fontSize = '14px';
+            valueCell.style.padding = 'min(8px, 1.5vw) min(4px, 1vw)'; // Responsive padding
+            valueCell.style.fontSize = 'min(14px, 2.5vw)'; // Responsive font size
             valueCell.style.textAlign = 'right';
             
             row.appendChild(nameCell);
@@ -483,8 +517,9 @@ class Shipwright {
         actionButton.style.padding = '8px 15px';
         actionButton.style.cursor = 'pointer';
         actionButton.style.fontFamily = 'serif';
-        actionButton.style.fontSize = '16px';
+        actionButton.style.fontSize = 'min(16px, 2vw)'; // Responsive font size
         actionButton.style.marginTop = '10px';
+        actionButton.style.marginBottom = '20px'; // Add bottom margin for small screens
         
         actionButton.addEventListener('mouseover', () => {
             actionButton.style.backgroundColor = '#A0522D';
@@ -533,6 +568,16 @@ class Shipwright {
             if (id) cancelAnimationFrame(id);
         });
         this.animationFrameIds = [];
+        
+        // Run cleanup functions (e.g., remove event listeners)
+        if (this.cleanupFunctions) {
+            this.cleanupFunctions.forEach(cleanup => {
+                if (typeof cleanup === 'function') {
+                    cleanup();
+                }
+            });
+            this.cleanupFunctions = [];
+        }
         
         // Clean up 3D models (meshes, materials, textures)
         this.activeModels.forEach(model => {
@@ -646,21 +691,55 @@ class Shipwright {
                 this.activeScenes.push(scene);
                 
                 // Create a camera for side view
-                const camera = new THREE.PerspectiveCamera(32, 180/130, 0.1, 1000);
+                const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 1000); // Start with aspect ratio 1, will update
                 camera.position.set(15, 0, 0); // Positioned at midline height
                 camera.lookAt(0, 0, 0);
                 
                 // Create a renderer
                 const renderer = new THREE.WebGLRenderer({ antialias: true });
-                renderer.setSize(180, 130);
                 renderer.setPixelRatio(window.devicePixelRatio);
                 renderer.shadowMap.enabled = true;
                 
                 // Track this renderer for cleanup
                 this.activeRenderers.push(renderer);
+                
                 // Add the renderer to the container
                 container.innerHTML = '';
                 container.appendChild(renderer.domElement);
+                
+                // Make renderer responsive to container size
+                const resizeRenderer = () => {
+                    const width = container.clientWidth;
+                    const height = container.clientHeight;
+                    
+                    // Update renderer size
+                    renderer.setSize(width, height);
+                    
+                    // Update camera aspect ratio
+                    camera.aspect = width / height;
+                    camera.updateProjectionMatrix();
+                    
+                    // Render immediately to avoid flicker
+                    if (scene && camera) {
+                        renderer.render(scene, camera);
+                    }
+                };
+                
+                // Initial resize
+                resizeRenderer();
+                
+                // Add window resize listener
+                const handleResize = () => {
+                    resizeRenderer();
+                };
+                window.addEventListener('resize', handleResize);
+                
+                // Store the event listener for cleanup
+                const cleanup = () => {
+                    window.removeEventListener('resize', handleResize);
+                };
+                this.cleanupFunctions = this.cleanupFunctions || [];
+                this.cleanupFunctions.push(cleanup);
                 
                 // Add lights to the scene
                 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);

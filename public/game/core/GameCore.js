@@ -512,7 +512,7 @@ class GameCore {
         // Create ship with custom speed but don't position it yet
         // The position will be set by the multiplayer system
         this.ship = new SailboatShip(this.sceneManager.getScene(), { 
-            modelType: 'cutter', // Use the sloop as the default player ship
+            modelType: 'sloop', // Use the sloop as the default player ship
             // Set a default position that will be overridden by multiplayer
             position: new THREE.Vector3(0, 0, 0)
             // Combat attributes are now defined in the ship configuration
