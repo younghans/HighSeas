@@ -84,7 +84,6 @@ class SoundManager {
         
         // Function to start ambient sounds
         const startAmbientSounds = () => {
-            console.log('Starting ambient ocean sounds after user interaction');
             this.playOceanAmbient();
             
             // Set initial volume based on UI settings
@@ -116,7 +115,6 @@ class SoundManager {
         // Mark as set up
         this._oceanAmbientListenersSetup = true;
         
-        console.log('Ocean sound event listeners set up - waiting for user interaction');
         return this;
     }
     
@@ -135,7 +133,6 @@ class SoundManager {
         // Set initialized flag
         this.initialized = true;
         
-        console.log('SoundManager initialized');
         return this;
     }
     
@@ -163,8 +160,6 @@ class SoundManager {
      */
     playPendingSounds() {
         if (this.pendingPlayback.length === 0) return;
-        
-        console.log(`Playing ${this.pendingPlayback.length} pending sounds`);
         
         // Try to play each sound in the queue
         [...this.pendingPlayback].forEach(item => {
@@ -218,13 +213,11 @@ class SoundManager {
         
         // Check if sound exists and is loaded
         if (!sound) {
-            console.warn(`Sound ${key} in category ${category} not found`);
             return this;
         }
         
         // If the user hasn't interacted with the page yet, queue the sound for later
         if (!this.userHasInteracted) {
-            console.log(`User hasn't interacted yet. Queuing sound ${key} for later playback`);
             this.pendingPlayback.push({ key, category, options });
             return this;
         }
@@ -251,11 +244,8 @@ class SoundManager {
                     .then(() => {
                         // Sound started playing successfully
                         sound.playing = true;
-                        console.log(`Successfully playing sound: ${key}`);
                     })
                     .catch(error => {
-                        console.warn(`Error playing sound ${key}:`, error);
-                        
                         // If it's an autoplay restriction, queue it for later
                         if (error.name === 'NotAllowedError') {
                             this.pendingPlayback.push({ key, category, options });
@@ -266,8 +256,6 @@ class SoundManager {
                 sound.playing = true;
             }
         } catch (e) {
-            console.warn(`Error playing sound ${key}:`, e);
-            
             // If it's an autoplay error, queue for later
             if (e.name === 'NotAllowedError') {
                 this.pendingPlayback.push({ key, category, options });
@@ -292,7 +280,6 @@ class SoundManager {
         
         // Check if sound exists
         if (!sound) {
-            console.warn(`Sound ${key} in category ${category} not found`);
             return this;
         }
         
@@ -302,7 +289,7 @@ class SoundManager {
             sound.audio.currentTime = 0;
             sound.playing = false;
         } catch (e) {
-            console.warn(`Error stopping sound ${key}:`, e);
+            // Silently handle error
         }
         
         // Remove from currently playing list
@@ -329,7 +316,6 @@ class SoundManager {
         
         // Check if sound exists
         if (!sound) {
-            console.warn(`Sound ${key} in category ${category} not found`);
             return this;
         }
         
@@ -337,7 +323,7 @@ class SoundManager {
         try {
             sound.audio.pause();
         } catch (e) {
-            console.warn(`Error pausing sound ${key}:`, e);
+            // Silently handle error
         }
         
         return this;
@@ -353,13 +339,11 @@ class SoundManager {
         
         // Check if sound exists
         if (!sound) {
-            console.warn(`Sound ${key} in category ${category} not found`);
             return this;
         }
         
         // If the user hasn't interacted with the page yet, queue the resume for later
         if (!this.userHasInteracted) {
-            console.log(`User hasn't interacted yet. Queuing sound ${key} resume for later`);
             this.pendingPlayback.push({ key, category, options: { loop: sound.audio.loop } });
             return this;
         }
@@ -371,8 +355,6 @@ class SoundManager {
             // Modern browsers return a promise from play()
             if (playPromise !== undefined) {
                 playPromise.catch(e => {
-                    console.warn(`Error resuming sound ${key}:`, e);
-                    
                     // If it's an autoplay restriction, queue it for later
                     if (e.name === 'NotAllowedError') {
                         this.pendingPlayback.push({ 
@@ -384,7 +366,7 @@ class SoundManager {
                 });
             }
         } catch (e) {
-            console.warn(`Error resuming sound ${key}:`, e);
+            // Silently handle error
         }
         
         return this;
@@ -442,7 +424,6 @@ class SoundManager {
         
         // Check if sound exists
         if (!sound) {
-            console.warn(`Sound ${key} in category ${category} not found`);
             return this;
         }
         

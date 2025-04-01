@@ -13,9 +13,8 @@ class SpatialAudioManager {
         try {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             this.listener = this.audioContext.listener;
-            console.log('Audio context created successfully');
         } catch (error) {
-            console.warn('Failed to create audio context:', error);
+            // Silently handle error
         }
         
         // Audio buffer cache
@@ -71,13 +70,12 @@ class SpatialAudioManager {
                 this.loadSound('ship_sink', '/assets/sounds/sfx/ship_sink.mp3')
             ]);
             
-            console.log('Spatial audio sounds loaded successfully');
             this.initialized = true;
             
             // Verify sounds were loaded correctly after a short delay
             setTimeout(() => this.verifyCannonSoundsLoaded(), 500);
         } catch (error) {
-            console.error('Failed to load spatial audio sounds:', error);
+            // Silently handle error
         }
         
         return this;
@@ -88,25 +86,18 @@ class SpatialAudioManager {
      */
     resumeAudioContext() {
         if (!this.audioContext) {
-            console.warn('Cannot resume audio context: not initialized');
             return false;
         }
         
         if (this.audioContext.state === 'suspended') {
-            console.log('Attempting to resume audio context...');
-            
             this.audioContext.resume()
                 .then(() => {
-                    console.log('Audio context resumed successfully');
-                    
                     // Verify sounds are loaded after context is resumed
                     setTimeout(() => this.verifyCannonSoundsLoaded(), 500);
                 })
                 .catch(error => {
-                    console.error('Failed to resume audio context:', error);
+                    // Silently handle error
                 });
-        } else {
-            console.log('Audio context already running:', this.audioContext.state);
         }
         
         return true;
@@ -119,11 +110,8 @@ class SpatialAudioManager {
      */
     async loadSound(id, url) {
         if (!this.audioContext) {
-            console.warn('Cannot load sound: audio context not available');
             return false;
         }
-        
-        console.log(`Attempting to load sound "${id}" from ${url}`);
         
         try {
             const response = await fetch(url);
@@ -132,15 +120,12 @@ class SpatialAudioManager {
             }
             
             const arrayBuffer = await response.arrayBuffer();
-            console.log(`Sound "${id}" fetched successfully, decoding audio data...`);
             
             const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
             
             this.soundBuffers[id] = audioBuffer;
-            console.log(`Sound "${id}" loaded and ready to play`);
             return true;
         } catch (error) {
-            console.error(`Error loading sound ${id} from ${url}:`, error);
             return false;
         }
     }
@@ -189,12 +174,8 @@ class SpatialAudioManager {
                         up.x, up.y, up.z
                     );
                 }
-                // If neither is available, try generic way
-                else {
-                    console.warn('Audio listener API not fully supported in this browser');
-                }
             } catch (e) {
-                console.warn('Error updating audio listener:', e);
+                // Silently handle error
             }
         } else if (playerPosition) {
             // Fallback to using player position with default orientation
@@ -217,11 +198,9 @@ class SpatialAudioManager {
                         playerPosition.z
                     );
                     this.listener.setOrientation(0, 0, -1, 0, 1, 0);
-                } else {
-                    console.warn('Audio listener API not fully supported in this browser');
                 }
             } catch (e) {
-                console.warn('Error setting fallback listener position:', e);
+                // Silently handle error
             }
         }
     }
@@ -272,15 +251,15 @@ class SpatialAudioManager {
      */
     playSpatialSound(soundId, position, category = 'sfx', options = {}) {
         if (!this.audioContext || !this.soundBuffers[soundId]) {
-            console.warn(`Cannot play sound ${soundId}: context not available or sound not loaded`);
             return null;
         }
         
         // Resume audio context if suspended (needed for browsers with autoplay policies)
         if (this.audioContext.state === 'suspended') {
             this.audioContext.resume()
-                .then(() => console.log('Audio context resumed during playback'))
-                .catch(err => console.warn('Failed to resume audio context:', err));
+                .catch(err => {
+                    // Silently handle error
+                });
             return null; // Can't play sound until context is resumed
         }
         
@@ -317,12 +296,11 @@ class SpatialAudioManager {
                 panner.setPosition(position.x, position.y + this.yOffset, position.z);
             }
         } catch (e) {
-            console.warn('Error setting panner position:', e);
             // Fallback to legacy method
             try {
                 panner.setPosition(position.x, position.y + this.yOffset, position.z);
             } catch (e2) {
-                console.error('Failed to set panner position with either API:', e2);
+                // Silently handle error
             }
         }
         
@@ -356,7 +334,7 @@ class SpatialAudioManager {
                     source.stop();
                     this.activeSounds.delete(soundInstanceId);
                 } catch (e) {
-                    console.warn('Error stopping sound:', e);
+                    // Silently handle error
                 }
             },
             updatePosition: (newPosition) => {
@@ -370,7 +348,7 @@ class SpatialAudioManager {
                     }
                     position.copy(newPosition);
                 } catch (e) {
-                    console.warn('Error updating panner position:', e);
+                    // Silently handle error
                 }
             },
             setVolume: (newVolume) => {
@@ -397,7 +375,6 @@ class SpatialAudioManager {
     updateFromGameUI(uiVolumeLevel) {
         // Convert 0-100 scale to 0-1 scale
         const normalizedVolume = uiVolumeLevel / 100;
-        console.log(`SpatialAudioManager: Setting volume to ${normalizedVolume} (from UI value ${uiVolumeLevel})`);
         this.setMasterVolume(normalizedVolume);
         return this;
     }
@@ -418,11 +395,8 @@ class SpatialAudioManager {
         
         // Check if the sound is loaded
         if (!this.soundBuffers[soundId]) {
-            console.warn(`Cannot play cannon sound "${soundId}" - sound not loaded`);
             return null;
         }
-        
-        console.log(`Playing cannon sound: ${soundId}, player ship: ${isPlayerShip}, volume: ${userVolume}`);
         
         // Player's cannons are louder and more prominent
         if (isPlayerShip) {
@@ -459,11 +433,8 @@ class SpatialAudioManager {
         
         // Check if the sound is loaded
         if (!this.soundBuffers[soundId]) {
-            console.warn(`Cannot play impact sound "${soundId}" - sound not loaded`);
             return null;
         }
-        
-        console.log(`Playing impact sound: ${soundId}, player ship: ${isPlayerShip}, volume: ${userVolume}`);
         
         // Impacts on player ship are louder and more prominent
         if (isPlayerShip) {
@@ -499,11 +470,8 @@ class SpatialAudioManager {
         
         // Check if the sound is loaded
         if (!this.soundBuffers[soundId]) {
-            console.warn(`Cannot play splash sound "${soundId}" - sound not loaded`);
             return null;
         }
-        
-        console.log(`Playing splash sound: ${soundId}, position: ${position.x.toFixed(1)},${position.y.toFixed(1)},${position.z.toFixed(1)}, volume: ${userVolume}`);
         
         // Use spatial audio parameters for water splash
         return this.playSpatialSound(soundId, position, 'sfx', {
@@ -525,11 +493,8 @@ class SpatialAudioManager {
         
         // Check if the sound is loaded
         if (!this.soundBuffers['coin_spill']) {
-            console.warn(`Cannot play coin spill sound - sound not loaded`);
             return null;
         }
-        
-        console.log(`Playing coin spill sound at position: ${position.x.toFixed(1)},${position.y.toFixed(1)},${position.z.toFixed(1)}, volume: ${userVolume}`);
         
         // Use spatial audio parameters for coin spill - more prominent
         return this.playSpatialSound('coin_spill', position, 'sfx', {
@@ -551,11 +516,8 @@ class SpatialAudioManager {
         
         // Check if the sound is loaded
         if (!this.soundBuffers['ship_sink']) {
-            console.warn(`Cannot play ship sink sound - sound not loaded`);
             return null;
         }
-        
-        console.log(`Playing ship sink sound at position: ${position.x.toFixed(1)},${position.y.toFixed(1)},${position.z.toFixed(1)}, volume: ${userVolume}`);
         
         // Use spatial audio parameters for ship sinking - atmospheric
         return this.playSpatialSound('ship_sink', position, 'sfx', {
@@ -571,7 +533,6 @@ class SpatialAudioManager {
      * @returns {SpatialAudioManager} This instance, for chaining
      */
     init() {
-        console.log('SpatialAudioManager.init() called (using initialize() internally)');
         this.initialize();
         return this;
     }
@@ -580,61 +541,38 @@ class SpatialAudioManager {
      * Verify that all cannon sounds were loaded correctly
      */
     verifyCannonSoundsLoaded() {
-        console.log('Verifying cannon sounds loaded:');
         let allSoundsLoaded = true;
         
         // Check cannon shot sounds
-        console.log('Cannon shot sounds:');
         for (let i = 1; i <= 4; i++) {
             const soundId = `cannon_shot${i}`;
-            if (this.soundBuffers[soundId]) {
-                console.log(`✅ ${soundId} loaded successfully`);
-            } else {
-                console.warn(`❌ ${soundId} failed to load`);
+            if (!this.soundBuffers[soundId]) {
                 allSoundsLoaded = false;
             }
         }
         
         // Check cannon impact sounds
-        console.log('Cannon impact sounds:');
         for (let i = 1; i <= 4; i++) {
             const soundId = `cannon_impact${i}`;
-            if (this.soundBuffers[soundId]) {
-                console.log(`✅ ${soundId} loaded successfully`);
-            } else {
-                console.warn(`❌ ${soundId} failed to load`);
+            if (!this.soundBuffers[soundId]) {
                 allSoundsLoaded = false;
             }
         }
         
         // Check cannonball splash sounds
-        console.log('Cannonball splash sounds:');
         for (let i = 1; i <= 3; i++) {
             const soundId = `cannonball_ploop${i}`;
-            if (this.soundBuffers[soundId]) {
-                console.log(`✅ ${soundId} loaded successfully`);
-            } else {
-                console.warn(`❌ ${soundId} failed to load`);
+            if (!this.soundBuffers[soundId]) {
                 allSoundsLoaded = false;
             }
         }
         
         // Check shipwreck looting sounds
-        console.log('Shipwreck looting sounds:');
         const lootSounds = ['coin_spill', 'ship_sink'];
         for (const soundId of lootSounds) {
-            if (this.soundBuffers[soundId]) {
-                console.log(`✅ ${soundId} loaded successfully`);
-            } else {
-                console.warn(`❌ ${soundId} failed to load`);
+            if (!this.soundBuffers[soundId]) {
                 allSoundsLoaded = false;
             }
-        }
-        
-        if (allSoundsLoaded) {
-            console.log('All cannon sounds loaded successfully');
-        } else {
-            console.warn('Some cannon sounds failed to load, there may be audio issues');
         }
         
         return allSoundsLoaded;
