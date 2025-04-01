@@ -281,9 +281,12 @@ class IslandInteractionManager {
                 this.hideIslandMenu();
             }
             
-            // Close shipwright menu if it exists
+            // Close shipwright menu if it exists AND is open
             if (this.shipwright) {
-                this.shipwright.hide();
+                const shipwrightMenu = document.getElementById('shipwrightMenu');
+                if (shipwrightMenu && shipwrightMenu.style.display === 'block') {
+                    this.shipwright.hide();
+                }
             }
             
             // Exit build mode if active via the building manager

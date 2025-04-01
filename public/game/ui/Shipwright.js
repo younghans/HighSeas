@@ -63,9 +63,14 @@ class Shipwright {
         // Add document click listener to close menu when clicking outside
         document.addEventListener('click', (event) => {
             const menu = document.getElementById('shipwrightMenu');
+            // Only process if menu exists and is currently displayed
             if (menu && menu.style.display === 'block') {
-                // Check if the click is outside the menu
-                if (!menu.contains(event.target) && !event.target.closest('#shipwrightButton')) {
+                // Check if the click is outside the menu and not on any shipwright-related element
+                const isShipwrightButton = event.target.closest('#shipwrightButton');
+                const isShipwrightElement = event.target.closest('[class*="shipwright"], [id*="shipwright"]');
+                
+                // Only hide if clicked outside shipwright-related elements
+                if (!menu.contains(event.target) && !isShipwrightButton && !isShipwrightElement) {
                     this.hide();
                 }
             }
@@ -817,11 +822,19 @@ class Shipwright {
     hide() {
         const menu = document.getElementById('shipwrightMenu');
         if (menu) {
-            console.log('Hiding shipwright menu...');
-            menu.style.display = 'none';
-            
-            // Clean up renderers when hiding the menu
-            this.cleanupRenderers();
+            // Only hide and log if the menu is actually visible
+            if (menu.style.display === 'block') {
+                console.log('Hiding shipwright menu...');
+                menu.style.display = 'none';
+                
+                // Only clean up renderers if there are any to clean up
+                if (this.animationFrameIds.length > 0 || 
+                    this.activeRenderers.length > 0 || 
+                    this.activeModels.length > 0 || 
+                    this.activeScenes.length > 0) {
+                    this.cleanupRenderers();
+                }
+            }
         }
     }
     
@@ -831,9 +844,12 @@ class Shipwright {
      */
     toggle(show) {
         console.log(`Shipwright toggle called with show=${show}`);
-        if (show) {
+        const menu = document.getElementById('shipwrightMenu');
+        const isVisible = menu && menu.style.display === 'block';
+        
+        if (show && !isVisible) {
             this.show();
-        } else {
+        } else if (!show && isVisible) {
             this.hide();
         }
     }
@@ -1207,94 +1223,102 @@ class Shipwright {
      * Clean up all active renderers to prevent WebGL context limits
      */
     cleanupRenderers() {
-        console.log(`Cleaning up ${this.animationFrameIds.length} animation frames and ${this.activeRenderers.length} renderers`);
+        // Only log and perform cleanup if there are resources to clean up
+        const hasAnimations = this.animationFrameIds.length > 0;
+        const hasRenderers = this.activeRenderers.length > 0;
+        const hasModels = this.activeModels.length > 0;
+        const hasScenes = this.activeScenes.length > 0;
         
-        // Cancel all animation frames
-        this.animationFrameIds.forEach(id => {
-            if (id) cancelAnimationFrame(id);
-        });
-        this.animationFrameIds = [];
-        
-        // Run cleanup functions (e.g., remove event listeners)
-        if (this.cleanupFunctions) {
-            this.cleanupFunctions.forEach(cleanup => {
-                if (typeof cleanup === 'function') {
-                    cleanup();
-                }
+        if (hasAnimations || hasRenderers || hasModels || hasScenes) {
+            console.log(`Cleaning up ${this.animationFrameIds.length} animation frames and ${this.activeRenderers.length} renderers`);
+            
+            // Cancel all animation frames
+            this.animationFrameIds.forEach(id => {
+                if (id) cancelAnimationFrame(id);
             });
-            this.cleanupFunctions = [];
-        }
-        
-        // Clean up 3D models (meshes, materials, textures)
-        this.activeModels.forEach(model => {
-            if (model) {
-                // Traverse and dispose all geometries and materials
-                model.traverse(object => {
-                    if (object.isMesh) {
-                        if (object.geometry) {
-                            object.geometry.dispose();
-                        }
-                        
-                        if (object.material) {
-                            // If material is an array, dispose each one
-                            if (Array.isArray(object.material)) {
-                                object.material.forEach(material => {
-                                    this.disposeMaterial(material);
-                                });
-                            } else {
-                                this.disposeMaterial(object.material);
-                            }
-                        }
+            this.animationFrameIds = [];
+            
+            // Run cleanup functions (e.g., remove event listeners)
+            if (this.cleanupFunctions) {
+                this.cleanupFunctions.forEach(cleanup => {
+                    if (typeof cleanup === 'function') {
+                        cleanup();
                     }
                 });
+                this.cleanupFunctions = [];
             }
-        });
-        this.activeModels = [];
-        
-        // Clean up scenes
-        this.activeScenes.forEach(scene => {
-            if (scene) {
-                // Remove all objects from the scene
-                while (scene.children.length > 0) {
-                    scene.remove(scene.children[0]);
+            
+            // Clean up 3D models (meshes, materials, textures)
+            this.activeModels.forEach(model => {
+                if (model) {
+                    // Traverse and dispose all geometries and materials
+                    model.traverse(object => {
+                        if (object.isMesh) {
+                            if (object.geometry) {
+                                object.geometry.dispose();
+                            }
+                            
+                            if (object.material) {
+                                // If material is an array, dispose each one
+                                if (Array.isArray(object.material)) {
+                                    object.material.forEach(material => {
+                                        this.disposeMaterial(material);
+                                    });
+                                } else {
+                                    this.disposeMaterial(object.material);
+                                }
+                            }
+                        }
+                    });
                 }
+            });
+            this.activeModels = [];
+            
+            // Clean up scenes
+            this.activeScenes.forEach(scene => {
+                if (scene) {
+                    // Remove all objects from the scene
+                    while (scene.children.length > 0) {
+                        scene.remove(scene.children[0]);
+                    }
+                }
+            });
+            this.activeScenes = [];
+            
+            // Dispose of all renderers
+            this.activeRenderers.forEach(renderer => {
+                if (renderer && renderer.domElement) {
+                    // Remove from DOM if still attached
+                    if (renderer.domElement.parentNode) {
+                        renderer.domElement.parentNode.removeChild(renderer.domElement);
+                    }
+                    
+                    // Force context loss and dispose of resources
+                    if (renderer.info && renderer.info.memory) {
+                        console.log(`Before cleanup: geometries=${renderer.info.memory.geometries}, textures=${renderer.info.memory.textures}`);
+                    }
+                    
+                    // Dispose of renderer resources
+                    renderer.dispose();
+                    
+                    // Force context loss
+                    if (typeof renderer.forceContextLoss === 'function') {
+                        renderer.forceContextLoss();
+                    }
+                    
+                    // Help garbage collection
+                    renderer.renderLists.dispose();
+                    renderer = null;
+                }
+            });
+            
+            // Clear the array
+            this.activeRenderers = [];
+            
+            // Suggest garbage collection
+            if (window.gc) {
+                window.gc();
             }
-        });
-        this.activeScenes = [];
-        
-        // Dispose of all renderers
-        this.activeRenderers.forEach(renderer => {
-            if (renderer && renderer.domElement) {
-                // Remove from DOM if still attached
-                if (renderer.domElement.parentNode) {
-                    renderer.domElement.parentNode.removeChild(renderer.domElement);
-                }
-                
-                // Force context loss and dispose of resources
-                if (renderer.info && renderer.info.memory) {
-                    console.log(`Before cleanup: geometries=${renderer.info.memory.geometries}, textures=${renderer.info.memory.textures}`);
-                }
-                
-                // Dispose of renderer resources
-                renderer.dispose();
-                
-                // Force context loss
-                if (typeof renderer.forceContextLoss === 'function') {
-                    renderer.forceContextLoss();
-                }
-                
-                // Help garbage collection
-                renderer.renderLists.dispose();
-                renderer = null;
-            }
-        });
-        
-        // Clear the array
-        this.activeRenderers = [];
-        
-        // Suggest garbage collection
-        if (window.gc) {
-            window.gc();
         }
     }
     
