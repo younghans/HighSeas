@@ -168,7 +168,13 @@ class IslandLoader {
      * @private
      */
     async _placeBuildingsOnIsland(islandInfo) {
-        const { data, position: islandPosition } = islandInfo;
+        const { data, position: islandPosition, mesh: islandMesh } = islandInfo;
+        
+        // Create a group to hold all objects without inheriting the island's rotation
+        // This group will be a child of the island but will counteract its rotation
+        const objectsGroup = new THREE.Group();
+        objectsGroup.rotation.x = Math.PI / 2; // Counter-rotate to cancel island's rotation
+        islandMesh.add(objectsGroup);
         
         // Process each placed object
         for (const objData of data.placedObjects) {
@@ -179,16 +185,17 @@ class IslandLoader {
                     continue;
                 }
                 
-                // Calculate world position (island position + object's relative position)
-                const worldPosition = new THREE.Vector3(
-                    islandPosition.x + objData.position.x,
-                    islandPosition.y + objData.position.y,
-                    islandPosition.z + objData.position.z
+                // Calculate object position (local to the objectsGroup)
+                // Move the Y position upward to account for the island's height offset (-5)
+                const objPosition = new THREE.Vector3(
+                    objData.position.x,
+                    objData.position.y + 5, // Add 5 to compensate for island's Y position of -5
+                    objData.position.z
                 );
                 
                 // Create the object
                 const object = this.modelConstructors[objData.type]({
-                    position: worldPosition,
+                    position: objPosition,
                     rotation: objData.rotation
                 });
                 
@@ -197,7 +204,7 @@ class IslandLoader {
                     continue;
                 }
                 
-                // Get the Three.js object and add it to the scene
+                // Get the Three.js object
                 const threeObject = object.getObject ? object.getObject() : object;
                 
                 // Tag it with the type and island info
@@ -208,14 +215,14 @@ class IslandLoader {
                     islandObject: true
                 };
                 
-                // Add it to the scene
-                this.scene.add(threeObject);
+                // Add the object to the group instead of directly to the island
+                objectsGroup.add(threeObject);
                 
                 // Store reference to the placed object
                 islandInfo.objects.push({
                     object: threeObject,
                     type: objData.type,
-                    position: worldPosition,
+                    position: objPosition.clone(), // Store local position
                     rotation: objData.rotation
                 });
                 

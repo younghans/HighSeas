@@ -222,28 +222,12 @@ class HoverDetection {
      * @param {THREE.Object3D} island - The island to check
      */
     checkIslandObjectIntersections(island) {
-        // Get the island's ID
-        const islandId = island.userData?.islandId;
-        if (!islandId) return;
+        // Since objects are now children of the island, we can directly use recursive raycasting
+        const intersects = this.raycaster.intersectObject(island, true); // true = recursive
         
-        // If cache is invalid, update it
-        if (this.cacheInvalidated) {
-            this.updateObjectCache();
-        }
-        
-        // Filter cached objects to only those that belong to this island
-        const islandObjects = this.cachedInteractableObjects.filter(obj => 
-            obj.userData?.islandId === islandId &&
-            obj.userData?.islandObject &&
-            this.highlightableTypes.includes(obj.userData.type)
-        );
-        
-        // Check for intersections with these island-specific objects
-        if (islandObjects.length > 0) {
-            const intersects = this.raycaster.intersectObjects(islandObjects, true);
-            
-            if (intersects.length > 0) {
-                const object = this.findParentWithUserData(intersects[0].object);
+        if (intersects.length > 0) {
+            for (const intersect of intersects) {
+                const object = this.findParentWithUserData(intersect.object);
                 
                 if (object && this.isHighlightableObject(object)) {
                     this.highlightObject(object);
@@ -251,6 +235,7 @@ class HoverDetection {
                     if (this.debug) {
                         console.log('Highlighted island object:', object.userData.type);
                     }
+                    break;
                 }
             }
         }
