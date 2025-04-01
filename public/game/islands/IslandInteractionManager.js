@@ -125,6 +125,11 @@ class IslandInteractionManager {
      * @param {THREE.Object3D} object - The shipwright shop object
      */
     handleShipwrightInteraction(object) {
+        // Hide the island menu if it's open
+        if (this.islandMenuOpen) {
+            this.hideIslandMenu();
+        }
+        
         if (this.shipwright) {
             this.shipwright.show();
         } else {
@@ -325,6 +330,12 @@ class IslandInteractionManager {
      * @param {THREE.Vector3} clickedPoint - The point that was clicked
      */
     showIslandMenu(island, clickedPoint) {
+        // Check if build mode is active
+        if (this.buildingManager && this.buildingManager.isInBuildMode()) {
+            console.log('Build mode is active, not showing island menu.');
+            return; // Don't show island menu if build mode is active
+        }
+
         this.ship.stopMoving();
         this.islandMenuOpen = true;
         this.selectedIsland = island;

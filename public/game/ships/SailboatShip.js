@@ -26,11 +26,11 @@ class SailboatShip extends BaseShip {
             scale: new THREE.Vector3(1.0, 1.0, 1.0),
             waterOffset: -0.3,
             speed: 9,
-            rotationSpeed: 2.7,
+            rotationSpeed: 2,
             // Combat attributes - slightly better than sloop
             maxHealth: 90,
-            cannonRange: 110,
-            cannonDamage: { min: 10, max: 28 },
+            cannonRange: 100,
+            cannonDamage: { min: 8, max: 25 },
             cannonCooldown: 1500 // 1.4 seconds between shots
         },
         'dinghy': {
@@ -38,11 +38,11 @@ class SailboatShip extends BaseShip {
             scale: new THREE.Vector3(1.0, 1.0, 1.0),
             waterOffset: -0.1,
             speed: 9,
-            rotationSpeed: 2.2,
+            rotationSpeed: 2.5,
             // Combat attributes - weaker but agile
             maxHealth: 100,
             cannonRange: 100,
-            cannonDamage: { min: 6, max: 20 },
+            cannonDamage: { min: 10, max: 28 },
             cannonCooldown: 1500 // 1.3 seconds between shots (faster firing)
         },
         'cutter': {
