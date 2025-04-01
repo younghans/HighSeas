@@ -219,8 +219,6 @@ class SailboatShip extends BaseShip {
                 
                 // Mark loading as complete
                 this.isLoading = false;
-                
-                console.log(`SailboatShip model ${this.modelType} loaded and initialized`);
             },
             // Progress callback
             (progress) => {

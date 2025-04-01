@@ -1034,8 +1034,6 @@ class BaseShip {
         // Add the sphere as a child of the ship mesh rather than directly to the scene
         // This way it moves with the ship and gets removed when the ship is removed
         this.shipMesh.add(this.clickBoxSphere);
-        
-        console.log(`Created click box sphere for ship with radius ${radius} (200% of max dimension ${maxDimension}), centered at height ${this.clickBoxSphere.position.y}`);
     }
     
     /**

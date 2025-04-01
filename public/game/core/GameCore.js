@@ -515,8 +515,6 @@ class GameCore {
                 // Now load the player's saved ship model
                 return this.loadPlayerShipModel()
                     .then(modelType => {
-                        console.log(`Creating player ship with model type: ${modelType}`);
-                        
                         // Get position from playerData or use default
                         const position = playerData && playerData.position
                             ? new THREE.Vector3(
@@ -525,8 +523,6 @@ class GameCore {
                                 playerData.position.z
                               )
                             : new THREE.Vector3(0, 0, 0);
-                            
-                        console.log('Starting player at position:', position);
                         
                         // Create ship with the saved model type and position
                         this.ship = new SailboatShip(this.sceneManager.getScene(), { 
@@ -545,13 +541,13 @@ class GameCore {
                         // Set the ship's ID to match the user's Firebase auth ID
                         if (Auth && Auth.getCurrentUser()) {
                             this.ship.id = Auth.getCurrentUser().uid;
-                            console.log('Set ship ID to match user ID:', this.ship.id);
                         }
                         
                         // Make ship available globally for multiplayer combat interactions
                         window.playerShip = this.ship;
                         
-                        console.log('Ship created with initial position:', this.ship.getPosition());
+                        // Log all ship initialization details in a single message
+                        console.log(`Player ship initialized: type=${modelType}, position=${position.x.toFixed(2)},${position.z.toFixed(2)}, id=${this.ship.id}`);
                         
                         // Setup gameplay controls with the new ship
                         this.setupGameplayControls();
