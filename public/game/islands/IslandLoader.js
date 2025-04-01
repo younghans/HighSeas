@@ -53,8 +53,6 @@ class IslandLoader {
                     userData: { type: id }
                 });
             };
-            
-            console.log(`Registered model constructor: ${id}`);
         }
         
         // Import any special models that need custom handling
@@ -64,8 +62,6 @@ class IslandLoader {
             
             this.modelConstructors['marketStall'] = (options) => new MarketStall(options);
             this.modelConstructors['dock'] = (options) => new Dock(options);
-            
-            console.log('Registered special model constructors');
         } catch (error) {
             console.error('Error loading special model constructors:', error);
         }

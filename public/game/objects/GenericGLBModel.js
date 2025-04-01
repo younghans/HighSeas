@@ -84,7 +84,7 @@ class GenericGLBModel {
             },
             // Called when loading is in progress
             (xhr) => {
-                console.log(`${this.type} ${(xhr.loaded / xhr.total * 100).toFixed(2)}% loaded`);
+                // Remove the loading percentage log
             },
             // Called when loading has errors
             (error) => {
