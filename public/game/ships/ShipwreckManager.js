@@ -259,96 +259,104 @@ class ShipwreckManager {
      * @param {Object} shipwreck - The shipwreck to remove
      */
     removeShipwreck(shipwreck) {
-        console.log(`Removing shipwreck: ${shipwreck.id}, looted: ${shipwreck.looted}`);
+        // If the shipwreck object isn't valid, exit early
+        if (!shipwreck || !shipwreck.id) {
+            console.warn('Invalid shipwreck object passed to removeShipwreck');
+            return;
+        }
+        
+        console.log(`Attempting to remove shipwreck: ${shipwreck.id}, looted: ${shipwreck.looted}`);
         
         // Find index of shipwreck
         const index = this.shipwrecks.findIndex(wreck => wreck.id === shipwreck.id);
         
-        // Remove if found
-        if (index !== -1) {
-            // Remove treasure indicator if it exists
-            if (shipwreck.ship && shipwreck.ship.treasureIndicator) {
-                console.log(`Removing treasure indicator for shipwreck: ${shipwreck.id}`);
-                this.scene.remove(shipwreck.ship.treasureIndicator);
-                
-                // Remove from animation list if it exists
-                if (this.scene.userData.treasureIndicators) {
-                    const index = this.scene.userData.treasureIndicators.indexOf(shipwreck.ship.treasureIndicator);
-                    if (index !== -1) {
-                        this.scene.userData.treasureIndicators.splice(index, 1);
-                    }
-                }
-                
-                // Dispose of resources
-                if (shipwreck.ship.treasureIndicator.children) {
-                    shipwreck.ship.treasureIndicator.children.forEach(child => {
-                        if (child.geometry) child.geometry.dispose();
-                        if (child.material) {
-                            if (Array.isArray(child.material)) {
-                                child.material.forEach(mat => mat.dispose());
-                            } else {
-                                child.material.dispose();
-                            }
-                        }
-                    });
-                }
-                
-                shipwreck.ship.treasureIndicator = null;
-            }
-            
-            // Clean up bubble effects if they exist
-            if (shipwreck.bubbles) {
-                console.log(`Removing bubble effect for shipwreck: ${shipwreck.id}`);
-                this.removeBubbleEffect(shipwreck.bubbles);
-                shipwreck.bubbles = null;
-            }
-            
-            // Clean up wake particles if they exist
-            if (shipwreck.ship && shipwreck.ship.wakeParticleSystem) {
-                if (typeof shipwreck.ship.wakeParticleSystem.cleanup === 'function') {
-                    shipwreck.ship.wakeParticleSystem.cleanup();
-                } else if (typeof shipwreck.ship.wakeParticleSystem.dispose === 'function') {
-                    shipwreck.ship.wakeParticleSystem.dispose();
-                }
-            }
-            
-            // Remove from array
-            this.shipwrecks.splice(index, 1);
-            
-            // Remove mesh from scene
-            if (shipwreck.ship && shipwreck.ship.shipMesh) {
-                console.log(`Removing shipwreck mesh from scene: ${shipwreck.id}`);
-                this.scene.remove(shipwreck.ship.shipMesh);
-                
-                // Dispose of geometries and materials
-                if (shipwreck.ship.shipMesh.traverse) {
-                    shipwreck.ship.shipMesh.traverse(child => {
-                        if (child.geometry) child.geometry.dispose();
-                        if (child.material) {
-                            if (Array.isArray(child.material)) {
-                                child.material.forEach(mat => mat.dispose());
-                            } else {
-                                child.material.dispose();
-                            }
-                        }
-                    });
-                }
-            }
-            
-            // Remove references in scene userData
-            if (this.scene.userData.shipwreckObjects) {
-                const objectIndex = this.scene.userData.shipwreckObjects.findIndex(
-                    obj => obj.userData && obj.userData.shipwreckId === shipwreck.id
-                );
-                if (objectIndex !== -1) {
-                    this.scene.userData.shipwreckObjects.splice(objectIndex, 1);
-                }
-            }
-            
-            console.log(`Successfully removed shipwreck: ${shipwreck.id}`);
-        } else {
-            console.warn(`Could not find shipwreck with ID: ${shipwreck.id} to remove`);
+        // If not found in the collection, it's already been removed
+        if (index === -1) {
+            console.log(`Shipwreck ${shipwreck.id} already removed from collection, skipping removal`);
+            return;
         }
+        
+        // Remove if found
+        // Remove treasure indicator if it exists
+        if (shipwreck.ship && shipwreck.ship.treasureIndicator) {
+            console.log(`Removing treasure indicator for shipwreck: ${shipwreck.id}`);
+            this.scene.remove(shipwreck.ship.treasureIndicator);
+            
+            // Remove from animation list if it exists
+            if (this.scene.userData.treasureIndicators) {
+                const index = this.scene.userData.treasureIndicators.indexOf(shipwreck.ship.treasureIndicator);
+                if (index !== -1) {
+                    this.scene.userData.treasureIndicators.splice(index, 1);
+                }
+            }
+            
+            // Dispose of resources
+            if (shipwreck.ship.treasureIndicator.children) {
+                shipwreck.ship.treasureIndicator.children.forEach(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(mat => mat.dispose());
+                        } else {
+                            child.material.dispose();
+                        }
+                    }
+                });
+            }
+            
+            shipwreck.ship.treasureIndicator = null;
+        }
+        
+        // Clean up bubble effects if they exist
+        if (shipwreck.bubbles) {
+            console.log(`Removing bubble effect for shipwreck: ${shipwreck.id}`);
+            this.removeBubbleEffect(shipwreck.bubbles);
+            shipwreck.bubbles = null;
+        }
+        
+        // Clean up wake particles if they exist
+        if (shipwreck.ship && shipwreck.ship.wakeParticleSystem) {
+            if (typeof shipwreck.ship.wakeParticleSystem.cleanup === 'function') {
+                shipwreck.ship.wakeParticleSystem.cleanup();
+            } else if (typeof shipwreck.ship.wakeParticleSystem.dispose === 'function') {
+                shipwreck.ship.wakeParticleSystem.dispose();
+            }
+        }
+        
+        // Remove from array
+        this.shipwrecks.splice(index, 1);
+        
+        // Remove mesh from scene
+        if (shipwreck.ship && shipwreck.ship.shipMesh) {
+            console.log(`Removing shipwreck mesh from scene: ${shipwreck.id}`);
+            this.scene.remove(shipwreck.ship.shipMesh);
+            
+            // Dispose of geometries and materials
+            if (shipwreck.ship.shipMesh.traverse) {
+                shipwreck.ship.shipMesh.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(mat => mat.dispose());
+                        } else {
+                            child.material.dispose();
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Remove references in scene userData
+        if (this.scene.userData.shipwreckObjects) {
+            const objectIndex = this.scene.userData.shipwreckObjects.findIndex(
+                obj => obj.userData && obj.userData.shipwreckId === shipwreck.id
+            );
+            if (objectIndex !== -1) {
+                this.scene.userData.shipwreckObjects.splice(objectIndex, 1);
+            }
+        }
+        
+        console.log(`Successfully removed shipwreck: ${shipwreck.id}`);
     }
     
     /**
@@ -448,6 +456,14 @@ class ShipwreckManager {
                 
                 if (result.success) {
                     console.log('Server confirmed successful loot:', result);
+                    
+                    // Delete the shipwreck from Firebase to prevent it from reappearing for other clients
+                    try {
+                        await window.firebase.database().ref(`shipwrecks/${shipwreck.id}`).remove();
+                        console.log(`Deleted shipwreck ${shipwreck.id} from Firebase after looting`);
+                    } catch (error) {
+                        console.error('Error deleting shipwreck from Firebase:', error);
+                    }
                 } else {
                     console.error('Server rejected loot attempt:', result.error);
                     // Handle server rejection
@@ -567,8 +583,14 @@ class ShipwreckManager {
                             
                             // Schedule actual removal with a small delay
                             setTimeout(() => {
-                                console.log(`Removing shipwreck ${wreck.id} from scene`);
-                                this.removeShipwreck(wreck);
+                                // Check if shipwreck still exists in the array before removing
+                                const stillExists = this.shipwrecks.some(sw => sw.id === wreck.id);
+                                if (stillExists) {
+                                    console.log(`Removing shipwreck ${wreck.id} from scene after sinking animation`);
+                                    this.removeShipwreck(wreck);
+                                } else {
+                                    console.log(`Shipwreck ${wreck.id} already removed, skipping post-animation cleanup`);
+                                }
                             }, 1000);
                         } else {
                             activeSinking = true;
@@ -888,8 +910,31 @@ class ShipwreckManager {
             const firebaseShipwreckIds = new Set(Object.keys(fbShipwrecks));
             const localShipwreckIds = new Set(this.shipwrecks.map(sw => sw.id));
             
+            // First, remove any looted shipwrecks from local array
+            this.shipwrecks = this.shipwrecks.filter(shipwreck => {
+                // If the shipwreck is in Firebase and marked as looted, remove it
+                if (firebaseShipwreckIds.has(shipwreck.id)) {
+                    const fbShipwreck = fbShipwrecks[shipwreck.id];
+                    if (fbShipwreck && fbShipwreck.looted) {
+                        // Check if it's already sinking - if not, we should clean it up
+                        if (!shipwreck.sinking) {
+                            console.log(`Removing locally stored looted shipwreck ${shipwreck.id} that exists in Firebase`);
+                            this.removeShipwreck(shipwreck);
+                        }
+                        return false;
+                    }
+                }
+                return true;
+            });
+            
             // Process each shipwreck from Firebase
             for (const [id, fbShipwreck] of Object.entries(fbShipwrecks)) {
+                // Skip looted shipwrecks completely - we don't want them in our local array
+                if (fbShipwreck.looted) {
+                    console.log(`Skipping looted shipwreck from Firebase: ${id}`);
+                    continue;
+                }
+                
                 // Check if we already have this shipwreck locally
                 const existingIndex = this.shipwrecks.findIndex(sw => sw.id === id);
                 
@@ -903,62 +948,10 @@ class ShipwreckManager {
                         continue;
                     }
                     
-                    // Skip already looted shipwrecks unless they were recently looted (last 30 seconds)
-                    const wasRecentlyLooted = fbShipwreck.looted && 
-                                             fbShipwreck.lootedAt && 
-                                             (Date.now() - fbShipwreck.lootedAt < 30000);
-                    
-                    // If it's an old looted shipwreck, skip creating it
-                    if (fbShipwreck.looted && !wasRecentlyLooted) {
-                        console.log(`Skipping already looted shipwreck: ${id}`);
-                        continue;
-                    }
-                    
                     console.log(`Adding new shipwreck from Firebase: ${id}`);
                     
                     // Create a new shipwreck in the local scene
                     this.createShipwreckFromFirebase(id, fbShipwreck);
-                    
-                    // If it was recently looted, start the sinking animation
-                    if (wasRecentlyLooted) {
-                        console.log(`Shipwreck ${id} was recently looted, starting sinking animation`);
-                        const shipwreck = this.shipwrecks.find(sw => sw.id === id);
-                        if (shipwreck) {
-                            this.startShipwreckSinkingAnimation(shipwreck);
-                        }
-                    }
-                } else {
-                    // Update existing shipwreck if needed
-                    const localShipwreck = this.shipwrecks[existingIndex];
-                    
-                    // If the shipwreck is now looted in Firebase but not locally, update local state
-                    if (fbShipwreck.looted && !localShipwreck.looted) {
-                        console.log(`Shipwreck ${id} was looted by another player`);
-                        localShipwreck.looted = true;
-                        localShipwreck.lootedAt = fbShipwreck.lootedAt;
-                        localShipwreck.lootedBy = fbShipwreck.lootedBy;
-                        
-                        // Start the sinking animation if ship reference exists
-                        if (localShipwreck.ship) {
-                            // Remove treasure indicator if it exists
-                            if (localShipwreck.ship.treasureIndicator) {
-                                this.scene.remove(localShipwreck.ship.treasureIndicator);
-                                
-                                // Also remove from animation list if it exists
-                                if (this.scene.userData.treasureIndicators) {
-                                    const index = this.scene.userData.treasureIndicators.indexOf(localShipwreck.ship.treasureIndicator);
-                                    if (index !== -1) {
-                                        this.scene.userData.treasureIndicators.splice(index, 1);
-                                    }
-                                }
-                                
-                                localShipwreck.ship.treasureIndicator = null;
-                            }
-                            
-                            // Start sinking animation
-                            this.startShipwreckSinkingAnimation(localShipwreck);
-                        }
-                    }
                 }
             }
             
@@ -1025,6 +1018,29 @@ class ShipwreckManager {
                     // Start sinking animation
                     this.startShipwreckSinkingAnimation(localShipwreck);
                 }
+            }
+        });
+        
+        // Also listen for shipwreck removal
+        shipwrecksRef.on('child_removed', (snapshot) => {
+            const id = snapshot.key;
+            console.log(`Shipwreck ${id} was removed from Firebase`);
+            
+            // Find and remove from local array if it exists
+            const shipwreckIndex = this.shipwrecks.findIndex(sw => sw.id === id);
+            if (shipwreckIndex !== -1) {
+                const shipwreck = this.shipwrecks[shipwreckIndex];
+                
+                // Don't remove if it's already in the sinking animation
+                if (shipwreck.sinking) {
+                    console.log(`Shipwreck ${id} is already sinking, letting animation handle removal`);
+                    return;
+                }
+                
+                console.log(`Removing local shipwreck ${id} that was deleted from Firebase`);
+                this.removeShipwreck(shipwreck);
+            } else {
+                console.log(`Shipwreck ${id} already removed locally`);
             }
         });
         
