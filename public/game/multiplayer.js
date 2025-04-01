@@ -378,6 +378,15 @@ class MultiplayerManager {
         
         // If ship exists, update it
         if (otherPlayerShip) {
+            // Check if display name has changed and update nametag
+            if (playerData.displayName && otherPlayerShip.userData && otherPlayerShip.userData.nametag) {
+                const currentNametagText = otherPlayerShip.userData.nametag.textContent;
+                if (currentNametagText !== playerData.displayName) {
+                    this.debug(`Updating player nametag from "${currentNametagText}" to "${playerData.displayName}"`);
+                    otherPlayerShip.userData.nametag.textContent = playerData.displayName;
+                }
+            }
+            
             // Check if player has respawned - either from sunk state, or health was reset to full
             const hasRespawned = (otherPlayerShip.isSunk && playerData.isSunk === false) || 
                                  (otherPlayerShip.isSunk && playerData.health >= otherPlayerShip.maxHealth);

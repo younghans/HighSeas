@@ -32,7 +32,7 @@ class NotificationSystem {
      * Show a notification message
      * @param {string} message - The message to show
      * @param {number|string} duration - How long to show the message in milliseconds, or notification type
-     * @param {string} type - Notification type: 'success', 'warning', 'error', 'debug', 'zone' or null for default
+     * @param {string} type - Notification type: 'success', 'warning', 'error', 'debug', 'zone', 'shipwright', 'shipwright-error' or null for default
      */
     show(message, duration = UI_CONSTANTS.NOTIFICATION_DURATION, type = null) {
         // Handle case where duration is actually the type (for backward compatibility)
@@ -59,7 +59,29 @@ class NotificationSystem {
             notification.style.fontVariant = 'small-caps';
             notification.style.padding = '15px';
             notification.textContent = message;
-        } else {
+        } 
+        // Special styling for shipwright notifications to match the original Shipwright.js style
+        else if (type === 'shipwright' || type === 'shipwright-error') {
+            notification.style.backgroundColor = type === 'shipwright-error' ? '#B71C1C' : '#8B4513';
+            notification.style.color = '#f5e8c0'; // Light beige/parchment color
+            notification.style.padding = '10px 20px';
+            notification.style.borderRadius = '5px';
+            notification.style.marginBottom = '10px';
+            notification.style.textAlign = 'center';
+            notification.style.transition = 'opacity 0.5s';
+            notification.style.opacity = '0';
+            notification.style.fontWeight = 'bold';
+            notification.style.fontFamily = 'serif';
+            notification.style.fontSize = '16px';
+            notification.style.boxShadow = '0 2px 5px rgba(0,0,0,0.3)';
+            notification.textContent = message;
+            
+            // Use shorter duration (2000ms) to match original Shipwright implementation
+            if (duration === UI_CONSTANTS.NOTIFICATION_DURATION) {
+                duration = 2000;
+            }
+        }
+        else {
             // Set background color based on type
             let bgColor = 'rgba(0, 0, 0, 0.7)'; // Default
             if (type === 'success') {

@@ -434,6 +434,26 @@
         document.addEventListener('DOMContentLoaded', () => {
             // Initialize the game world without the ship
             Game.initWorldOnly();
+            
+            // Ensure the username validator is initialized
+            window.usernameValidator = UsernameValidator;
+            
+            // Make sure validation is applied to any dynamically created username fields
+            setTimeout(() => {
+                if (document.getElementById('username-input')) {
+                    UsernameValidator.initProfileValidator();
+                }
+                
+                // Make sure main menu validation is applied
+                if (document.getElementById('mainMenuUsername')) {
+                    UsernameValidator.initMainMenuValidator();
+                }
+                
+                // Check login menu username if it exists
+                if (document.getElementById('guestUsername')) {
+                    UsernameValidator.applyValidation(document.getElementById('guestUsername'));
+                }
+            }, 2000); // Longer timeout to ensure all elements are created
         });
     </script>
     

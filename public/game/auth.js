@@ -52,6 +52,10 @@ function signInWithGoogle() {
       currentUser = user;
       
       console.log('User signed in:', user.displayName);
+      
+      // Ensure displayName is synchronized to players database
+      syncDisplayNameToDatabase(user);
+      
       return user;
     })
     .catch((error) => {
@@ -86,6 +90,10 @@ function signInAsGuest(username) {
     .then(() => {
       currentUser = auth.currentUser;
       console.log('Guest signed in as:', currentUser.displayName);
+      
+      // Ensure displayName is synchronized to players database
+      syncDisplayNameToDatabase(currentUser);
+      
       return currentUser;
     })
     .catch((error) => {
@@ -95,6 +103,39 @@ function signInAsGuest(username) {
       console.error('Guest sign in error:', errorCode, errorMessage);
       throw error;
     });
+}
+
+// Helper function to ensure displayName is synchronized to the database
+function syncDisplayNameToDatabase(user) {
+  if (!user || !user.uid || !user.displayName) return;
+  
+  try {
+    // Get a reference to the player's data in the database
+    const playerRef = firebase.database().ref(`players/${user.uid}`);
+    
+    // Check if player data exists first
+    playerRef.once('value')
+      .then(snapshot => {
+        if (snapshot.exists()) {
+          // Update existing player data with current displayName
+          playerRef.update({
+            displayName: user.displayName,
+            lastUpdated: firebase.database.ServerValue.TIMESTAMP
+          }).then(() => {
+            console.log('Display name synchronized to database:', user.displayName);
+          }).catch(error => {
+            console.error('Error synchronizing display name to database:', error);
+          });
+        } else {
+          // Player record doesn't exist yet, will be created when multiplayer initializes
+          console.log('No player record found for displayName sync, will be created during multiplayer init');
+        }
+      }).catch(error => {
+        console.error('Error checking player data existence:', error);
+      });
+  } catch (error) {
+    console.error('Error synchronizing display name to database:', error);
+  }
 }
 
 // Sign out

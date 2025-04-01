@@ -3,15 +3,16 @@
  */
 import * as THREE from 'three';
 import SailboatShip from '../ships/SailboatShip.js';
+import NotificationSystem from './NotificationSystem.js';
 
 class Shipwright {
     // Ship type configurations including prices
     static SHIP_PRICES = {
         'sloop': 0, // Free starter ship
-        'skiff': 1000,
-        'dinghy': 2000,
-        'cutter': 5000,
-        'brig': 10000
+        'skiff': 300,
+        'dinghy': 300,
+        'cutter': 600,
+        'brig': 2000
     };
     
     /**
@@ -536,6 +537,9 @@ class Shipwright {
             shipItem.style.transition = 'background-color 0.2s';
             shipItem.style.backgroundColor = 'rgba(139, 69, 19, 0.1)';
             shipItem.style.position = 'relative'; // For absolute positioning of lock overlay
+            shipItem.style.overflow = 'hidden'; // Ensure content doesn't overflow
+            shipItem.style.maxWidth = '100%'; // Ensure it doesn't exceed container width
+            shipItem.style.boxSizing = 'border-box'; // Include padding in width calculation
             
             // Add a locked overlay if ship is not unlocked
             // Default to locked for all except sloop, will be updated when data loads
@@ -548,7 +552,8 @@ class Shipwright {
                 lockOverlay.style.position = 'absolute';
                 lockOverlay.style.top = '0';
                 lockOverlay.style.left = '0';
-                lockOverlay.style.width = '100%';
+                lockOverlay.style.right = '0'; // Ensure it stretches to right edge
+                lockOverlay.style.width = '100%'; // Keep width at 100% of parent
                 lockOverlay.style.height = '100%';
                 lockOverlay.style.display = 'flex';
                 lockOverlay.style.justifyContent = 'flex-end';
@@ -556,7 +561,16 @@ class Shipwright {
                 lockOverlay.style.backgroundColor = 'rgba(0, 0, 0, 0.3)';
                 lockOverlay.style.borderRadius = '5px';
                 lockOverlay.style.zIndex = '1';
-                lockOverlay.style.padding = '0 10px';
+                lockOverlay.style.padding = '0 8px'; // Slightly less padding
+                lockOverlay.style.boxSizing = 'border-box'; // Add box-sizing to include padding in width
+                lockOverlay.style.overflow = 'hidden'; // Prevent content from extending beyond the overlay
+                
+                // Container for price and lock (to keep them together)
+                const lockContentContainer = document.createElement('div');
+                lockContentContainer.style.display = 'flex';
+                lockContentContainer.style.alignItems = 'center';
+                lockContentContainer.style.maxWidth = '90%'; // Limit width to prevent overflow
+                lockContentContainer.style.marginLeft = 'auto'; // Push to right side
                 
                 // Lock icon
                 const lockIcon = document.createElement('div');
@@ -564,6 +578,7 @@ class Shipwright {
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                 </svg>`;
+                lockIcon.style.flexShrink = '0'; // Prevent the icon from shrinking
                 
                 // Price tag
                 const priceTag = document.createElement('span');
@@ -572,9 +587,14 @@ class Shipwright {
                 priceTag.style.fontSize = '12px';
                 priceTag.style.fontWeight = 'bold';
                 priceTag.style.color = 'white';
+                priceTag.style.whiteSpace = 'nowrap'; // Prevent text wrapping
+                priceTag.style.overflow = 'hidden'; // Hide overflow text
+                priceTag.style.textOverflow = 'ellipsis'; // Add ellipsis for overflow text
                 
-                lockOverlay.appendChild(priceTag);
-                lockOverlay.appendChild(lockIcon);
+                // Add elements to containers
+                lockContentContainer.appendChild(priceTag);
+                lockContentContainer.appendChild(lockIcon);
+                lockOverlay.appendChild(lockContentContainer);
                 shipItem.appendChild(lockOverlay);
             }
             
@@ -1173,25 +1193,14 @@ class Shipwright {
      * @param {string} type - Notification type ('success', 'error', etc.)
      */
     showNotification(message, type = 'success') {
-        const notification = document.createElement('div');
-        notification.textContent = message;
-        notification.style.position = 'absolute';
-        notification.style.bottom = '100px';
-        notification.style.left = '50%';
-        notification.style.transform = 'translateX(-50%)';
-        notification.style.padding = '10px 20px';
-        notification.style.backgroundColor = type === 'error' ? '#B71C1C' : '#8B4513';
-        notification.style.color = '#f5e8c0';
-        notification.style.borderRadius = '5px';
-        notification.style.fontFamily = 'serif';
-        notification.style.zIndex = '1001';
+        // Get or create notification system
+        this.notificationSystem = this.notificationSystem || new NotificationSystem();
         
-        document.body.appendChild(notification);
+        // Map the notification types to shipwright-specific ones to maintain the same look
+        const notificationType = type === 'error' ? 'shipwright-error' : 'shipwright';
         
-        // Remove after 2 seconds
-        setTimeout(() => {
-            document.body.removeChild(notification);
-        }, 2000);
+        // Use notification system to show message
+        this.notificationSystem.show(message, notificationType);
     }
     
     /**
@@ -1467,7 +1476,7 @@ class Shipwright {
                 
                 // Create loading message
                 const loadingElement = document.createElement('div');
-                loadingElement.textContent = 'Loading ship model...';
+                loadingElement.textContent = ''; // Empty text instead of 'Loading ship model...'
                 loadingElement.style.position = 'absolute';
                 loadingElement.style.top = '50%';
                 loadingElement.style.left = '50%';
@@ -1491,6 +1500,9 @@ class Shipwright {
                         
                         // Track the model for cleanup
                         this.activeModels.push(model);
+                        
+                        // Make the model initially invisible
+                        model.visible = false;
                         
                         // Apply adjustments for this ship type
                         model.scale.set(adjustment.scale, adjustment.scale, adjustment.scale);
@@ -1524,11 +1536,15 @@ class Shipwright {
                             // by offsetting its center position
                             model.position.y = adjustment.posY - center.y;
                             
+                            // Make the model visible now that it's properly positioned
+                            model.visible = true;
+                            
                             console.log(`Model centered: size=${size.y.toFixed(2)}, center=${center.y.toFixed(2)}, final pos=${model.position.y.toFixed(2)}`);
                         };
                         
-                        // Center the model after a short delay to ensure it's fully loaded
-                        setTimeout(centerModel, 100);
+                        // Center the model after a single animation frame to ensure THREE.js has processed the model
+                        // This is more reliable than an immediate call but doesn't have the visible delay of setTimeout
+                        requestAnimationFrame(centerModel);
                         
                         // Render function
                         const render = () => {
@@ -1552,12 +1568,13 @@ class Shipwright {
                     // Progress callback
                     (xhr) => {
                         const percent = xhr.loaded / xhr.total * 100;
-                        loadingElement.textContent = `Loading: ${Math.round(percent)}%`;
+                        // Keep the loading text element empty
+                        loadingElement.textContent = '';
                     },
                     // Error callback
                     (error) => {
                         console.error('Error loading ship model:', error);
-                        loadingElement.textContent = 'Failed to load ship model';
+                        loadingElement.textContent = ''; // Keep empty instead of showing error message
                         loadingElement.style.color = 'red';
                     }
                 );

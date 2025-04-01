@@ -650,7 +650,24 @@ class UIMenuManager {
             user.updateProfile({
                 displayName: sanitizedUsername
             }).then(() => {
-                console.log('Username updated successfully');
+                console.log('Username updated successfully in auth profile');
+                
+                // Also update the displayName in the players database for real-time sync
+                if (window.firebase) {
+                    const playerId = user.uid;
+                    const playerRef = firebase.database().ref(`players/${playerId}`);
+                    
+                    // Update just the displayName field to sync with other players instantly
+                    playerRef.update({
+                        displayName: sanitizedUsername,
+                        lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                    }).then(() => {
+                        console.log('Username updated successfully in players database for real-time sync');
+                    }).catch(error => {
+                        console.error('Error updating username in players database:', error);
+                    });
+                }
+                
                 // Show success message using notification system
                 if (this.gameUI.notificationSystem) {
                     this.gameUI.notificationSystem.show('Username updated successfully!', 'success');

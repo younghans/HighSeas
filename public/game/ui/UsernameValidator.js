@@ -61,26 +61,52 @@ class UsernameValidator {
                             }
                             console.log('Profanity list loaded:', this.profanityList.length, 'words');
                         } else {
-                            console.warn('No profanity data found in database');
+                            console.warn('No profanity data found in database, using fallback list');
+                            this.loadFallbackProfanityList();
                         }
                         this.profanityLoaded = true;
                         this.isLoadingProfanity = false;
                     })
                     .catch(error => {
                         console.error('Error loading profanity list:', error);
+                        this.loadFallbackProfanityList();
                         this.profanityLoaded = true;
                         this.isLoadingProfanity = false;
                     });
             } catch (error) {
                 console.error('Error initializing Firebase database:', error);
+                this.loadFallbackProfanityList();
                 this.profanityLoaded = true;
                 this.isLoadingProfanity = false;
             }
         } else {
-            console.warn('Firebase not available, profanity check disabled');
+            console.warn('Firebase not available, using fallback profanity list');
+            this.loadFallbackProfanityList();
             this.profanityLoaded = true;
             this.isLoadingProfanity = false;
         }
+    }
+    
+    /**
+     * Load a basic fallback profanity list when Firebase is unavailable
+     */
+    loadFallbackProfanityList() {
+        // Basic list of common profanity words as fallback
+        const basicProfanityList = [
+            'ass', 'asshole', 
+            'bitch', 'bastard',
+            'crap', 'cunt',
+            'damn', 'dick',
+            'fuck', 'fucker',
+            'hell',
+            'piss', 'prick', 'pussy',
+            'shit', 'slut',
+            'whore'
+        ];
+        
+        // Add these to the profanity list
+        this.profanityList = [...this.profanityList, ...basicProfanityList];
+        console.log('Fallback profanity list loaded:', this.profanityList.length, 'words');
     }
     
     /**
@@ -98,8 +124,7 @@ class UsernameValidator {
                     if (!this.validateUsername(mainMenuUsername.value, true)) {
                         // Set default name to 'Sailor' in main menu
                         mainMenuUsername.value = 'Sailor';
-                        // Allow the form to continue
-                        return true;
+                        // No need to prevent default - we've applied a valid default name
                     }
                 });
             }
@@ -111,8 +136,7 @@ class UsernameValidator {
                     if (!this.validateUsername(mainMenuUsername.value, true)) {
                         // Set default name to 'Sailor' in main menu
                         mainMenuUsername.value = 'Sailor';
-                        // Allow the form to continue
-                        return true;
+                        // No need to prevent default - we've applied a valid default name
                     }
                 });
             }
@@ -129,8 +153,7 @@ class UsernameValidator {
                     if (!this.validateUsername(guestUsername.value, true)) {
                         // Set default name to 'Sailor' in login menu
                         guestUsername.value = 'Sailor';
-                        // Allow the form to continue
-                        return true;
+                        // No need to prevent default - we've applied a valid default name
                     }
                 });
             }
@@ -141,20 +164,73 @@ class UsernameValidator {
      * Initialize validator for profile username field
      */
     initProfileValidator() {
+        // Try to find the profile username input
         const profileUsername = document.getElementById('username-input');
-        if (profileUsername) {
-            this.applyValidation(profileUsername);
+        
+        if (!profileUsername) {
+            // If not found, add a mutation observer to detect when it's added to the DOM
+            console.log('Profile username input not found, adding observer');
             
-            // Find the save button within the profile menu
-            const saveButton = profileUsername.parentElement.querySelector('button');
-            if (saveButton) {
-                saveButton.addEventListener('click', (event) => {
-                    if (!this.validateUsername(profileUsername.value, false)) {
-                        event.preventDefault();
-                        return false;
+            const observer = new MutationObserver((mutations) => {
+                for (const mutation of mutations) {
+                    if (mutation.type === 'childList') {
+                        const nodes = Array.from(mutation.addedNodes);
+                        for (const node of nodes) {
+                            if (node.nodeType === Node.ELEMENT_NODE) {
+                                // Check if this element is the username input or contains it
+                                const input = node.id === 'username-input' ? 
+                                    node : node.querySelector('#username-input');
+                                
+                                if (input) {
+                                    console.log('Profile username input found and validated');
+                                    this.applyValidation(input);
+                                    
+                                    // Find the save button
+                                    const saveButton = input.parentElement.querySelector('button');
+                                    if (saveButton) {
+                                        saveButton.addEventListener('click', (event) => {
+                                            if (!this.validateUsername(input.value, false)) {
+                                                event.preventDefault();
+                                                event.stopPropagation();
+                                                return false;
+                                            }
+                                        });
+                                    }
+                                    
+                                    // Stop observing once we've found and validated the input
+                                    observer.disconnect();
+                                    return;
+                                }
+                            }
+                        }
                     }
-                });
-            }
+                }
+            });
+            
+            // Start observing the document for profile-related changes
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            
+            return;
+        }
+        
+        // If the input was found immediately, apply validation
+        this.applyValidation(profileUsername);
+        
+        // Find the save button within the profile menu
+        const saveButton = profileUsername.parentElement?.querySelector('button');
+        if (saveButton) {
+            saveButton.addEventListener('click', (event) => {
+                if (!this.validateUsername(profileUsername.value, false)) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return false;
+                }
+            });
+        } else {
+            console.warn('Profile save button not found');
         }
     }
     
