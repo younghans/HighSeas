@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import TargetManager from './TargetManager.js';
+import HitSplash from './HitSplash.js'; // Import the new class
 
 /**
  * CombatManager class for handling ship combat mechanics
@@ -26,6 +27,7 @@ class CombatManager {
         this.isSpacePressed = false;
         this.isResetting = false;
         this.showDebugClickBoxes = false; // Show debug click boxes by default
+        this.hitSplashes = []; // Add array to track hit splashes
         
         // Create target manager
         this.targetManager = new TargetManager({
@@ -1123,15 +1125,20 @@ class CombatManager {
             // For hits, check if we've reached the target ship - remove isSunk check
             else if (!userData.isMiss && !userData.hasHit && userData.target) {
                 const distanceToTarget = cannonball.position.distanceTo(userData.target.getPosition());
-                if (distanceToTarget < 2) {
+                
+                // Adjust hit detection threshold slightly based on cannonball size
+                const hitThreshold = 2.0 + (this.cannonballGeometry.parameters.radius || 0.5); 
+
+                if (distanceToTarget < hitThreshold) {
                     // Mark as hit first
                     userData.hasHit = true;
                     const targetPreHitHealth = userData.target.currentHealth;
+                    const hitPosition = cannonball.position.clone(); // Capture exact impact position
                     
                     // Create hit effect
-                    this.createHitEffect(cannonball.position.clone());
+                    this.createHitEffect(hitPosition);
                     
-                    // Play cannon impact sound with spatial audio if available
+                    // Play cannon impact sound
                     if (window.spatialAudioManager) {
                         try {
                             const isPlayerShip = userData.target === this.playerShip;
@@ -1142,11 +1149,15 @@ class CombatManager {
                     }
                     
                     // Only apply damage if the target is not already sunk
+                    let actualDamageDealt = 0; // Track damage for hit splash
+                    let targetSunkByHit = false; // Track if the hit sunk the target
+
                     if (!userData.target.isSunk) {
                         // Check if we have a confirmed server result from an action
                         const matchingActions = this.findActionsByTarget(userData.targetId);
-                        const matchingAction = matchingActions.length > 0 ? matchingActions[0] : null;
-                        
+                        // Find the action that matches THIS cannonball, not just any for the target
+                        const matchingAction = matchingActions.find(a => a.cannonballRef === userData);
+
                         console.log('[CANNONBALL:HIT] Cannonball hit target', {
                             targetId: userData.targetId || 'unknown',
                             clientDamage: userData.damage,
@@ -1154,12 +1165,12 @@ class CombatManager {
                             hasServerResult: !!matchingAction,
                             flightTime: timestamp - userData.createdAt,
                             actionId: matchingAction ? matchingAction.id : 'none',
-                            pendingActions: this.actionTracker.size
+                            pendingActions: this.actionTracker.size,
+                            matchingActionFound: !!matchingAction,
                         });
                         
-                        // If we have a matching action, use it
-                        if (matchingAction && matchingAction.serverResult) {
-                            // Use server's validated result
+                        // If we have a matching action with server result
+                        if (matchingAction && matchingAction.status === 'confirmed' && matchingAction.serverResult) {
                             console.log('[CANNONBALL:HIT] Using server validated result', {
                                 actionId: matchingAction.id, 
                                 serverDamage: matchingAction.serverDamage,
@@ -1168,74 +1179,79 @@ class CombatManager {
                                 isSunk: matchingAction.serverResult.isSunk
                             });
                             
+                            // Calculate damage difference from pre-hit health
+                            actualDamageDealt = targetPreHitHealth - matchingAction.serverResult.newHealth;
                             userData.target.currentHealth = matchingAction.serverResult.newHealth;
                             
                             if (matchingAction.serverResult.isSunk) {
                                 userData.target.sink();
+                                targetSunkByHit = true;
                             }
                             
-                            // Remove from action tracker
+                            // Mark action as fully processed by removing from tracker
                             this.actionTracker.delete(matchingAction.id);
-                        } 
-                        // Rest of the existing damage application code...
-                        else if (userData.source === this.playerShip) {
-                            // Existing optimistic update code...
-                            // Try to find a matching action that matches this cannonball
-                            const actions = this.findActionsByTarget(userData.targetId);
-                            const pendingAction = actions.length > 0 ? actions[0] : null;
-                            
-                            if (pendingAction) {
-                                console.log('[CANNONBALL:HIT] Server response not yet received, marking pending action', {
-                                    actionId: pendingAction.id,
-                                    targetId: userData.targetId
-                                });
-                                // Mark that the cannonball has hit so we can reconcile later when server responds
-                                pendingAction.cannonballHasHit = true;
+                             // Also remove from index
+                            if (this.actionIndices.byTarget.has(matchingAction.target)) {
+                                this.actionIndices.byTarget.get(matchingAction.target).delete(matchingAction.id);
+                                if (this.actionIndices.byTarget.get(matchingAction.target).size === 0) {
+                                    this.actionIndices.byTarget.delete(matchingAction.target);
+                                }
                             }
-                            
-                            // No server result yet - apply optimistic update
-                            console.log('[CANNONBALL:HIT] No server result yet, applying optimistic damage', {
+
+                        } 
+                        // If we have a pending action for this cannonball
+                        else if (matchingAction && matchingAction.status === 'pending') {
+                             console.log('[CANNONBALL:HIT] Server response not yet received, applying optimistic damage & marking pending action', {
+                                actionId: matchingAction.id,
                                 targetId: userData.targetId,
-                                damage: userData.damage,
-                                preHitHealth: targetPreHitHealth,
-                                estimatedPostHitHealth: Math.max(0, targetPreHitHealth - userData.damage),
-                                pendingServerValidation: true,
-                                pendingActionFound: !!pendingAction
+                                clientDamage: userData.damage,
+                                preHitHealth: targetPreHitHealth
                             });
                             
-                            userData.pendingReconciliation = true;
-                            userData.target.takeDamage(userData.damage);
-                                
-                            // Log if this hit caused a sink
-                            if (userData.target.currentHealth <= 0 && !userData.target.isSunk) {
-                                console.log('[CANNONBALL:HIT] Optimistic update resulted in ship sinking', {
-                                    targetId: userData.targetId,
-                                    pendingServerValidation: true
-                                });
-                            }
-                        }
-                        // For NPC shots or other cases with no server validation
+                            // Mark that the cannonball has hit so we can reconcile later
+                            matchingAction.cannonballHasHit = true; 
+                            // Store hit position for potential future reconciliation effects
+                            matchingAction.hitPosition = hitPosition; 
+                            
+                            // Apply optimistic damage
+                            actualDamageDealt = Math.min(targetPreHitHealth, userData.damage); // Damage cannot exceed current health
+                            userData.target.takeDamage(userData.damage); 
+                            targetSunkByHit = userData.target.isSunk; // Check if sink resulted
+
+                        } 
+                        // Handle hits from non-player sources or without matching actions (e.g., NPC->Player)
                         else {
-                            console.log('[CANNONBALL:HIT] NPC attack or unvalidated shot, applying direct damage', {
+                             console.log('[CANNONBALL:HIT] Applying direct damage (NPC attack or unvalidated shot)', {
                                 sourceType: userData.source === this.playerShip ? 'player' : 'npc',
                                 targetId: userData.targetId,
-                                damage: userData.damage
+                                damage: userData.damage,
+                                preHitHealth: targetPreHitHealth
                             });
                             
+                            actualDamageDealt = Math.min(targetPreHitHealth, userData.damage);
                             userData.target.takeDamage(userData.damage);
+                            targetSunkByHit = userData.target.isSunk;
                             
-                            // If this is a shot hitting the player, auto-target the attacker if we don't have a target
+                            // Auto-target attacker if player was hit
                             if (userData.target === this.playerShip && userData.source !== this.playerShip) {
-                                // Auto-target the ship that hit us
                                 this.targetManager.setAutoTarget(userData.source);
                             }
                         }
                     } else {
-                        // Target is already sunk, log this event
+                        // Target is already sunk
                         console.log('[CANNONBALL:HIT] Cannonball hit already sunk target', {
                             targetId: userData.targetId || 'unknown',
                             flightTime: timestamp - userData.createdAt
                         });
+                    }
+
+                    // *** CREATE HIT SPLASH ***
+                    // Only create splash if actual damage was dealt and target wasn't already sunk pre-hit
+                    if (actualDamageDealt > 0 && targetPreHitHealth > 0) {
+                         // Use a slightly higher position for the splash start
+                         const splashPosition = hitPosition.clone().add(new THREE.Vector3(0, 1.5, 0)); 
+                        const splash = new HitSplash(actualDamageDealt, splashPosition, this.scene, this.camera);
+                        this.hitSplashes.push(splash);
                     }
                     
                     // Remove cannonball
@@ -1270,6 +1286,16 @@ class CombatManager {
             const index = this.cannonballs.indexOf(cannonball);
             if (index !== -1) {
                 this.cannonballs.splice(index, 1);
+            }
+        }
+
+         // *** UPDATE HIT SPLASHES ***
+        for (let i = this.hitSplashes.length - 1; i >= 0; i--) {
+            const splash = this.hitSplashes[i];
+            splash.update(delta);
+            if (splash.isExpired) {
+                splash.dispose(); // Clean up resources
+                this.hitSplashes.splice(i, 1); // Remove from array
             }
         }
         
@@ -1641,16 +1667,39 @@ class CombatManager {
         document.removeEventListener('keyup', this.handleKeyUp);
         
         // Clean up the target manager
-        this.targetManager.cleanup();
+        if (this.targetManager) { // Add check
+            this.targetManager.cleanup();
+        }
         
         // Remove all cannonballs
         if (this.scene) {
             for (const cannonball of this.cannonballs) {
                 this.scene.remove(cannonball);
+                // Dispose geometry/material if needed, depends on how they are shared
             }
         }
-        
         this.cannonballs = [];
+
+        // *** Clean up hit splashes ***
+        if (this.scene) {
+             for (const splash of this.hitSplashes) {
+                 splash.dispose(); // Ensure disposal on cleanup
+             }
+        }
+        this.hitSplashes = [];
+
+        // Reset references
+        this.playerShip = null;
+        this.enemyShipManager = null;
+        this.ui = null;
+        this.scene = null;
+        this.camera = null;
+        this.combatService = null;
+        this.multiplayerManager = null;
+        this.zonesManager = null;
+        this.targetManager = null; // Ensure targetManager is also cleaned up
+
+         console.log('[COMBAT] CombatManager cleaned up.');
     }
     
     /**
