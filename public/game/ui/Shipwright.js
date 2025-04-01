@@ -22,6 +22,7 @@ class Shipwright {
     constructor(options = {}) {
         this.gameUI = options.gameUI;
         this.initialized = false;
+        this.islandMenu = options.islandMenu; // Reference to the island menu
         
         // Keep track of active renderers and resources for cleanup
         this.activeRenderers = [];
@@ -128,311 +129,6 @@ class Shipwright {
                 console.error('Error loading player data:', error);
                 return false;
             });
-    }
-    
-    /**
-     * Save the unlocked ships list to Firebase
-     */
-    saveUnlockedShips() {
-        if (!this.auth || !this.auth.getCurrentUser()) {
-            console.error('Cannot save unlocked ships: Not authenticated');
-            return Promise.resolve(false);
-        }
-        
-        const uid = this.auth.getCurrentUser().uid;
-        
-        // Create a reference to the player in Firebase
-        const playerRef = this.database.ref(`players/${uid}`);
-        
-        // Update the unlocked ships list
-        return playerRef.update({
-            unlockedShips: this.unlockedShips,
-            lastUpdated: firebase.database.ServerValue.TIMESTAMP
-        })
-        .then(() => {
-            console.log('Successfully updated unlocked ships list');
-            return true;
-        })
-        .catch(error => {
-            console.error('Error updating unlocked ships:', error);
-            return false;
-        });
-    }
-    
-    /**
-     * Check if a ship is unlocked by the player
-     * @param {string} shipId - The ship ID to check
-     * @returns {boolean} True if the ship is unlocked
-     */
-    isShipUnlocked(shipId) {
-        return this.unlockedShips.includes(shipId);
-    }
-    
-    /**
-     * Unlock a new ship for the player
-     * @param {string} shipId - The ship ID to unlock
-     * @param {number} cost - The gold cost to purchase
-     * @returns {Promise} Promise that resolves when unlock is complete
-     */
-    unlockShip(shipId, cost) {
-        if (!this.auth || !this.auth.getCurrentUser()) {
-            console.error('Cannot unlock ship: Not authenticated');
-            return Promise.resolve(false);
-        }
-        
-        const uid = this.auth.getCurrentUser().uid;
-        
-        // Check if player has enough gold
-        if (this.playerGold < cost) {
-            console.error(`Not enough gold to unlock ship. Required: ${cost}, Available: ${this.playerGold}`);
-            return Promise.resolve(false);
-        }
-        
-        // Create a reference to the player in Firebase
-        const playerRef = this.database.ref(`players/${uid}`);
-        
-        // Deduct gold and add to unlocked ships
-        return playerRef.update({
-            gold: this.playerGold - cost,
-            unlockedShips: [...this.unlockedShips, shipId],
-            lastUpdated: firebase.database.ServerValue.TIMESTAMP
-        })
-        .then(() => {
-            console.log(`Successfully unlocked ship: ${shipId} for ${cost} gold`);
-            
-            // Update local data
-            this.playerGold -= cost;
-            this.unlockedShips.push(shipId);
-            
-            // Trigger an event to update the UI
-            const goldUpdatedEvent = new CustomEvent('playerGoldUpdated', {
-                detail: { gold: -cost }
-            });
-            document.dispatchEvent(goldUpdatedEvent);
-            
-            return true;
-        })
-        .catch(error => {
-            console.error(`Error unlocking ship ${shipId}:`, error);
-            return false;
-        });
-    }
-    
-    /**
-     * Set the player's current ship model
-     * @param {string} shipId - The ship ID to set as current
-     * @returns {Promise} Promise that resolves when update is complete
-     */
-    setPlayerShipModel(shipId) {
-        if (!this.auth || !this.auth.getCurrentUser()) {
-            console.error('Cannot set ship model: Not authenticated');
-            return Promise.resolve(false);
-        }
-        
-        // Check if ship is unlocked
-        if (!this.isShipUnlocked(shipId)) {
-            console.error(`Cannot select ship ${shipId}: Not unlocked`);
-            return Promise.resolve(false);
-        }
-        
-        const uid = this.auth.getCurrentUser().uid;
-        
-        try {
-            // First update the ship in game
-            const shipUpdated = this.updateCurrentPlayerShip(shipId);
-            
-            if (!shipUpdated) {
-                console.error('Failed to update ship in game');
-                return Promise.resolve(false);
-            }
-            
-            // Then update in Firebase
-            const playerRef = this.database.ref(`players/${uid}`);
-            
-            // Update the model type and reset health to max
-            return playerRef.update({
-                modelType: shipId,
-                health: window.playerShip ? window.playerShip.maxHealth : 100, // Use the new ship's max health
-                maxHealth: window.playerShip ? window.playerShip.maxHealth : 100, // Also update max health value
-                isSunk: false, // Ensure the ship is not marked as sunk
-                lastUpdated: firebase.database.ServerValue.TIMESTAMP
-            })
-            .then(() => {
-                console.log(`Successfully set ship model to: ${shipId}`);
-                
-                // Update local property
-                this.currentShipType = shipId;
-                
-                // Force an immediate position update to sync the new ship model to all other players
-                if (window.multiplayerManager && window.playerShip) {
-                    console.log('Forcing multiplayer sync to update ship model for other players');
-                    // Use a slight delay to ensure the update happens after Firebase data is saved
-                    setTimeout(() => {
-                        window.multiplayerManager.updatePlayerPosition(window.playerShip, true);
-                    }, 100);
-                }
-                
-                return true;
-            })
-            .catch(error => {
-                console.error(`Error setting ship model to ${shipId}:`, error);
-                return false;
-            });
-        } catch (error) {
-            console.error(`Error updating ship: ${error.message}`);
-            return Promise.resolve(false);
-        }
-    }
-    
-    /**
-     * Update the current player ship in the game with the new model type
-     * @param {string} shipId - The ship ID to set
-     */
-    updateCurrentPlayerShip(shipId) {
-        // Access player ship through various possible global references
-        const playerShip = window.playerShip || 
-                          (this.gameUI && this.gameUI.playerShip) || 
-                          (window.combatManager && window.combatManager.playerShip);
-        
-        if (playerShip) {
-            console.log(`Updating player ship model to: ${shipId}`);
-            
-            // Store the old position and rotation
-            const oldPosition = playerShip.getPosition().clone();
-            let oldRotation = null;
-            
-            if (playerShip.getObject() && playerShip.getObject().rotation) {
-                oldRotation = playerShip.getObject().rotation.clone();
-            } else {
-                // Default rotation if not available
-                oldRotation = new THREE.Euler(0, 0, 0);
-            }
-            
-            // Get the scene from the existing ship
-            const scene = playerShip.scene;
-            
-            // Store the current camera position and target (so we can restore it later)
-            let cameraPosition = null;
-            let cameraTarget = null;
-            if (window.gameCore && window.gameCore.sceneManager) {
-                const camera = window.gameCore.sceneManager.getCamera();
-                if (camera) {
-                    cameraPosition = camera.position.clone();
-                    // Get the camera's current look target
-                    cameraTarget = new THREE.Vector3(0, 0, -1);
-                    cameraTarget.applyQuaternion(camera.quaternion);
-                    cameraTarget.add(camera.position);
-                }
-            }
-            
-            // Remove the old ship immediately to prevent duplicates
-            if (playerShip.shipMesh) {
-                scene.remove(playerShip.shipMesh);
-            }
-            
-            // Create a new ship with the selected model type
-            const newShip = new SailboatShip(scene, {
-                modelType: shipId,
-                position: oldPosition
-            });
-            
-            // Set ship ID to match user ID
-            if (this.auth && this.auth.getCurrentUser()) {
-                newShip.id = this.auth.getCurrentUser().uid;
-            }
-            
-            // Set the rotation to match the old ship
-            if (newShip.getObject() && oldRotation) {
-                newShip.getObject().rotation.copy(oldRotation);
-            }
-            
-            // Transfer movement state from old ship to new ship
-            newShip.isMoving = playerShip.isMoving;
-            if (playerShip.targetPosition) {
-                newShip.targetPosition = playerShip.targetPosition.clone();
-            }
-            newShip.targetRotation = playerShip.targetRotation;
-            
-            // Reset health to max for the new ship
-            // Each ship type has its own maxHealth value as defined in SailboatShip.SHIP_CONFIGS
-            newShip.currentHealth = newShip.maxHealth;
-            console.log(`Reset ship health to max: ${newShip.currentHealth}/${newShip.maxHealth}`);
-            
-            // Make ship available globally
-            window.playerShip = newShip;
-            
-            // Update GameCore's ship reference if it exists
-            if (window.gameCore) {
-                window.gameCore.ship = newShip;
-                
-                // Re-setup gameplay controls with the new ship
-                if (window.gameCore.inputManager) {
-                    window.gameCore.setupGameplayControls();
-                }
-                
-                // Restore camera position and target if we saved them
-                if (cameraPosition && window.gameCore.sceneManager) {
-                    const camera = window.gameCore.sceneManager.getCamera();
-                    if (camera) {
-                        camera.position.copy(cameraPosition);
-                        if (cameraTarget) {
-                            camera.lookAt(cameraTarget);
-                        }
-                    }
-                }
-            }
-            
-            // Update references in combat manager if it exists
-            if (window.combatManager) {
-                window.combatManager.setPlayerShip(newShip);
-            }
-            
-            // Update references in enemy ship manager if it exists
-            if (window.enemyShipManager) {
-                window.enemyShipManager.setPlayerShip(newShip);
-            }
-            
-            // Update UI references
-            if (this.gameUI) {
-                this.gameUI.playerShip = newShip;
-            }
-            
-            // Update multiplayer manager if it exists
-            if (window.multiplayerManager) {
-                // Stop the current periodic sync that's using the old ship reference
-                window.multiplayerManager.stopPeriodicSync();
-                
-                // Store the new ship reference in the multiplayer manager
-                window.multiplayerManager.playerShip = newShip;
-                
-                // Restart the periodic sync with the new ship reference
-                window.multiplayerManager.startPeriodicSync(newShip);
-                
-                // Do an immediate position update
-                setTimeout(() => {
-                    if (newShip.getObject() && newShip.getObject().rotation) {
-                        window.multiplayerManager.updatePlayerPosition(newShip, true);
-                    }
-                }, 200);
-            }
-            
-            // Dispose of any other resources from the old ship
-            if (playerShip.dispose && typeof playerShip.dispose === 'function') {
-                playerShip.dispose();
-            }
-            
-            // Trigger player ship updated event
-            const shipUpdatedEvent = new CustomEvent('playerShipUpdated', {
-                detail: { shipType: shipId }
-            });
-            document.dispatchEvent(shipUpdatedEvent);
-            
-            console.log('Ship model updated successfully');
-            return true;
-        } else {
-            console.error('Could not find player ship to update');
-            return false;
-        }
     }
     
     /**
@@ -755,16 +451,40 @@ class Shipwright {
         closeButton.style.cursor = 'pointer';
         
         closeButton.addEventListener('click', () => {
-            menu.style.display = 'none';
+            this.hide();
+        });
+        
+        // Back to island button
+        const backButton = document.createElement('button');
+        backButton.textContent = 'Back to Island';
+        backButton.style.position = 'absolute';
+        backButton.style.top = '10px';
+        backButton.style.left = '10px';
+        backButton.style.background = '#8B4513';
+        backButton.style.color = '#f5e8c0';
+        backButton.style.border = 'none';
+        backButton.style.borderRadius = '5px';
+        backButton.style.padding = '5px 10px';
+        backButton.style.cursor = 'pointer';
+        
+        backButton.addEventListener('click', () => {
+            // Hide the shipwright menu
+            this.hide();
+            
+            // Go back to island menu if it exists
+            if (this.islandMenu) {
+                this.islandMenu.show(this.islandMenu.getSelectedIsland(), this.islandMenu.getSelectedIslandPoint());
+            }
         });
         
         // Add pages to book
         bookContainer.appendChild(leftPage);
         bookContainer.appendChild(rightPage);
         
-        // Add book and close button to menu
+        // Add book and buttons to menu
         menu.appendChild(bookContainer);
         menu.appendChild(closeButton);
+        menu.appendChild(backButton);
         
         // Prevent clicks inside the menu from propagating
         menu.addEventListener('click', (event) => {
@@ -778,23 +498,70 @@ class Shipwright {
     }
     
     /**
-     * Show the shipwright menu
+     * Show the shipwright menu as a state of the island menu
      */
     show() {
         const menu = document.getElementById('shipwrightMenu');
         if (menu) {
             console.log('Showing shipwright menu...');
             
+            // Hide the island menu first
+            if (this.islandMenu && this.islandMenu.isOpen()) {
+                // Update the IslandMenu's internal state to 'shipwright'
+                this.islandMenu.currentView = 'shipwright';
+                // Hide the island menu element but don't change its internal state
+                const islandMenuElement = document.getElementById('islandMenu');
+                if (islandMenuElement) {
+                    islandMenuElement.style.display = 'none';
+                }
+            }
+            
             // Load player data when opening the menu
             this.loadPlayerData().then(() => {
                 // Update lock overlays based on unlocked ships
                 this.updateLockOverlays();
                 
-                // Display the menu
+                // Display the shipwright menu
                 menu.style.display = 'block';
             });
         } else {
             console.error('Failed to find shipwrightMenu element!');
+        }
+    }
+    
+    /**
+     * Hide the shipwright menu
+     */
+    hide() {
+        const menu = document.getElementById('shipwrightMenu');
+        if (menu) {
+            // Only hide and log if the menu is actually visible
+            if (menu.style.display === 'block') {
+                console.log('Hiding shipwright menu...');
+                menu.style.display = 'none';
+                
+                // Only clean up renderers if there are any to clean up
+                if (this.animationFrameIds.length > 0 || 
+                    this.activeRenderers.length > 0 || 
+                    this.activeModels.length > 0 || 
+                    this.activeScenes.length > 0) {
+                    this.cleanupRenderers();
+                }
+                
+                // Restore the island menu if this was started from the island menu
+                if (this.islandMenu && this.islandMenu.currentView === 'shipwright') {
+                    // Update the IslandMenu to go back to main view
+                    this.islandMenu.currentView = 'main';
+                    // Check if we should show the island menu
+                    if (this.islandMenu.isOpen()) {
+                        const islandMenuElement = document.getElementById('islandMenu');
+                        if (islandMenuElement) {
+                            islandMenuElement.style.display = 'block';
+                            this.islandMenu.updateMenuContent();
+                        }
+                    }
+                }
+            }
         }
     }
     
@@ -817,28 +584,6 @@ class Shipwright {
     }
     
     /**
-     * Hide the shipwright menu
-     */
-    hide() {
-        const menu = document.getElementById('shipwrightMenu');
-        if (menu) {
-            // Only hide and log if the menu is actually visible
-            if (menu.style.display === 'block') {
-                console.log('Hiding shipwright menu...');
-                menu.style.display = 'none';
-                
-                // Only clean up renderers if there are any to clean up
-                if (this.animationFrameIds.length > 0 || 
-                    this.activeRenderers.length > 0 || 
-                    this.activeModels.length > 0 || 
-                    this.activeScenes.length > 0) {
-                    this.cleanupRenderers();
-                }
-            }
-        }
-    }
-    
-    /**
      * Toggle the shipwright menu visibility
      * @param {boolean} show - Whether to show or hide the menu
      */
@@ -852,6 +597,15 @@ class Shipwright {
         } else if (!show && isVisible) {
             this.hide();
         }
+    }
+    
+    /**
+     * Check if a ship is unlocked by the player
+     * @param {string} shipId - The ship ID to check
+     * @returns {boolean} True if the ship is unlocked
+     */
+    isShipUnlocked(shipId) {
+        return this.unlockedShips.includes(shipId);
     }
     
     /**

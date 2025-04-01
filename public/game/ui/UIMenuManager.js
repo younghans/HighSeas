@@ -609,7 +609,7 @@ class UIMenuManager {
         
         // Description
         const description = document.createElement('p');
-        description.textContent = 'Collect gold by looting shipwrecks and completing quests. Gold can be used to upgrade your ship and purchase items. (coming soon)';
+        description.textContent = 'Collect gold by looting shipwrecks and completing quests. Gold can be used to purchase a new ship at the shipyard.';
         description.style.textAlign = 'center';
         description.style.color = 'rgba(255, 255, 255, 0.7)';
         description.style.fontSize = '14px';

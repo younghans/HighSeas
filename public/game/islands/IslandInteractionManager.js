@@ -21,18 +21,23 @@ class IslandInteractionManager {
         this.gameUI = options.gameUI;
         this.multiplayerManager = options.multiplayerManager;
         
-        // Initialize shipwright
-        this.shipwright = new Shipwright({ gameUI: this.gameUI });
-        
-        // Initialize island menu
+        // Initialize island menu first
         this.islandMenu = new IslandMenu({
             gameUI: this.gameUI,
-            shipwright: this.shipwright,
             buildingManager: this.buildingManager,
             onMenuClosed: () => {
                 this.islandMenuOpen = false;
             }
         });
+        
+        // Initialize shipwright with reference to the island menu
+        this.shipwright = new Shipwright({ 
+            gameUI: this.gameUI,
+            islandMenu: this.islandMenu 
+        });
+        
+        // Connect shipwright to the island menu
+        this.islandMenu.shipwright = this.shipwright;
         
         // Map of object types to their interaction handlers
         this.objectInteractionHandlers = {
@@ -125,15 +130,45 @@ class IslandInteractionManager {
      * @param {THREE.Object3D} object - The shipwright shop object
      */
     handleShipwrightInteraction(object) {
-        // Hide the island menu if it's open
-        if (this.islandMenuOpen) {
-            this.hideIslandMenu();
+        // Get the island this shop is part of
+        let containingIsland = null;
+        let currentObj = object;
+        
+        // Walk up the object hierarchy to find the island
+        while (currentObj && !containingIsland) {
+            if (currentObj.userData && currentObj.userData.isIsland) {
+                containingIsland = currentObj;
+            }
+            currentObj = currentObj.parent;
         }
         
-        if (this.shipwright) {
-            this.shipwright.show();
+        if (containingIsland) {
+            // We found the island this shop is part of
+            this.selectedIsland = containingIsland;
+            this.selectedIslandPoint = object.position.clone();
+            
+            // Show the island menu with shipwright view
+            this.showIslandMenu(containingIsland, object.position.clone(), 'shipwright');
         } else {
-            console.error('Shipwright not available to handle interaction');
+            // If we couldn't find the parent island, just open shipwright directly
+            console.log('Opening shipwright menu directly (no parent island found)');
+            
+            // Check if island menu is already open
+            if (this.islandMenuOpen) {
+                // Need to hide the island menu first
+                this.hideIslandMenu();
+            }
+            
+            // Create a temporary context
+            this.selectedIsland = { name: "Shipwright Shop" };
+            this.selectedIslandPoint = object.position.clone();
+            this.islandMenuOpen = true; // Mark that the menu system is open
+            
+            // Show shipwright directly 
+            if (this.shipwright) {
+                this.islandMenu.currentView = 'shipwright';
+                this.shipwright.show();
+            }
         }
     }
     
@@ -289,14 +324,6 @@ class IslandInteractionManager {
                 this.hideIslandMenu();
             }
             
-            // Close shipwright menu if it exists AND is open
-            if (this.shipwright) {
-                const shipwrightMenu = document.getElementById('shipwrightMenu');
-                if (shipwrightMenu && shipwrightMenu.style.display === 'block') {
-                    this.shipwright.hide();
-                }
-            }
-            
             // Exit build mode if active via the building manager
             if (this.buildingManager && this.buildingManager.isInBuildMode()) {
                 this.buildingManager.exitBuildMode();
@@ -328,8 +355,9 @@ class IslandInteractionManager {
      * Show the island menu
      * @param {THREE.Object3D} island - The island to show the menu for
      * @param {THREE.Vector3} clickedPoint - The point that was clicked
+     * @param {string} view - Optional view to show (main, shipwright, building)
      */
-    showIslandMenu(island, clickedPoint) {
+    showIslandMenu(island, clickedPoint, view = 'main') {
         // Check if build mode is active
         if (this.buildingManager && this.buildingManager.isInBuildMode()) {
             console.log('Build mode is active, not showing island menu.');
@@ -341,8 +369,8 @@ class IslandInteractionManager {
         this.selectedIsland = island;
         this.selectedIslandPoint = clickedPoint;
         
-        // Show the island menu using our IslandMenu component
-        this.islandMenu.show(island, clickedPoint);
+        // Show the island menu using our IslandMenu component with the specified view
+        this.islandMenu.show(island, clickedPoint, { view });
     }
     
     /**
@@ -360,17 +388,63 @@ class IslandInteractionManager {
      * @param {Function} setupFn - Optional function to run when showing the menu
      */
     toggleMenu(menuId, show, setupFn = null) {
-        // Handle shipwright menu separately
+        // Handle showing the shipwright view of the island menu
         if (menuId === 'shipwrightMenu') {
-            if (this.shipwright) {
-                console.log(`Toggling shipwright menu, show: ${show}`);
-                this.shipwright.toggle(show);
-                return;
+            if (show) {
+                // If island menu is already open, hide it first
+                if (this.islandMenuOpen && this.islandMenu) {
+                    // Hide the island menu element without changing its state
+                    const islandMenuElement = document.getElementById('islandMenu');
+                    if (islandMenuElement) {
+                        islandMenuElement.style.display = 'none';
+                    }
+                    
+                    // Set the IslandMenu view state to shipwright
+                    this.islandMenu.currentView = 'shipwright';
+                    
+                    // Show the shipwright menu
+                    if (this.shipwright) {
+                        this.shipwright.show();
+                    }
+                } else {
+                    // If no island context exists, create a temporary one
+                    if (!this.selectedIsland) {
+                        this.selectedIsland = { name: "Shipwright Shop" };
+                        this.selectedIslandPoint = new THREE.Vector3(0, 0, 0);
+                    }
+                    
+                    // Set the island menu as open and in shipwright view
+                    this.islandMenuOpen = true;
+                    this.islandMenu.currentView = 'shipwright';
+                    
+                    // Show the shipwright menu
+                    if (this.shipwright) {
+                        this.shipwright.show();
+                    }
+                }
             } else {
-                console.error('Shipwright instance not found!');
+                // Hide the shipwright menu
+                if (this.shipwright) {
+                    this.shipwright.hide();
+                }
+                
+                // If island menu should still be open, show main view
+                if (this.islandMenuOpen && this.islandMenu) {
+                    this.islandMenu.currentView = 'main';
+                    const islandMenuElement = document.getElementById('islandMenu');
+                    if (islandMenuElement) {
+                        islandMenuElement.style.display = 'block';
+                        this.islandMenu.updateMenuContent();
+                    }
+                } else {
+                    // Otherwise mark everything as closed
+                    this.islandMenuOpen = false;
+                }
             }
+            return;
         }
         
+        // Handle other menus if needed
         const menu = document.getElementById(menuId);
         
         if (!menu) {
