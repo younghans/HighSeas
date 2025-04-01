@@ -1,0 +1,266 @@
+{
+  "name": "tree-island",
+  "params": {
+    "size": 299,
+    "resolution": 80,
+    "treeCount": 0,
+    "seed": 9694,
+    "noiseScale": 0.005,
+    "noiseHeight": 157,
+    "falloffFactor": 0.3
+  },
+  "metadata": {
+    "name": "Tree Haven",
+    "safeZone": 0,
+    "tradingIsland": false,
+    "spawnPoint": false,
+    "difficulty": 3,
+    "description": "A forested island with tall trees providing shade and resources."
+  },
+  "createdAt": "2025-03-29T06:29:54.925Z",
+  "placedObjects": [
+    {
+      "type": "firTreeLarge",
+      "position": {
+        "x": 45.531775103085465,
+        "y": 22.592935551126576,
+        "z": 41.44898442895079
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeLarge",
+      "position": {
+        "x": 65.05644059398364,
+        "y": 18.665882713521448,
+        "z": 25.331904528917736
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeLarge",
+      "position": {
+        "x": 66.74105738216102,
+        "y": 11.234012302962466,
+        "z": 74.8670421004084
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeLarge",
+      "position": {
+        "x": 40.29136003258064,
+        "y": 13.904514494684562,
+        "z": 63.67568289810655
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeLarge",
+      "position": {
+        "x": 16.337936859237203,
+        "y": 12.913976857214443,
+        "z": 37.551620364804826
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeLarge",
+      "position": {
+        "x": 44.03500698870138,
+        "y": 16.744534148503103,
+        "z": 12.694793611458783
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeLarge",
+      "position": {
+        "x": 55.51538383650295,
+        "y": 22.345036099385414,
+        "z": 41.160924799581885
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeLarge",
+      "position": {
+        "x": 80.41388902237613,
+        "y": 11.434498285519172,
+        "z": 44.5934923612569
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeMedium",
+      "position": {
+        "x": 66.4699139285562,
+        "y": 17.63647513400598,
+        "z": 54.96068956640742
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeMedium",
+      "position": {
+        "x": 37.87290338505413,
+        "y": 17.968547620682646,
+        "z": 53.83163624848358
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeMedium",
+      "position": {
+        "x": 39.95817650563713,
+        "y": 19.565394620571947,
+        "z": 20.70621416950383
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeMedium",
+      "position": {
+        "x": 61.47334232665712,
+        "y": 20.628600374742184,
+        "z": 30.39185611401947
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeSmall",
+      "position": {
+        "x": 70.15691547795726,
+        "y": 17.702259506797112,
+        "z": 36.198761173646766
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeSmall",
+      "position": {
+        "x": 65.2094898111267,
+        "y": 14.739566705760637,
+        "z": 66.18046829061534
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeSmall",
+      "position": {
+        "x": 35.3466004406217,
+        "y": 19.340517570681694,
+        "z": 22.72611547857189
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeLarge",
+      "position": {
+        "x": 73.1663547254721,
+        "y": 10.947635542359292,
+        "z": 8.134273483751073
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeMedium",
+      "position": {
+        "x": 66.83462488979684,
+        "y": 12.179787783076492,
+        "z": 6.097548715993117
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeLarge",
+      "position": {
+        "x": 20.4880854283863,
+        "y": 11.210792831175066,
+        "z": 13.953861713012419
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeLarge",
+      "position": {
+        "x": 74.20897212013253,
+        "y": 15.011642483266392,
+        "z": 29.044222521196115
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeLarge",
+      "position": {
+        "x": 51.24765666787704,
+        "y": 14.747890422786497,
+        "z": 7.932084054968937
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeMedium",
+      "position": {
+        "x": 55.735743134667246,
+        "y": 20.299163796826495,
+        "z": 53.06945820601745
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeSmall",
+      "position": {
+        "x": 71.0512364332082,
+        "y": 16.313126465984485,
+        "z": 52.65097173051419
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeLarge",
+      "position": {
+        "x": 51.301490305729416,
+        "y": 21.656242221687528,
+        "z": 26.040643806646926
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeMedium",
+      "position": {
+        "x": 20.020613469704514,
+        "y": 15.167987458874855,
+        "z": 31.20025972806876
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeSmall",
+      "position": {
+        "x": 22.868594233096402,
+        "y": 16.38152359688963,
+        "z": 37.646590192606666
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeLarge",
+      "position": {
+        "x": 33.46465328116739,
+        "y": 20.609269050573182,
+        "z": 37.03743328576416
+      },
+      "rotation": 0
+    },
+    {
+      "type": "firTreeLarge",
+      "position": {
+        "x": 28.71521529392703,
+        "y": 16.638157034345785,
+        "z": 48.41935504699271
+      },
+      "rotation": 0
+    }
+  ]
+}

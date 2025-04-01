@@ -17,6 +17,22 @@
         "spawnPoint": true,
         "difficulty": 0
       }
+    },
+    {
+      "name": "Tree Haven",
+      "path": "/game/islands/customIslands/tree-island.json",
+      "position": {
+        "x": 85,
+        "y": 0,
+        "z": -580
+      },
+      "metadata": {
+        "name": "Tree Haven",
+        "safeZone": 0,
+        "tradingIsland": false,
+        "spawnPoint": false,
+        "difficulty": 3
+      }
     }
   ]
 } 
