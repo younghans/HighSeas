@@ -255,47 +255,6 @@ class ShipStats {
         
         menu.appendChild(shipCannonRangeSection);
         
-        // Add refresh button at the bottom
-        const refreshButtonContainer = document.createElement('div');
-        refreshButtonContainer.style.marginTop = '15px';
-        refreshButtonContainer.style.width = '100%';
-        refreshButtonContainer.style.display = 'flex';
-        refreshButtonContainer.style.justifyContent = 'center';
-        
-        const refreshButton = document.createElement('button');
-        refreshButton.textContent = 'Refresh Stats';
-        refreshButton.style.padding = '8px 12px';
-        refreshButton.style.backgroundColor = UI_CONSTANTS.COLORS.INFO;
-        refreshButton.style.color = 'white';
-        refreshButton.style.border = 'none';
-        refreshButton.style.borderRadius = '4px';
-        refreshButton.style.cursor = 'pointer';
-        
-        // Add hover effect
-        refreshButton.addEventListener('mouseover', () => {
-            refreshButton.style.backgroundColor = '#2288ee';
-        });
-        
-        refreshButton.addEventListener('mouseout', () => {
-            refreshButton.style.backgroundColor = UI_CONSTANTS.COLORS.INFO;
-        });
-        
-        // Add click handler to manually refresh stats
-        refreshButton.addEventListener('click', () => {
-            console.log('Manual refresh requested');
-            // Get player ship from game UI if available
-            if (this.gameUI && this.gameUI.playerShip) {
-                console.log('Found player ship in gameUI:', this.gameUI.playerShip);
-                this.playerShip = this.gameUI.playerShip;
-                this.refreshStats();
-            } else {
-                console.warn('No player ship available in gameUI');
-            }
-        });
-        
-        refreshButtonContainer.appendChild(refreshButton);
-        menu.appendChild(refreshButtonContainer);
-        
         // Set initial display to none
         menu.style.display = 'none';
         
