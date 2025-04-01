@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import Shipwright from '../ui/Shipwright.js';
+import HoverDetection from './HoverDetection.js';
 
 /**
  * IslandInteractionManager handles island interaction functionality
@@ -21,6 +22,40 @@ class IslandInteractionManager {
         
         // Initialize shipwright
         this.shipwright = new Shipwright({ gameUI: this.gameUI });
+        
+        // Map of object types to their interaction handlers
+        this.objectInteractionHandlers = {
+            'shipBuildingShop': this.handleShipwrightInteraction.bind(this)
+        };
+        
+        // Initialize hover detection system
+        this.hoverDetection = new HoverDetection({
+            scene: this.scene,
+            camera: this.camera,
+            islandGenerator: this.islandGenerator,
+            highlightableTypes: ['shipBuildingShop'], // Start with only the shipBuildingShop
+            debug: options.debug || false, // Pass debug flag
+            throttleTime: options.hoverThrottleTime || 150, // Throttle hover checks
+            frameSkip: options.hoverFrameSkip || 3, // Only process every N frames
+            islandInteractionManager: this // Pass self-reference
+        });
+        
+        // Set up object click handler
+        if (this.hoverDetection) {
+            this.hoverDetection.onObjectClicked = this.handleObjectClick.bind(this);
+        }
+        
+        // Check localStorage for highlighting setting
+        const savedHighlightSetting = localStorage.getItem('objectHighlighting');
+        this.highlightingEnabled = savedHighlightSetting !== null ? 
+            savedHighlightSetting === 'true' : 
+            options.highlightingEnabled !== false;
+            
+        // Allow completely disabling the hover system if performance is an issue
+        if (!this.highlightingEnabled && this.hoverDetection) {
+            this.hoverDetection.dispose();
+            this.hoverDetection = null;
+        }
         
         // Island interaction variables
         this.selectedIsland = null;
@@ -45,6 +80,52 @@ class IslandInteractionManager {
                     this.showIslandMenu(context.island, context.point);
                 }
             };
+        }
+        
+        // Store in global for settings UI access
+        if (window) {
+            window.islandInteractionManager = this;
+        }
+    }
+    
+    /**
+     * Handle object click event from HoverDetection
+     * @param {THREE.Object3D} object - The clicked object
+     */
+    handleObjectClick(object) {
+        if (!object || !object.userData || !object.userData.type) return;
+        
+        const objectType = object.userData.type;
+        const handler = this.objectInteractionHandlers[objectType];
+        
+        if (handler) {
+            handler(object);
+        }
+    }
+    
+    /**
+     * Add an interaction handler for a specific object type
+     * @param {string} objectType - The type of object to handle interactions for
+     * @param {Function} handler - The handler function
+     */
+    addObjectInteractionHandler(objectType, handler) {
+        if (typeof handler === 'function') {
+            this.objectInteractionHandlers[objectType] = handler;
+            
+            // Make sure this object type is also highlightable
+            this.addHighlightableType(objectType);
+        }
+    }
+    
+    /**
+     * Handle interaction with the shipwright shop
+     * @param {THREE.Object3D} object - The shipwright shop object
+     */
+    handleShipwrightInteraction(object) {
+        if (this.shipwright) {
+            this.shipwright.show();
+        } else {
+            console.error('Shipwright not available to handle interaction');
         }
     }
     
@@ -372,12 +453,77 @@ class IslandInteractionManager {
     }
     
     /**
+     * Set the types of objects that can be highlighted
+     * @param {Array} types - Array of object types that can be highlighted
+     */
+    setHighlightableTypes(types) {
+        if (this.hoverDetection) {
+            this.hoverDetection.setHighlightableTypes(types);
+        }
+    }
+    
+    /**
+     * Add a type of object that can be highlighted
+     * @param {string} type - Object type to add
+     */
+    addHighlightableType(type) {
+        if (this.hoverDetection) {
+            this.hoverDetection.addHighlightableType(type);
+        }
+    }
+    
+    /**
+     * Remove a type of object from the highlightable list
+     * @param {string} type - Object type to remove
+     */
+    removeHighlightableType(type) {
+        if (this.hoverDetection) {
+            this.hoverDetection.removeHighlightableType(type);
+        }
+    }
+    
+    /**
+     * Enable or disable hover highlighting
+     * @param {boolean} enabled - Whether highlighting should be enabled
+     */
+    setHighlightingEnabled(enabled) {
+        this.highlightingEnabled = enabled;
+        
+        if (!enabled && this.hoverDetection) {
+            this.hoverDetection.dispose();
+            this.hoverDetection = null;
+        } else if (enabled && !this.hoverDetection) {
+            // Re-initialize hover detection if it was previously disabled
+            this.hoverDetection = new HoverDetection({
+                scene: this.scene,
+                camera: this.camera,
+                islandGenerator: this.islandGenerator,
+                highlightableTypes: ['shipBuildingShop'],
+                debug: this.debug || false,
+                throttleTime: 150,
+                frameSkip: 3,
+                islandInteractionManager: this // Pass self-reference
+            });
+            
+            // Set up object click handler
+            if (this.hoverDetection) {
+                this.hoverDetection.onObjectClicked = this.handleObjectClick.bind(this);
+            }
+        }
+    }
+    
+    /**
      * Update method called each frame
      * @param {number} delta - Time since last update
      */
     update(delta) {
         // Check if ship has reached target island
         this.checkShipReachedIsland();
+        
+        // Update hover detection
+        if (this.highlightingEnabled && this.hoverDetection) {
+            this.hoverDetection.update(delta);
+        }
     }
 }
 

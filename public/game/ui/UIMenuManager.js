@@ -432,6 +432,49 @@ class UIMenuManager {
         filterContainer.appendChild(filterLabel);
         this.settingsMenu.appendChild(filterContainer);
         
+        // Create object highlighting toggle
+        const highlightContainer = document.createElement('div');
+        highlightContainer.style.display = 'flex';
+        highlightContainer.style.alignItems = 'center';
+        highlightContainer.style.marginBottom = '10px';
+        highlightContainer.style.cursor = 'pointer';
+        
+        const highlightCheckbox = document.createElement('input');
+        highlightCheckbox.type = 'checkbox';
+        highlightCheckbox.id = 'object-highlighting';
+        
+        // Check if highlighting is enabled (via the global reference or from localStorage)
+        const savedHighlightSetting = localStorage.getItem('objectHighlighting');
+        const defaultHighlighting = savedHighlightSetting !== null ? 
+            savedHighlightSetting === 'true' : 
+            (window.islandInteractionManager ? window.islandInteractionManager.highlightingEnabled : true);
+        
+        highlightCheckbox.checked = defaultHighlighting;
+        highlightCheckbox.style.marginRight = '10px';
+        highlightCheckbox.style.cursor = 'pointer';
+        
+        const highlightLabel = document.createElement('label');
+        highlightLabel.htmlFor = 'object-highlighting';
+        highlightLabel.textContent = 'Object Highlighting';
+        highlightLabel.style.cursor = 'pointer';
+        
+        highlightContainer.appendChild(highlightCheckbox);
+        highlightContainer.appendChild(highlightLabel);
+        this.settingsMenu.appendChild(highlightContainer);
+        
+        // Add event listener for highlighting toggle
+        highlightCheckbox.addEventListener('change', (event) => {
+            const isEnabled = event.target.checked;
+            
+            // Save to localStorage
+            localStorage.setItem('objectHighlighting', isEnabled);
+            
+            // Update IslandInteractionManager if available
+            if (window.islandInteractionManager) {
+                window.islandInteractionManager.setHighlightingEnabled(isEnabled);
+            }
+        });
+        
         // Create debug mode button
         const debugButtonContainer = document.createElement('div');
         debugButtonContainer.style.marginTop = '20px';
