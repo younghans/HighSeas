@@ -3,7 +3,7 @@
   "description": "Game world islands manifest",
   "islands": [
     {
-      "name": "Home Island",
+      "name": "Rumhaven",
       "path": "/game/islands/customIslands/test-home-island.json",
       "position": {
         "x": 5,
@@ -11,7 +11,7 @@
         "z": 85
       },
       "metadata": {
-        "name": "Home Island",
+        "name": "Rumhaven",
         "safeZone": 400,
         "tradingIsland": true,
         "spawnPoint": true,

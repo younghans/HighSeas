@@ -23,6 +23,7 @@ class Shipwright {
         this.gameUI = options.gameUI;
         this.initialized = false;
         this.islandMenu = options.islandMenu; // Reference to the island menu
+        this.currentIslandName = null; // Track the current island name
         
         // Keep track of active renderers and resources for cleanup
         this.activeRenderers = [];
@@ -456,7 +457,7 @@ class Shipwright {
         
         // Back to island button
         const backButton = document.createElement('button');
-        backButton.textContent = 'Back to Island';
+        backButton.textContent = this.currentIslandName ? `Back to ${this.currentIslandName}` : 'Back to Island';
         backButton.style.position = 'absolute';
         backButton.style.top = '10px';
         backButton.style.left = '10px';
@@ -473,7 +474,23 @@ class Shipwright {
             
             // Go back to island menu if it exists
             if (this.islandMenu) {
-                this.islandMenu.show(this.islandMenu.getSelectedIsland(), this.islandMenu.getSelectedIslandPoint());
+                const selectedIsland = this.islandMenu.getSelectedIsland();
+                
+                // Ensure the island has the correct name before showing the menu
+                if (selectedIsland && this.currentIslandName) {
+                    // If it's just a simple object (not a THREE.Object3D with proper userData)
+                    if (!selectedIsland.userData) {
+                        // Update the simple object with the correct name
+                        selectedIsland.name = this.currentIslandName;
+                    } else {
+                        // It's a proper THREE.Object3D, update its userData
+                        if (!selectedIsland.userData.islandName) {
+                            selectedIsland.userData.islandName = this.currentIslandName;
+                        }
+                    }
+                }
+                
+                this.islandMenu.show(selectedIsland, this.islandMenu.getSelectedIslandPoint());
             }
         });
         
@@ -499,11 +516,17 @@ class Shipwright {
     
     /**
      * Show the shipwright menu as a state of the island menu
+     * @param {Object} options - Optional configuration including islandName
      */
-    show() {
+    show(options = {}) {
         const menu = document.getElementById('shipwrightMenu');
         if (menu) {
             console.log('Showing shipwright menu...');
+            
+            // Store the island name if provided in options
+            if (options && options.islandName) {
+                this.currentIslandName = options.islandName;
+            }
             
             // Hide the island menu first
             if (this.islandMenu && this.islandMenu.isOpen()) {
@@ -520,6 +543,14 @@ class Shipwright {
             this.loadPlayerData().then(() => {
                 // Update lock overlays based on unlocked ships
                 this.updateLockOverlays();
+                
+                // Update the back button text based on island name
+                const backButton = menu.querySelector('button:nth-child(3)'); // The back button
+                if (backButton) {
+                    backButton.textContent = this.currentIslandName ? 
+                        `Back to ${this.currentIslandName}` : 
+                        'Back to Island';
+                }
                 
                 // Display the shipwright menu
                 menu.style.display = 'block';
@@ -552,6 +583,22 @@ class Shipwright {
                 if (this.islandMenu && this.islandMenu.currentView === 'shipwright') {
                     // Update the IslandMenu to go back to main view
                     this.islandMenu.currentView = 'main';
+                    
+                    // Update the selected island with the correct name
+                    const selectedIsland = this.islandMenu.getSelectedIsland();
+                    if (selectedIsland && this.currentIslandName) {
+                        // If it's just a simple object (not a THREE.Object3D with proper userData)
+                        if (!selectedIsland.userData) {
+                            // Update the simple object with the correct name
+                            selectedIsland.name = this.currentIslandName;
+                        } else {
+                            // It's a proper THREE.Object3D, update its userData if needed
+                            if (!selectedIsland.userData.islandName) {
+                                selectedIsland.userData.islandName = this.currentIslandName;
+                            }
+                        }
+                    }
+                    
                     // Check if we should show the island menu
                     if (this.islandMenu.isOpen()) {
                         const islandMenuElement = document.getElementById('islandMenu');

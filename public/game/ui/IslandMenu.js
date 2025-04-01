@@ -52,9 +52,20 @@ class IslandMenu {
             // Hide the island menu element
             this.menuElement.style.display = 'none';
             
+            // Get the island name
+            let islandName = 'an island';
+            if (island) {
+                if (island.userData && island.userData.islandName) {
+                    islandName = island.userData.islandName;
+                } else if (island.name) {
+                    islandName = island.name;
+                }
+            }
+            
             // Show the shipwright menu if available
             if (this.shipwright) {
-                this.shipwright.show();
+                // Pass the island name to the shipwright for display
+                this.shipwright.show({ islandName });
             }
             return;
         }
@@ -89,10 +100,21 @@ class IslandMenu {
      * Show the main island menu view
      */
     showMainView() {
-        // Update menu content
+        // Get the island name from userData if available, or fallback to other properties
+        let islandName = 'an island';
+        
+        if (this.selectedIsland) {
+            if (this.selectedIsland.userData && this.selectedIsland.userData.islandName) {
+                islandName = this.selectedIsland.userData.islandName;
+            } else if (this.selectedIsland.name) {
+                islandName = this.selectedIsland.name;
+            }
+        }
+        
+        // Update menu content with the island name
         this.menuElement.innerHTML = `
-            <h2>Island Menu</h2>
-            <p>You've discovered ${this.selectedIsland.name || 'an island'}!</p>
+            <h2>${islandName}</h2>
+            <p>You've discovered ${islandName}!</p>
             <button id="shipwrightButton">Shipwright</button>
             <button id="buildButton">Building Mode</button>
             <button id="closeMenuButton">Close</button>
@@ -106,9 +128,15 @@ class IslandMenu {
             // Hide the island menu
             this.menuElement.style.display = 'none';
             
+            // Get the island name to pass to the shipwright
+            let islandName = this.selectedIsland ? 
+                (this.selectedIsland.userData && this.selectedIsland.userData.islandName) || 
+                this.selectedIsland.name || 
+                'an island' : 'an island';
+            
             // Show the shipwright menu if available
             if (this.shipwright) {
-                this.shipwright.show();
+                this.shipwright.show({ islandName });
             }
         });
         
@@ -124,6 +152,17 @@ class IslandMenu {
      * Show the building view
      */
     showBuildingView() {
+        // Get the island name from userData if available, or fallback to other properties
+        let islandName = 'an island';
+        
+        if (this.selectedIsland) {
+            if (this.selectedIsland.userData && this.selectedIsland.userData.islandName) {
+                islandName = this.selectedIsland.userData.islandName;
+            } else if (this.selectedIsland.name) {
+                islandName = this.selectedIsland.name;
+            }
+        }
+
         if (this.buildingManager) {
             // Enter build mode using the building manager
             this.buildingManager.enterBuildMode({
@@ -163,7 +202,7 @@ class IslandMenu {
         } else {
             // Fallback if building manager is not available
             this.menuElement.innerHTML = `
-                <h2>Building Mode</h2>
+                <h2>Building Mode - ${islandName}</h2>
                 <p>Building services are not available at this time.</p>
                 <button id="backButton">Back</button>
             `;

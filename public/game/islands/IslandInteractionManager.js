@@ -147,6 +147,14 @@ class IslandInteractionManager {
             this.selectedIsland = containingIsland;
             this.selectedIslandPoint = object.position.clone();
             
+            // Get the island name from userData
+            let islandName = 'an island';
+            if (containingIsland.userData && containingIsland.userData.islandName) {
+                islandName = containingIsland.userData.islandName;
+            } else if (containingIsland.name) {
+                islandName = containingIsland.name;
+            }
+            
             // Show the island menu with shipwright view
             this.showIslandMenu(containingIsland, object.position.clone(), 'shipwright');
         } else {
@@ -159,15 +167,41 @@ class IslandInteractionManager {
                 this.hideIslandMenu();
             }
             
+            // Try to get the island name from object's parent groups
+            let islandName = "Shipwright Shop";
+            
+            // Check if this object is part of a group that has island info
+            currentObj = object.parent;
+            while (currentObj) {
+                // Check if a parent has islandId
+                if (currentObj.userData && currentObj.userData.islandId) {
+                    // Found a parent with island ID - now get the actual island name
+                    const islandId = currentObj.userData.islandId;
+                    // Look up the island name from loaded islands if island generator is available
+                    if (this.islandGenerator && this.islandGenerator.islands) {
+                        const island = this.islandGenerator.islands.find(i => 
+                            i.userData && (i.userData.islandId === islandId || i.name === islandId)
+                        );
+                        if (island && island.userData && island.userData.islandName) {
+                            islandName = island.userData.islandName;
+                            break;
+                        }
+                    }
+                }
+                
+                // Try the next parent in the hierarchy
+                currentObj = currentObj.parent;
+            }
+            
             // Create a temporary context
-            this.selectedIsland = { name: "Shipwright Shop" };
+            this.selectedIsland = { name: islandName };
             this.selectedIslandPoint = object.position.clone();
             this.islandMenuOpen = true; // Mark that the menu system is open
             
-            // Show shipwright directly 
+            // Show shipwright directly with the island name
             if (this.shipwright) {
                 this.islandMenu.currentView = 'shipwright';
-                this.shipwright.show();
+                this.shipwright.show({ islandName });
             }
         }
     }
@@ -369,8 +403,24 @@ class IslandInteractionManager {
         this.selectedIsland = island;
         this.selectedIslandPoint = clickedPoint;
         
+        // Get the island name
+        let islandName = 'an island';
+        if (island.userData && island.userData.islandName) {
+            islandName = island.userData.islandName;
+        } else if (island.name) {
+            islandName = island.name;
+        }
+        
         // Show the island menu using our IslandMenu component with the specified view
-        this.islandMenu.show(island, clickedPoint, { view });
+        if (view === 'shipwright' && this.shipwright) {
+            // If showing shipwright view, pass the island name to shipwright
+            this.islandMenu.show(island, clickedPoint, { view });
+            // Also directly update the shipwright with the island name
+            this.shipwright.currentIslandName = islandName;
+        } else {
+            // Normal island menu display
+            this.islandMenu.show(island, clickedPoint, { view });
+        }
     }
     
     /**
