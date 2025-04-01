@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import Shipwright from '../ui/Shipwright.js';
+import IslandMenu from '../ui/IslandMenu.js';
 import HoverDetection from './HoverDetection.js';
 
 /**
@@ -22,6 +23,16 @@ class IslandInteractionManager {
         
         // Initialize shipwright
         this.shipwright = new Shipwright({ gameUI: this.gameUI });
+        
+        // Initialize island menu
+        this.islandMenu = new IslandMenu({
+            gameUI: this.gameUI,
+            shipwright: this.shipwright,
+            buildingManager: this.buildingManager,
+            onMenuClosed: () => {
+                this.islandMenuOpen = false;
+            }
+        });
         
         // Map of object types to their interaction handlers
         this.objectInteractionHandlers = {
@@ -63,14 +74,6 @@ class IslandInteractionManager {
         this.selectedIslandPoint = null;
         this.ISLAND_INTERACTION_DISTANCE = 50;
         this.WATER_LEVEL_THRESHOLD = 0;
-        
-        // Create island menu if it doesn't exist
-        if (!document.getElementById('islandMenu')) {
-            const menu = document.createElement('div');
-            menu.id = 'islandMenu';
-            menu.style.display = 'none';
-            document.body.appendChild(menu);
-        }
         
         // Set up building manager callbacks if provided
         if (this.buildingManager) {
@@ -324,74 +327,19 @@ class IslandInteractionManager {
     showIslandMenu(island, clickedPoint) {
         this.ship.stopMoving();
         this.islandMenuOpen = true;
-        this.selectedIslandPoint = clickedPoint;
         this.selectedIsland = island;
+        this.selectedIslandPoint = clickedPoint;
         
-        // Close top UI menus if game UI exists
-        if (this.gameUI) {
-            this.gameUI.closeTopMenu();
-        }
-        
-        const menu = document.getElementById('islandMenu');
-        
-        // Update menu content with a Build button
-        menu.innerHTML = `
-            <h2>Island Menu</h2>
-            <p>You've discovered ${island.name || 'an island'}!</p>
-            <button id="shipwrightButton">Shipwright</button>
-            <button id="buildButton">Building Mode</button>
-            <button id="closeMenuButton">Close</button>
-        `;
-        
-        // Add event listeners to buttons
-        document.getElementById('shipwrightButton').addEventListener('click', () => {
-            console.log('Opening shipwright menu...');
-            // Hide the island menu
-            this.hideIslandMenu();
-            
-            // Open the shipwright menu
-            this.toggleMenu('shipwrightMenu', true);
-        });
-        
-        document.getElementById('buildButton').addEventListener('click', () => {
-            // Hide the island menu
-            this.hideIslandMenu();
-            
-            // Enter build mode using the building manager
-            if (this.buildingManager) {
-                // Pass context information about which island we're building on
-                this.buildingManager.enterBuildMode({
-                    context: {
-                        type: 'island',
-                        island: this.selectedIsland,
-                        point: this.selectedIslandPoint
-                    }
-                });
-                
-                // Set the building manager's UI container to the island menu
-                this.buildingManager.uiContainer = document.getElementById('islandMenu');
-                
-                // Show the building selection UI
-                this.buildingManager.showBuildingSelectionUI();
-            }
-        });
-        
-        document.getElementById('closeMenuButton').addEventListener('click', () => this.hideIslandMenu());
-        
-        menu.style.display = 'block';
+        // Show the island menu using our IslandMenu component
+        this.islandMenu.show(island, clickedPoint);
     }
     
     /**
      * Hide the island menu
      */
     hideIslandMenu() {
-        const menu = document.getElementById('islandMenu');
-        if (menu) {
-            menu.style.display = 'none';
-        }
+        this.islandMenu.hide();
         this.islandMenuOpen = false;
-        // Don't reset selectedIsland and selectedIslandPoint here
-        // so we can return to the island menu after build mode
     }
     
     /**

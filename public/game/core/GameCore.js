@@ -624,14 +624,6 @@ class GameCore {
                             this.spatialAudioManager.resumeAudioContext();
                         }
                         
-                        // Create an empty island menu container if it doesn't exist
-                        if (!document.getElementById('islandMenu')) {
-                            const menu = document.createElement('div');
-                            menu.id = 'islandMenu';
-                            menu.style.display = 'none';
-                            document.body.appendChild(menu);
-                        }
-                        
                         // When using the player's saved position, initialize multiplayer first
                         // to make sure all position synchronization is correctly set up
                         if (Auth.isAuthenticated()) {
