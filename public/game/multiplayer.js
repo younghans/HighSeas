@@ -220,8 +220,8 @@ class MultiplayerManager {
                                 // Set up presence system
                                 this.setupPresence();
                                 
-                                // Listen for other players
-                                this.playersRef.on('child_added', this.handlePlayerAdded);
+                                // Listen for other players - only load online players initially
+                                this.playersRef.orderByChild('isOnline').equalTo(true).on('child_added', this.handlePlayerAdded);
                                 this.playersRef.on('child_changed', this.handlePlayerChanged);
                                 this.playersRef.on('child_removed', this.handlePlayerRemoved);
                                 

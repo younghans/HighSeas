@@ -2,6 +2,7 @@
   "rules": {
     "players": {
       ".read": "auth != null",
+      ".indexOn": ["isOnline"],
       "$uid": {
         ".read": "auth != null",
         ".write": "auth != null && auth.uid === $uid",
