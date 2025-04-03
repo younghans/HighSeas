@@ -116,6 +116,30 @@ export const MODELS = {
         path: './assets/models/box-2.glb',
         scale: [1, 1, 1]
     },
+    storagehut: {
+        id: 'storagehut',
+        name: 'Storage Hut',
+        path: './assets/models/storage-hut.glb',
+        scale: [5, 5, 5]
+    },
+    storageshed: {
+        id: 'storageshed',
+        name: 'Storage Shed',
+        path: './assets/models/storage-shed.glb',
+        scale: [1, 1, 1]
+    },
+    storagehouse: {
+        id: 'storagehouse',
+        name: 'Storage House',
+        path: './assets/models/storage-house.glb',
+        scale: [6, 6, 6]
+    },
+    blacksmith: {
+        id: 'blacksmith',
+        name: 'Blacksmith',
+        path: './assets/models/blacksmith.glb',
+        scale: [1, 1, 1]
+    },
 };
 
 /**

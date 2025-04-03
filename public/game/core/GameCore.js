@@ -67,6 +67,12 @@ class GameCore {
         // Track player zone status
         this.playerInSafeZone = false;
         
+        // Track page visibility
+        this.isPageVisible = true;
+        
+        // Add event listener for page visibility changes
+        document.addEventListener('visibilitychange', this.handleVisibilityChange.bind(this));
+        
         // Bind methods to maintain 'this' context
         this.animate = this.animate.bind(this);
     }
@@ -1255,6 +1261,21 @@ class GameCore {
     
     getRenderer() {
         return this.sceneManager.getRenderer();
+    }
+
+    // Add this method to the GameCore class
+    handleVisibilityChange() {
+        this.isPageVisible = document.visibilityState === 'visible';
+        
+        // When page becomes hidden, stop the ship's movement
+        if (!this.isPageVisible && this.ship && this.ship.isMoving) {
+            this.ship.stopMoving();
+            
+            // Force sync position with Firebase if multiplayer is active
+            if (this.multiplayerManager) {
+                this.multiplayerManager.updatePlayerPosition(this.ship, true);
+            }
+        }
     }
 }
 
