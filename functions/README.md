@@ -74,4 +74,19 @@ exports.myFunction = functions.https.onCall(async (data, context) => {
   
   // Function logic here
 });
-``` 
+```
+
+# Scheduled Functions
+
+The project includes scheduled functions that run at regular intervals to maintain the game state.
+
+## Marking Inactive Players as Offline
+
+The `markInactivePlayers` function automatically marks players as offline if they haven't updated their status recently:
+
+- **Schedule**: Runs every 5 minutes
+- **Functionality**: Checks for players marked as online whose `lastUpdated` timestamp is older than 10 minutes
+- **Implementation**: Sets `isOnline: false` for any players who meet this criteria
+- **Purpose**: Prevents player profiles from remaining marked as online when they've lost connection or closed the game
+
+This function helps ensure that player ships don't remain visible in the game world when the player is no longer actively connected. 
