@@ -125,7 +125,7 @@ export const MODELS = {
     storageshed: {
         id: 'storageshed',
         name: 'Storage Shed',
-        path: './assets/models/storage-shed.glb',
+        path: './assets/models/storage-shed2.glb',
         scale: [1, 1, 1]
     },
     storagehouse: {

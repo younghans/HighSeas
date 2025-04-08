@@ -131,6 +131,7 @@ class IslandLoader {
                 tradingIsland: metadata.tradingIsland,
                 spawnPoint: metadata.spawnPoint,
                 difficulty: metadata.difficulty,
+                resources: metadata.resources,
                 customIsland: true
             };
             

@@ -97,6 +97,72 @@ class IslandMenu {
     }
     
     /**
+     * Check if the selected island has a specific resource
+     * @param {string} resourceType - The resource type to check for
+     * @returns {boolean} Whether the island has the resource
+     */
+    hasResource(resourceType) {
+        if (!this.selectedIsland || !this.selectedIsland.userData) return false;
+        
+        // Check if the island has resources data
+        if (this.selectedIsland.userData.resources) {
+            // If resources is an array, check if it contains the resourceType
+            if (Array.isArray(this.selectedIsland.userData.resources)) {
+                return this.selectedIsland.userData.resources.includes(resourceType);
+            }
+            // If resources is a string, check if it equals the resourceType
+            else if (typeof this.selectedIsland.userData.resources === 'string') {
+                return this.selectedIsland.userData.resources === resourceType;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if the selected island has a specific building or object type
+     * @param {string} objectType - The object type to check for
+     * @returns {boolean} Whether the island has the object type
+     */
+    hasObjectType(objectType) {
+        if (!this.selectedIsland) return false;
+        
+        // Method 1: Check userData.placedObjects
+        if (this.selectedIsland.userData && 
+            this.selectedIsland.userData.placedObjects && 
+            Array.isArray(this.selectedIsland.userData.placedObjects)) {
+            // Find any object of the specified type
+            if (this.selectedIsland.userData.placedObjects.some(obj => obj.type === objectType)) {
+                return true;
+            }
+        }
+        
+        // Method a: Check actual child objects for the type
+        if (this.selectedIsland.children && this.selectedIsland.children.length > 0) {
+            // Look through direct children
+            for (const child of this.selectedIsland.children) {
+                // Check if this child is of the requested type
+                if (child.userData && child.userData.type === objectType) {
+                    return true;
+                }
+
+                // If this child has a group of objects (common pattern)
+                if (child.children && child.children.length > 0) {
+                    // Recursively check its children
+                    for (const grandchild of child.children) {
+                        if (grandchild.userData && grandchild.userData.type === objectType) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // No matching object found
+        return false;
+    }
+    
+    /**
      * Show the main island menu view
      */
     showMainView() {
@@ -111,34 +177,69 @@ class IslandMenu {
             }
         }
         
-        // Update menu content with the island name
-        this.menuElement.innerHTML = `
+        // Debug information
+        console.log('IslandMenu - Selected Island:', islandName);
+        if (this.selectedIsland && this.selectedIsland.userData) {
+            console.log('IslandMenu - userData:', this.selectedIsland.userData);
+            console.log('IslandMenu - Has wood resource:', this.hasResource('wood'));
+            console.log('IslandMenu - Has shipBuildingShop:', this.hasObjectType('shipBuildingShop'));
+        }
+        
+        // Start building the HTML for the menu
+        let menuHTML = `
             <h2>${islandName}</h2>
             <p>You've discovered ${islandName}!</p>
-            <button id="shipwrightButton">Shipwright</button>
-            <button id="buildButton">Building Mode</button>
-            <button id="closeMenuButton">Close</button>
         `;
         
+        // Add resource-specific buttons
+        if (this.hasResource('wood')) {
+            menuHTML += `<button id="collectWoodButton">Collect Wood</button>`;
+        }
+        
+        // Add shipwright button only if the island has a shipBuildingShop
+        if (this.hasObjectType('shipBuildingShop')) {
+            menuHTML += `<button id="shipwrightButton">Shipwright</button>`;
+        }
+        
+        // Always add building mode button
+        menuHTML += `<button id="buildButton">Building Mode</button>`;
+        
+        // Add close button
+        menuHTML += `<button id="closeMenuButton">Close</button>`;
+        
+        // Update menu content
+        this.menuElement.innerHTML = menuHTML;
+        
         // Add event listeners to buttons
-        document.getElementById('shipwrightButton').addEventListener('click', () => {
-            console.log('Switching to shipwright view...');
-            this.currentView = 'shipwright';
-            
-            // Hide the island menu
-            this.menuElement.style.display = 'none';
-            
-            // Get the island name to pass to the shipwright
-            let islandName = this.selectedIsland ? 
-                (this.selectedIsland.userData && this.selectedIsland.userData.islandName) || 
-                this.selectedIsland.name || 
-                'an island' : 'an island';
-            
-            // Show the shipwright menu if available
-            if (this.shipwright) {
-                this.shipwright.show({ islandName });
-            }
-        });
+        if (this.hasResource('wood')) {
+            document.getElementById('collectWoodButton').addEventListener('click', () => {
+                // Handle wood collection logic here
+                console.log('Collecting wood from', islandName);
+                // For now, just show a message
+                alert(`You collected wood from ${islandName}!`);
+            });
+        }
+        
+        if (this.hasObjectType('shipBuildingShop')) {
+            document.getElementById('shipwrightButton').addEventListener('click', () => {
+                console.log('Switching to shipwright view...');
+                this.currentView = 'shipwright';
+                
+                // Hide the island menu
+                this.menuElement.style.display = 'none';
+                
+                // Get the island name to pass to the shipwright
+                let islandName = this.selectedIsland ? 
+                    (this.selectedIsland.userData && this.selectedIsland.userData.islandName) || 
+                    this.selectedIsland.name || 
+                    'an island' : 'an island';
+                
+                // Show the shipwright menu if available
+                if (this.shipwright) {
+                    this.shipwright.show({ islandName });
+                }
+            });
+        }
         
         document.getElementById('buildButton').addEventListener('click', () => {
             this.currentView = 'building';

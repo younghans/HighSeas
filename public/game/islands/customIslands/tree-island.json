@@ -15,7 +15,8 @@
     "tradingIsland": false,
     "spawnPoint": false,
     "difficulty": 3,
-    "description": "A forested island with tall trees providing shade and resources."
+    "description": "A forested island with tall trees providing shade and resources.",
+    "resources": ["wood"]
   },
   "createdAt": "2025-03-29T06:29:54.925Z",
   "placedObjects": [

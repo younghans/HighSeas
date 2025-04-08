@@ -31,7 +31,8 @@
         "safeZone": 0,
         "tradingIsland": false,
         "spawnPoint": false,
-        "difficulty": 3
+        "difficulty": 3,
+        "resources": ["wood"]
       }
     }
   ]
