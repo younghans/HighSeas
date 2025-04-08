@@ -2,6 +2,7 @@
  * ResourceCollector.js - UI wrapper for resource collection system
  */
 import ResourceSystem from '../systems/ResourceSystem.js';
+import GatherWood from '../systems/CollectResources/GatherWood.js';
 
 class ResourceCollector {
     /**
@@ -16,6 +17,14 @@ class ResourceCollector {
             playerShip: options.playerShip,
             multiplayerManager: options.multiplayerManager
         });
+        
+        // Initialize resource gathering systems
+        this.gatheringSystems = {
+            wood: new GatherWood({
+                soundManager: options.soundManager || window.soundManager,
+                resourceSystem: this.resourceSystem
+            })
+        };
         
         // Animation state
         this.animationState = null;
@@ -539,6 +548,42 @@ class ResourceCollector {
      */
     setCollectionCycleDuration(duration) {
         this.resourceSystem.setCollectionCycleDuration(duration);
+    }
+    
+    /**
+     * Set the sound manager reference
+     * @param {SoundManager} soundManager - The sound manager instance
+     */
+    setSoundManager(soundManager) {
+        // Update sound manager reference in gathering systems
+        Object.values(this.gatheringSystems).forEach(system => {
+            if (system && typeof system.soundManager !== 'undefined') {
+                system.soundManager = soundManager;
+            }
+        });
+    }
+    
+    /**
+     * Clean up all resources
+     */
+    destroy() {
+        // Stop collection if active
+        if (this.isActive()) {
+            this.stopCollection();
+        }
+        
+        // Clean up gathering systems
+        Object.values(this.gatheringSystems).forEach(system => {
+            if (system && typeof system.destroy === 'function') {
+                system.destroy();
+            }
+        });
+        
+        // Clear update interval
+        if (this.updateInterval) {
+            clearInterval(this.updateInterval);
+            this.updateInterval = null;
+        }
     }
 }
 
