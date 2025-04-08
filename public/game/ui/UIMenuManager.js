@@ -4,6 +4,7 @@ import UIEventBus from './UIEventBus.js';
 import DebugPanel from './DebugPanel.js';
 import UsernameValidator from './UsernameValidator.js';
 import ShipStats from './ShipStats.js';
+import Inventory from './Inventory.js';
 
 /**
  * Manages all UI menus
@@ -20,13 +21,13 @@ class UIMenuManager {
         this.profileMenu = null;
         this.settingsMenu = null;
         this.leaderboardMenu = null;
-        this.inventoryMenu = null;
         this.goldMenu = null;
         this.shipStatsMenu = null;
         this.mapMenu = null;
         
         // Component references
         this.shipStats = null;
+        this.inventory = null;
         
         this.init();
     }
@@ -78,6 +79,36 @@ class UIMenuManager {
         const goldMenuAmount = document.getElementById('gold-menu-amount');
         if (goldMenuAmount) {
             goldMenuAmount.textContent = data.amount;
+        }
+    }
+    
+    /**
+     * Handle resource update event
+     * @param {CustomEvent} event - The resource update event
+     */
+    handleResourceUpdate(event) {
+        if (event.detail && event.detail.resources) {
+            // Update the inventory menu if it exists
+            if (this.inventory) {
+                this.inventory.updateInventoryMenu();
+            }
+        }
+    }
+    
+    /**
+     * Handle resource collection event
+     * @param {CustomEvent} event - The resource collection event
+     */
+    handleResourceCollected(event) {
+        console.log('Resource collected event received:', event.detail);
+        if (event.detail && event.detail.resource) {
+            // Update the inventory menu if it exists and is visible
+            if (this.inventory && 
+                this.inventory.inventoryMenu &&
+                this.inventory.inventoryMenu.style.display === 'block' && 
+                this.gameUI.bottomMenuContainer.style.display === 'block') {
+                this.inventory.updateInventoryMenu();
+            }
         }
     }
     
@@ -148,7 +179,7 @@ class UIMenuManager {
      */
     toggleBottomMenu(menuType) {
         // Hide all bottom menus first
-        if (this.inventoryMenu) this.inventoryMenu.style.display = 'none';
+        if (this.inventory && this.inventory.inventoryMenu) this.inventory.hide();
         if (this.goldMenu) this.goldMenu.style.display = 'none';
         if (this.shipStatsMenu) this.shipStatsMenu.style.display = 'none';
         if (this.mapMenu) this.mapMenu.style.display = 'none';
@@ -168,8 +199,8 @@ class UIMenuManager {
         }
         
         if (menuType === 'inventory') {
-            if (this.inventoryMenu) {
-                this.inventoryMenu.style.display = 'block';
+            if (this.inventory) {
+                this.inventory.show();
             }
         } else if (menuType === 'gold') {
             if (this.goldMenu) {
@@ -558,18 +589,14 @@ class UIMenuManager {
      * Create inventory menu
      */
     createInventoryMenu() {
-        this.inventoryMenu = UIUtils.createMenu('inventory-menu', 'Inventory', UI_CONSTANTS.COLORS.INFO);
+        // Create the inventory component
+        this.inventory = new Inventory({
+            gameUI: this.gameUI
+        });
         
-        // Empty inventory message
-        const emptyMessage = document.createElement('p');
-        emptyMessage.textContent = 'Your inventory is empty.';
-        emptyMessage.style.textAlign = 'center';
-        emptyMessage.style.color = 'rgba(255, 255, 255, 0.7)';
-        emptyMessage.style.fontStyle = 'italic';
-        this.inventoryMenu.appendChild(emptyMessage);
-        
-        if (this.gameUI.bottomMenuContainer) {
-            this.gameUI.bottomMenuContainer.appendChild(this.inventoryMenu);
+        // Add menu to bottom container
+        if (this.gameUI.bottomMenuContainer && this.inventory.inventoryMenu) {
+            this.gameUI.bottomMenuContainer.appendChild(this.inventory.inventoryMenu);
         }
     }
     
@@ -765,7 +792,7 @@ class UIMenuManager {
         if (this.leaderboardMenu) this.leaderboardMenu.style.display = 'none';
         
         // Hide bottom menus
-        if (this.inventoryMenu) this.inventoryMenu.style.display = 'none';
+        if (this.inventory) this.inventory.hide();
         if (this.goldMenu) this.goldMenu.style.display = 'none';
         if (this.shipStatsMenu) this.shipStatsMenu.style.display = 'none';
         if (this.mapMenu) this.mapMenu.style.display = 'none';

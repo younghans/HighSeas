@@ -1,0 +1,126 @@
+{
+  "name": "iron-island",
+  "params": {
+    "size": 320,
+    "resolution": 85,
+    "treeCount": 0,
+    "seed": 8452,
+    "noiseScale": 0.004,
+    "noiseHeight": 180,
+    "falloffFactor": 0.35
+  },
+  "metadata": {
+    "name": "Iron Ridge",
+    "safeZone": 0,
+    "tradingIsland": false,
+    "spawnPoint": false,
+    "difficulty": 4,
+    "description": "A rocky island rich with iron deposits glinting in the sunlight.",
+    "resources": ["iron"]
+  },
+  "createdAt": "2025-03-31T08:45:11.925Z",
+  "placedObjects": [
+    {
+      "type": "rockLarge",
+      "position": {
+        "x": 42.7892746712544,
+        "y": 25.89165473562978,
+        "z": 44.97812673816872
+      },
+      "rotation": 0.25
+    },
+    {
+      "type": "rockLarge",
+      "position": {
+        "x": 68.53284756981632,
+        "y": 18.72468357292847,
+        "z": 32.59647852693721
+      },
+      "rotation": 1.2
+    },
+    {
+      "type": "rockMedium",
+      "position": {
+        "x": 56.789274671298,
+        "y": 21.82476273546287,
+        "z": 51.36947582146873
+      },
+      "rotation": 0.75
+    },
+    {
+      "type": "rockMedium",
+      "position": {
+        "x": 38.91274563271827,
+        "y": 19.35721946728354,
+        "z": 28.63517294625382
+      },
+      "rotation": 2.1
+    },
+    {
+      "type": "rockSmall",
+      "position": {
+        "x": 75.12648732956823,
+        "y": 16.37258369247632,
+        "z": 42.12649583726491
+      },
+      "rotation": 0
+    },
+    {
+      "type": "rockSmall",
+      "position": {
+        "x": 61.42587162857492,
+        "y": 22.12457863597216,
+        "z": 37.54291687562341
+      },
+      "rotation": 1.8
+    },
+    {
+      "type": "mineralDeposit",
+      "position": {
+        "x": 52.78274659152734,
+        "y": 20.45781265392748,
+        "z": 45.12745691257843
+      },
+      "rotation": 0,
+      "metadata": {
+        "type": "iron"
+      }
+    },
+    {
+      "type": "mineralDeposit",
+      "position": {
+        "x": 63.12856794523871,
+        "y": 19.12568237549823,
+        "z": 29.65871245687392
+      },
+      "rotation": 0.4,
+      "metadata": {
+        "type": "iron"
+      }
+    },
+    {
+      "type": "mineralDeposit",
+      "position": {
+        "x": 72.36584712968752,
+        "y": 17.85623749683217,
+        "z": 38.96523487156234
+      },
+      "rotation": 1.5,
+      "metadata": {
+        "type": "iron"
+      }
+    },
+    {
+      "type": "mineralDeposit",
+      "position": {
+        "x": 42.85927436857294,
+        "y": 21.12568237549823,
+        "z": 32.12987654321098
+      },
+      "rotation": 2.3,
+      "metadata": {
+        "type": "iron"
+      }
+    }
+  ]
+} 

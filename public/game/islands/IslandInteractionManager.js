@@ -25,6 +25,7 @@ class IslandInteractionManager {
         this.islandMenu = new IslandMenu({
             gameUI: this.gameUI,
             buildingManager: this.buildingManager,
+            resourceCollector: this.gameUI ? this.gameUI.getResourceCollector() : null,
             onMenuClosed: () => {
                 this.islandMenuOpen = false;
             }
@@ -345,7 +346,7 @@ class IslandInteractionManager {
     }
     
     /**
-     * Handle water click
+     * Handle clicks on the water
      * @param {THREE.Raycaster} raycaster - The raycaster used for the click
      * @returns {boolean} - Whether the click was handled
      */
@@ -378,6 +379,15 @@ class IslandInteractionManager {
             if (this.multiplayerManager) {
                 this.multiplayerManager.updatePlayerPosition(this.ship);
             }
+            
+            // Dispatch map navigation event to notify other systems (like resource collection)
+            const navigationEvent = new CustomEvent('mapNavigationStarted', {
+                detail: {
+                    destination: intersectionPoint,
+                    source: 'waterClick'
+                }
+            });
+            document.dispatchEvent(navigationEvent);
             
             return true; // Click was handled
         }

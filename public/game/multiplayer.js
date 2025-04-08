@@ -211,9 +211,9 @@ class MultiplayerManager {
                         
                         this.debug(`Setting player data for ${initialData.displayName} with model ${initialData.modelType} and unlocked ships: ${JSON.stringify(initialData.unlockedShips)}`);
                         
-                        // Update the database with the player's complete data
-                        // Use set instead of update to ensure all fields are written for new users
-                        return this.playerRef.set(initialData)
+                        // Update the database with the player's data
+                        // Use update instead of set to preserve inventory data and other fields not specified in initialData
+                        return this.playerRef.update(initialData)
                             .then(() => {
                                 this.debug('Player data synced to server:', initialData);
                                 
@@ -1408,6 +1408,81 @@ class MultiplayerManager {
                 console.error('Error saving final position:', error);
             }
         }
+    }
+    
+    /**
+     * Update player resources in Firebase
+     * @param {Object} resourceUpdate - The resource update object
+     * @returns {Promise} Promise that resolves when update is complete
+     */
+    updatePlayerResources(resourceUpdate) {
+        // Check if playerRef is available first
+        if (!this.playerRef) {
+            console.error('Cannot update resources: Not connected to player reference');
+            return Promise.reject('Not connected');
+        }
+        
+        // Check authentication - try direct Firebase auth first, then fall back to Auth object
+        const user = firebase.auth().currentUser || (this.auth && this.auth.getCurrentUser());
+        
+        if (!user) {
+            console.error('Cannot update resources: Not authenticated');
+            return Promise.reject('Not authenticated');
+        }
+        
+        this.debug(`Updating player resources:`, resourceUpdate);
+        
+        // Get the current user ID
+        const uid = user.uid;
+        
+        // Create a reference to the player's inventory in Firebase
+        const inventoryRef = this.database.ref(`players/${uid}/inventory`);
+        
+        // Update resource values in Firebase
+        return inventoryRef.once('value')
+            .then(snapshot => {
+                const inventory = snapshot.exists() ? snapshot.val() : { resources: {} };
+                
+                // Initialize resources object if it doesn't exist
+                if (!inventory.resources) {
+                    inventory.resources = {};
+                }
+                
+                // Update each resource in the update object
+                if (resourceUpdate.resources) {
+                    Object.entries(resourceUpdate.resources).forEach(([resourceType, amount]) => {
+                        // Get current amount (default to 0 if it doesn't exist)
+                        const currentAmount = inventory.resources[resourceType] || 0;
+                        const newAmount = currentAmount + amount;
+                        
+                        this.debug(`Updating ${resourceType}: ${currentAmount} + ${amount} = ${newAmount}`);
+                        
+                        // Update the resource amount
+                        inventory.resources[resourceType] = newAmount;
+                    });
+                }
+                
+                // Update the inventory in Firebase
+                return this.playerRef.update({
+                    inventory: inventory,
+                    lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                });
+            })
+            .then(() => {
+                this.debug(`Successfully updated player resources`);
+                
+                // Trigger an event to update the UI
+                const resourcesUpdatedEvent = new CustomEvent('playerResourcesUpdated', {
+                    detail: { resources: resourceUpdate.resources }
+                });
+                document.dispatchEvent(resourcesUpdatedEvent);
+                
+                return true;
+            })
+            .catch(error => {
+                console.error('Error updating player resources:', error);
+                return false;
+            });
     }
 }
 

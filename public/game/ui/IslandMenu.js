@@ -10,6 +10,7 @@ class IslandMenu {
         this.gameUI = options.gameUI;
         this.shipwright = options.shipwright;
         this.buildingManager = options.buildingManager;
+        this.resourceCollector = options.resourceCollector;
         this.islandMenuOpen = false;
         this.currentView = 'main'; // Possible values: 'main', 'shipwright', 'building'
         this.selectedIsland = null;
@@ -193,7 +194,34 @@ class IslandMenu {
         
         // Add resource-specific buttons
         if (this.hasResource('wood')) {
-            menuHTML += `<button id="collectWoodButton">Collect Wood</button>`;
+            // Check if currently collecting wood
+            const isCollectingWood = this.resourceCollector && 
+                                     this.resourceCollector.isCollecting && 
+                                     this.resourceCollector.collectingResource === 'wood';
+            
+            const woodButtonText = isCollectingWood ? 'Stop Collecting Wood' : 'Collect Wood';
+            menuHTML += `<button id="collectWoodButton">${woodButtonText}</button>`;
+        }
+        
+        // Add buttons for other resource types
+        if (this.hasResource('iron')) {
+            // Check if currently collecting iron
+            const isCollectingIron = this.resourceCollector && 
+                                     this.resourceCollector.isCollecting && 
+                                     this.resourceCollector.collectingResource === 'iron';
+            
+            const ironButtonText = isCollectingIron ? 'Stop Collecting Iron' : 'Collect Iron';
+            menuHTML += `<button id="collectIronButton">${ironButtonText}</button>`;
+        }
+        
+        if (this.hasResource('hemp')) {
+            // Check if currently collecting hemp
+            const isCollectingHemp = this.resourceCollector && 
+                                     this.resourceCollector.isCollecting && 
+                                     this.resourceCollector.collectingResource === 'hemp';
+            
+            const hempButtonText = isCollectingHemp ? 'Stop Collecting Hemp' : 'Collect Hemp';
+            menuHTML += `<button id="collectHempButton">${hempButtonText}</button>`;
         }
         
         // Add shipwright button only if the island has a shipBuildingShop
@@ -213,10 +241,80 @@ class IslandMenu {
         // Add event listeners to buttons
         if (this.hasResource('wood')) {
             document.getElementById('collectWoodButton').addEventListener('click', () => {
-                // Handle wood collection logic here
-                console.log('Collecting wood from', islandName);
-                // For now, just show a message
-                alert(`You collected wood from ${islandName}!`);
+                if (!this.resourceCollector) {
+                    console.error('ResourceCollector not available');
+                    alert(`Cannot collect wood: Resource collection system not available.`);
+                    return;
+                }
+                
+                // Toggle wood collection
+                if (this.resourceCollector.isCollecting && 
+                    this.resourceCollector.collectingResource === 'wood') {
+                    // Stop collecting
+                    this.resourceCollector.stopCollection();
+                    document.getElementById('collectWoodButton').textContent = 'Collect Wood';
+                } else {
+                    // Start collecting
+                    this.resourceCollector.startCollection({
+                        resource: 'wood',
+                        island: this.selectedIsland,
+                        animation: 'woodChopping'
+                    });
+                    document.getElementById('collectWoodButton').textContent = 'Stop Collecting Wood';
+                }
+            });
+        }
+        
+        // Add event listeners for other resource types
+        if (this.hasResource('iron')) {
+            document.getElementById('collectIronButton').addEventListener('click', () => {
+                if (!this.resourceCollector) {
+                    console.error('ResourceCollector not available');
+                    alert(`Cannot collect iron: Resource collection system not available.`);
+                    return;
+                }
+                
+                // Toggle iron collection
+                if (this.resourceCollector.isCollecting && 
+                    this.resourceCollector.collectingResource === 'iron') {
+                    // Stop collecting
+                    this.resourceCollector.stopCollection();
+                    document.getElementById('collectIronButton').textContent = 'Collect Iron';
+                } else {
+                    // Start collecting
+                    this.resourceCollector.startCollection({
+                        resource: 'iron',
+                        island: this.selectedIsland,
+                        animation: 'ironMining'
+                    });
+                    document.getElementById('collectIronButton').textContent = 'Stop Collecting Iron';
+                }
+            });
+        }
+        
+        if (this.hasResource('hemp')) {
+            document.getElementById('collectHempButton').addEventListener('click', () => {
+                if (!this.resourceCollector) {
+                    console.error('ResourceCollector not available');
+                    alert(`Cannot collect hemp: Resource collection system not available.`);
+                    return;
+                }
+                
+                // Toggle hemp collection
+                if (this.resourceCollector.isCollecting && 
+                    this.resourceCollector.collectingResource === 'hemp') {
+                    // Stop collecting
+                    this.resourceCollector.stopCollection();
+                    document.getElementById('collectHempButton').textContent = 'Collect Hemp';
+                } else {
+                    // Start collecting
+                    this.resourceCollector.startCollection({
+                        resource: 'hemp',
+                        island: this.selectedIsland,
+                        animation: 'hempGathering'
+                    });
+                    document.getElementById('collectHempButton').textContent = 'Stop Collecting Hemp';
+                }
             });
         }
         
@@ -327,6 +425,9 @@ class IslandMenu {
         if (this.currentView === 'shipwright' && this.shipwright) {
             this.shipwright.hide();
         }
+        
+        // If player is collecting resources, don't automatically stop collection
+        // This allows players to continue collecting while moving away from the menu
         
         this.islandMenuOpen = false;
         this.currentView = 'main'; // Reset to main view when hiding

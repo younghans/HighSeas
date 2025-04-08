@@ -1185,6 +1185,11 @@ class GameCore {
         // Explicitly attach the multiplayer manager to the window object for global access
         window.multiplayerManager = this.multiplayerManager;
         
+        // Update ResourceCollector with multiplayer manager reference
+        if (this.gameUI && this.gameUI.resourceCollector) {
+            this.gameUI.resourceCollector.setMultiplayerManager(this.multiplayerManager);
+        }
+        
         // Initialize multiplayer with player's ship
         this.multiplayerManager.init(this.ship)
             .then(success => {
