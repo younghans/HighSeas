@@ -18,11 +18,17 @@ class ResourceCollector {
             multiplayerManager: options.multiplayerManager
         });
         
+        // Store scene and islandLoader references
+        this.scene = options.scene || null;
+        this.islandLoader = options.islandLoader || null;
+        
         // Initialize resource gathering systems
         this.gatheringSystems = {
             wood: new GatherWood({
                 soundManager: options.soundManager || window.soundManager,
-                resourceSystem: this.resourceSystem
+                resourceSystem: this.resourceSystem,
+                scene: this.scene,
+                islandLoader: this.islandLoader
             })
         };
         
@@ -583,6 +589,32 @@ class ResourceCollector {
         if (this.updateInterval) {
             clearInterval(this.updateInterval);
             this.updateInterval = null;
+        }
+    }
+    
+    /**
+     * Set a new scene reference
+     * @param {THREE.Scene} scene - The scene to use for animations
+     */
+    setScene(scene) {
+        this.scene = scene;
+        
+        // Update scene in gathering systems
+        if (this.gatheringSystems.wood && typeof this.gatheringSystems.wood.setScene === 'function') {
+            this.gatheringSystems.wood.setScene(scene);
+        }
+    }
+    
+    /**
+     * Set a new island loader reference
+     * @param {IslandLoader} islandLoader - The island loader to use
+     */
+    setIslandLoader(islandLoader) {
+        this.islandLoader = islandLoader;
+        
+        // Update island loader in gathering systems
+        if (this.gatheringSystems.wood) {
+            this.gatheringSystems.wood.islandLoader = islandLoader;
         }
     }
 }

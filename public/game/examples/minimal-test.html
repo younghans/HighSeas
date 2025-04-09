@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tree Finder Test</title>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js"
+        }
+    }
+    </script>
+</head>
+<body>
+    <h1>Tree Finder Console Test</h1>
+    <p>Open your browser's developer console (F12 or Ctrl+Shift+J) to see results</p>
+    <p style="color: #555; font-style: italic;">This page directly loads the island JSON data</p>
+    <button id="runTest">Run Tree Finder</button>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        
+        // Create a simple scene
+        const scene = new THREE.Scene();
+        
+        // Directly fetch and parse the island data
+        async function getTreesOnIsland() {
+            console.clear();
+            console.log("Loading tree-island.json...");
+            
+            try {
+                // Fetch the island JSON file
+                const response = await fetch('/game/islands/customIslands/tree-island.json');
+                const islandData = await response.json();
+                
+                // Extract tree objects from the placedObjects array
+                const treeObjects = islandData.placedObjects.filter(obj => 
+                    obj.type.toLowerCase().includes('tree')
+                );
+                
+                console.log(`Found ${treeObjects.length} tree objects on ${islandData.metadata.name}`);
+                
+                // Count tree types
+                const treeCounts = {};
+                treeObjects.forEach(tree => {
+                    if (!treeCounts[tree.type]) {
+                        treeCounts[tree.type] = 0;
+                    }
+                    treeCounts[tree.type]++;
+                });
+                
+                // Format the results
+                const results = {
+                    islandName: islandData.metadata.name,
+                    totalTrees: treeObjects.length,
+                    treeTypes: treeCounts,
+                    treeObjects: treeObjects,
+                    largeTreesOnly: treeObjects.filter(obj => obj.type.includes('Large')),
+                    mediumTreesOnly: treeObjects.filter(obj => obj.type.includes('Medium')),
+                    smallTreesOnly: treeObjects.filter(obj => obj.type.includes('Small'))
+                };
+                
+                // Make results available globally
+                window.treeResults = results;
+                
+                // Print a summary
+                console.log("=== Tree Haven Analysis ===");
+                console.log(`Island Name: ${results.islandName}`);
+                console.log(`Total Trees: ${results.totalTrees}`);
+                console.log("Tree Types:");
+                
+                Object.entries(results.treeTypes).forEach(([type, count]) => {
+                    console.log(`- ${type}: ${count}`);
+                });
+                
+                console.log("\nResults available in window.treeResults");
+                console.log("Try: console.table(window.treeResults.treeObjects)");
+                console.log("Or: console.table(window.treeResults.largeTreesOnly)");
+                
+                return results;
+            } catch (error) {
+                console.error("Error loading island data:", error);
+                return null;
+            }
+        }
+        
+        // Add button handler
+        document.getElementById('runTest').addEventListener('click', getTreesOnIsland);
+    </script>
+</body>
+</html> 

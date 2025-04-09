@@ -683,6 +683,22 @@ class GameCore {
             }
         }).init();
         
+        // Set up ResourceCollector with scene and islandLoader for tree animations
+        if (this.gameUI && this.gameUI.getResourceCollector()) {
+            const resourceCollector = this.gameUI.getResourceCollector();
+            
+            // Pass scene and islandLoader references to enable tree animations
+            resourceCollector.setScene(this.sceneManager.getScene());
+            
+            // If we have an island manifest loader from the world, use it for tree finding
+            if (this.world && this.world.islandLoader) {
+                resourceCollector.setIslandLoader(this.world.islandLoader);
+                console.log('ResourceCollector configured with scene and islandLoader for tree animations');
+            } else {
+                console.warn('No islandLoader available for tree animations');
+            }
+        }
+        
         // Initialize IslandInteractionManager
         this.islandManager = new IslandInteractionManager({
             scene: this.sceneManager.getScene(),

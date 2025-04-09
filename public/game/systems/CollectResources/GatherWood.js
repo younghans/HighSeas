@@ -2,6 +2,8 @@
  * GatherWood.js - Handles audio and animation for wood gathering
  * Manages axe chop sounds during collection and tree felled sound when completed
  */
+import TreeAnimator from './TreeAnimator.js';
+
 class GatherWood {
     /**
      * Create a new GatherWood handler
@@ -11,6 +13,8 @@ class GatherWood {
         this.options = options;
         this.soundManager = options.soundManager || window.soundManager;
         this.resourceSystem = options.resourceSystem;
+        this.scene = options.scene || null;
+        this.islandLoader = options.islandLoader || null;
         
         // Sound effect paths
         this.chopSounds = [
@@ -26,6 +30,19 @@ class GatherWood {
         this.isActive = false;
         this.chopInterval = null;
         this.lastChopTime = 0;
+        this.currentIsland = null;
+        
+        // Initialize tree animator if scene is provided
+        this.treeAnimator = null;
+        if (this.scene) {
+            this.treeAnimator = new TreeAnimator({
+                scene: this.scene,
+                islandLoader: this.islandLoader
+            });
+            console.log('TreeAnimator initialized for wood gathering');
+        } else {
+            console.warn('No scene provided to GatherWood, tree animations will be disabled');
+        }
         
         // Bind event listeners
         this.boundHandleCollectionStart = this.handleCollectionStart.bind(this);
@@ -34,6 +51,38 @@ class GatherWood {
         
         // Initialize
         this.init();
+    }
+    
+    /**
+     * Set a new scene reference and reinitialize TreeAnimator if needed
+     * @param {THREE.Scene} scene - The scene to use for animations
+     */
+    setScene(scene) {
+        // Store the new scene reference
+        this.scene = scene;
+        
+        // If we already have a tree animator, update its scene
+        if (this.treeAnimator) {
+            this.treeAnimator.destroy();
+            this.treeAnimator = null;
+        }
+        
+        // Create a new tree animator with the new scene
+        if (this.scene) {
+            this.treeAnimator = new TreeAnimator({
+                scene: this.scene,
+                islandLoader: this.islandLoader
+            });
+            console.log('TreeAnimator reinitialized with new scene reference');
+            
+            // If we're currently collecting, find trees on the current island
+            if (this.isActive && this.currentIsland) {
+                // Pass the island mesh directly to the TreeAnimator
+                this.treeAnimator.findTreesOnIsland({ mesh: this.currentIsland });
+            }
+        } else {
+            console.warn('Scene reference removed from GatherWood, tree animations will be disabled');
+        }
     }
     
     /**
@@ -79,6 +128,19 @@ class GatherWood {
         console.log('Wood collection started - initializing sound effects');
         this.isActive = true;
         
+        // Store reference to the island being harvested
+        if (event.detail.island) {
+            this.currentIsland = event.detail.island;
+            console.log(`Wood collection started on island: ${this.currentIsland.userData ? this.currentIsland.userData.islandName || 'Unknown Island' : 'Unknown Island'}`);
+            
+            // Initialize tree animations if the animator exists
+            if (this.treeAnimator) {
+                // Pass the island mesh directly to the TreeAnimator
+                // The mesh is the most reliable way to find trees
+                this.treeAnimator.findTreesOnIsland({ mesh: this.currentIsland });
+            }
+        }
+        
         // Start the chopping sound sequence
         this.startChoppingSequence();
     }
@@ -96,6 +158,9 @@ class GatherWood {
         
         // Stop the chopping sound sequence
         this.stopChoppingSequence();
+        
+        // Clear island reference
+        this.currentIsland = null;
     }
     
     /**
@@ -110,6 +175,13 @@ class GatherWood {
         
         // Play tree felled sound when wood is collected
         this.playTreeFelledSound();
+        
+        // Trigger tree animation for collection event
+        if (this.treeAnimator && this.currentIsland) {
+            console.log('Triggering tree animation for wood collection');
+            // Pass the island mesh directly to the TreeAnimator
+            this.treeAnimator.processWoodCollection({ mesh: this.currentIsland });
+        }
     }
     
     /**
@@ -155,6 +227,13 @@ class GatherWood {
             this.soundManager.play(soundKey, 'sfx', {
                 volume: 0.8 // Slightly reduced volume
             });
+            
+            // Trigger tree animation for chop sound
+            if (this.treeAnimator && this.currentIsland) {
+                console.log('Triggering tree animation for chop sound');
+                // Pass the island mesh directly to the TreeAnimator
+                this.treeAnimator.processChopSound({ mesh: this.currentIsland });
+            }
         }
     }
     
@@ -185,8 +264,15 @@ class GatherWood {
         document.removeEventListener('resourceCollectionStopped', this.boundHandleCollectionStop);
         document.removeEventListener('resourceCollected', this.boundHandleResourceCollected);
         
+        // Clean up tree animator
+        if (this.treeAnimator) {
+            this.treeAnimator.destroy();
+            this.treeAnimator = null;
+        }
+        
         // Clear state
         this.isActive = false;
+        this.currentIsland = null;
     }
 }
 
