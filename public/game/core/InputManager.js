@@ -11,12 +11,20 @@ class InputManager {
         this.raycaster = new THREE.Raycaster();
         this.inputMode = 'menu'; // 'menu' or 'gameplay'
         
+        // Mouse drag tracking
+        this.isDragging = false;
+        this.potentialDrag = false;
+        this.dragStartPosition = new THREE.Vector2();
+        this.dragThreshold = 5; // Pixels to move before it's considered a drag
+        
         // Window focus tracking
         this.windowHasFocus = true;
         
         // Bind methods to maintain context
         this.onMouseClick = this.onMouseClick.bind(this);
         this.onMouseMove = this.onMouseMove.bind(this);
+        this.onMouseDown = this.onMouseDown.bind(this);
+        this.onMouseUp = this.onMouseUp.bind(this);
         this.onKeyDown = this.onKeyDown.bind(this);
         this.onWindowBlur = this.onWindowBlur.bind(this);
         this.onWindowFocus = this.onWindowFocus.bind(this);
@@ -54,6 +62,8 @@ class InputManager {
         if (this.inputMode === 'gameplay') {
             this.sceneManager.addClickEventListener(this.onMouseClick);
             window.addEventListener('mousemove', this.onMouseMove);
+            window.addEventListener('mousedown', this.onMouseDown);
+            window.addEventListener('mouseup', this.onMouseUp);
             window.addEventListener('keydown', this.onKeyDown);
         } else {
             // Menu mode doesn't need click handling for game interactions
@@ -65,6 +75,8 @@ class InputManager {
     removeEventListeners() {
         this.sceneManager.removeClickEventListener(this.onMouseClick);
         window.removeEventListener('mousemove', this.onMouseMove);
+        window.removeEventListener('mousedown', this.onMouseDown);
+        window.removeEventListener('mouseup', this.onMouseUp);
         window.removeEventListener('keydown', this.onKeyDown);
     }
     
@@ -114,7 +126,44 @@ class InputManager {
         this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         
+        // Update drag state
+        if (this.potentialDrag && !this.isDragging) {
+            const dragDistance = Math.hypot(
+                event.clientX - this.dragStartPosition.x,
+                event.clientY - this.dragStartPosition.y
+            );
+            
+            // If we've moved enough pixels, consider it a confirmed drag operation
+            if (dragDistance > this.dragThreshold) {
+                this.isDragging = true;
+            }
+        }
+        
         // Could implement hover detection here
+    }
+    
+    // Handle mouse down events for drag detection
+    onMouseDown(event) {
+        // Only track left mouse button
+        if (event.button !== 0) return;
+        
+        // Start potential drag operation
+        this.dragStartPosition.x = event.clientX;
+        this.dragStartPosition.y = event.clientY;
+        this.potentialDrag = true;
+        this.isDragging = false;
+    }
+    
+    // Handle mouse up events for drag detection
+    onMouseUp(event) {
+        // Only handle left mouse button
+        if (event.button !== 0) return;
+        
+        // End drag operation
+        this.potentialDrag = false;
+        
+        // Note: isDragging is checked and reset in onClick handler
+        // We don't reset it here because the click event occurs after mouseup
     }
     
     // Handle key presses
@@ -138,6 +187,13 @@ class InputManager {
         
         // Only handle left clicks
         if (event.button !== 0) return;
+        
+        // If we were dragging, don't process as a click
+        if (this.isDragging) {
+            // This was a drag operation that ended, not a click
+            this.isDragging = false;
+            return;
+        }
         
         // If game hasn't started, ignore clicks
         if (!this.gameCore.gameStarted) return;

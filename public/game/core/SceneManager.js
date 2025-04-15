@@ -90,9 +90,10 @@ class SceneManager {
         this.controls.maxDistance = 50;
         this.controls.maxPolarAngle = Math.PI / 2 - 0.1; // Prevent going below horizon
         
-        // Configure for gameplay
+        // Configure for gameplay - allow both left and right click for camera rotation
+        // InputManager will detect and handle simple left-clicks for movement
         this.controls.mouseButtons = {
-            LEFT: null,  // Left click is used for gameplay
+            LEFT: THREE.MOUSE.ROTATE,  // Allow left click for camera rotation
             MIDDLE: THREE.MOUSE.DOLLY,
             RIGHT: THREE.MOUSE.ROTATE
         };
