@@ -42,7 +42,8 @@ class IslandInteractionManager {
         
         // Map of object types to their interaction handlers
         this.objectInteractionHandlers = {
-            'shipBuildingShop': this.handleShipwrightInteraction.bind(this)
+            'shipBuildingShop': this.handleShipwrightInteraction.bind(this),
+            'default': this.handleGenericObjectInteraction.bind(this) // Add default handler
         };
         
         // Initialize hover detection system
@@ -54,7 +55,8 @@ class IslandInteractionManager {
             debug: options.debug || false, // Pass debug flag
             throttleTime: options.hoverThrottleTime || 150, // Throttle hover checks
             frameSkip: options.hoverFrameSkip || 3, // Only process every N frames
-            islandInteractionManager: this // Pass self-reference
+            islandInteractionManager: this, // Pass self-reference
+            allIslandObjectsHighlightable: true // Enable highlighting for all island objects
         });
         
         // Set up object click handler
@@ -105,7 +107,7 @@ class IslandInteractionManager {
         if (!object || !object.userData || !object.userData.type) return;
         
         const objectType = object.userData.type;
-        const handler = this.objectInteractionHandlers[objectType];
+        const handler = this.objectInteractionHandlers[objectType] || this.objectInteractionHandlers['default'];
         
         if (handler) {
             handler(object);
@@ -127,34 +129,92 @@ class IslandInteractionManager {
     }
     
     /**
-     * Handle interaction with the shipwright shop
-     * @param {THREE.Object3D} object - The shipwright shop object
+     * Find the parent island of an object by traversing up the scene graph
+     * @param {THREE.Object3D} object - The object to find the parent island for
+     * @returns {Object} - Object containing the island and island name
      */
-    handleShipwrightInteraction(object) {
-        // Get the island this shop is part of
-        let containingIsland = null;
+    findParentIsland(object) {
         let currentObj = object;
+        let containingIsland = null;
+        let islandName = 'an island';
         
         // Walk up the object hierarchy to find the island
         while (currentObj && !containingIsland) {
-            if (currentObj.userData && currentObj.userData.isIsland) {
-                containingIsland = currentObj;
+            // Check for userData properties that indicate this is an island
+            if (currentObj.userData) {
+                if (currentObj.userData.isIsland) {
+                    containingIsland = currentObj;
+                } else if (currentObj.userData.customIsland) {
+                    containingIsland = currentObj;
+                } else if (currentObj.userData.islandId) {
+                    // If we find an islandId but not the island itself, 
+                    // try to get the island from the islandGenerator
+                    const islandId = currentObj.userData.islandId;
+                    if (this.islandGenerator && this.islandGenerator.islands) {
+                        const island = this.islandGenerator.islands.find(i => 
+                            i.userData && (i.userData.islandId === islandId || i.name === islandId)
+                        );
+                        if (island) {
+                            containingIsland = island;
+                            break;
+                        }
+                    }
+                    
+                    // If we couldn't find the actual island object, mark the parent as the island
+                    if (!containingIsland && currentObj.parent) {
+                        containingIsland = currentObj.parent;
+                    }
+                }
             }
+            
+            // Move up to the parent
             currentObj = currentObj.parent;
         }
         
+        // If we found an island, get its name
         if (containingIsland) {
-            // We found the island this shop is part of
-            this.selectedIsland = containingIsland;
-            this.selectedIslandPoint = object.position.clone();
-            
-            // Get the island name from userData
-            let islandName = 'an island';
             if (containingIsland.userData && containingIsland.userData.islandName) {
                 islandName = containingIsland.userData.islandName;
             } else if (containingIsland.name) {
                 islandName = containingIsland.name;
             }
+        }
+        
+        return { island: containingIsland, name: islandName };
+    }
+    
+    /**
+     * Handle interaction with generic objects on islands
+     * @param {THREE.Object3D} object - The clicked object
+     */
+    handleGenericObjectInteraction(object) {
+        // Find the parent island for this object
+        const { island: containingIsland, name: islandName } = this.findParentIsland(object);
+        
+        if (containingIsland) {
+            // We found the parent island
+            this.selectedIsland = containingIsland;
+            this.selectedIslandPoint = object.position.clone();
+            
+            // Show the island menu
+            this.showIslandMenu(containingIsland, object.position.clone());
+        } else {
+            console.log('No parent island found for clicked object:', object.userData.type || 'unknown');
+        }
+    }
+    
+    /**
+     * Handle interaction with the shipwright shop
+     * @param {THREE.Object3D} object - The shipwright shop object
+     */
+    handleShipwrightInteraction(object) {
+        // Find the parent island
+        const { island: containingIsland, name: islandName } = this.findParentIsland(object);
+        
+        if (containingIsland) {
+            // We found the island this shop is part of
+            this.selectedIsland = containingIsland;
+            this.selectedIslandPoint = object.position.clone();
             
             // Show the island menu with shipwright view
             this.showIslandMenu(containingIsland, object.position.clone(), 'shipwright');
@@ -166,32 +226,6 @@ class IslandInteractionManager {
             if (this.islandMenuOpen) {
                 // Need to hide the island menu first
                 this.hideIslandMenu();
-            }
-            
-            // Try to get the island name from object's parent groups
-            let islandName = "Shipwright Shop";
-            
-            // Check if this object is part of a group that has island info
-            currentObj = object.parent;
-            while (currentObj) {
-                // Check if a parent has islandId
-                if (currentObj.userData && currentObj.userData.islandId) {
-                    // Found a parent with island ID - now get the actual island name
-                    const islandId = currentObj.userData.islandId;
-                    // Look up the island name from loaded islands if island generator is available
-                    if (this.islandGenerator && this.islandGenerator.islands) {
-                        const island = this.islandGenerator.islands.find(i => 
-                            i.userData && (i.userData.islandId === islandId || i.name === islandId)
-                        );
-                        if (island && island.userData && island.userData.islandName) {
-                            islandName = island.userData.islandName;
-                            break;
-                        }
-                    }
-                }
-                
-                // Try the next parent in the hierarchy
-                currentObj = currentObj.parent;
             }
             
             // Create a temporary context
@@ -598,7 +632,8 @@ class IslandInteractionManager {
                 debug: this.debug || false,
                 throttleTime: 150,
                 frameSkip: 3,
-                islandInteractionManager: this // Pass self-reference
+                islandInteractionManager: this, // Pass self-reference
+                allIslandObjectsHighlightable: true // Enable highlighting for all island objects
             });
             
             // Set up object click handler

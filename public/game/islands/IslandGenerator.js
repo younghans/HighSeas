@@ -8,6 +8,7 @@ class IslandGenerator {
         this.islands = [];
         this.seed = noise.seed;
         this.rng = this._createSeededRandom(this.seed);
+        this.islandCounter = 0; // Counter for generating unique island names
     }
 
     // Simple seeded random function
@@ -60,6 +61,18 @@ class IslandGenerator {
             const island = new THREE.Mesh(islandGeometry, islandMaterial);
             island.rotation.x = -Math.PI / 2;
             island.position.set(pos.x, -5, pos.z);
+            
+            // Add island metadata
+            this.islandCounter++;
+            const islandName = `Island ${this.islandCounter}`;
+            island.name = islandName;
+            island.userData = {
+                ...island.userData,
+                isIsland: true,
+                islandName: islandName,
+                islandId: `island-${this.islandCounter}`
+            };
+            
             this.scene.add(island);
             this.islands.push(island);
         });
@@ -161,6 +174,21 @@ class IslandGenerator {
         const island = new THREE.Mesh(customGeometry, islandMaterial);
         island.rotation.x = -Math.PI / 2;
         island.position.set(position.x, -5, position.z);
+        
+        // Add island metadata
+        this.islandCounter++;
+        
+        // If no name is provided, generate a default one
+        const customName = (params.name || params.islandName) ? (params.name || params.islandName) : `Island ${this.islandCounter}`;
+        
+        island.name = customName;
+        island.userData = {
+            ...island.userData,
+            isIsland: true,
+            islandName: customName,
+            islandId: `island-${this.islandCounter}`
+        };
+        
         this.scene.add(island);
         this.islands.push(island);
         

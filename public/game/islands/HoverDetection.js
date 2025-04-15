@@ -38,6 +38,9 @@ class HoverDetection {
         // Store references to components that might handle interactions
         this.islandInteractionManager = options.islandInteractionManager || window.islandInteractionManager;
         
+        // Flag to determine if all island objects should be highlightable
+        this.allIslandObjectsHighlightable = options.allIslandObjectsHighlightable !== false;
+        
         // Callback for when an object is clicked
         this.onObjectClicked = null;
         
@@ -250,11 +253,21 @@ class HoverDetection {
         const typeSet = new Set(this.highlightableTypes);
         
         // Traverse the scene to find objects with userData.type matching highlightableTypes
+        // or objects that are on islands (if allIslandObjectsHighlightable is true)
         this.scene.traverse(object => {
-            if (object.userData && 
-                object.userData.type && 
-                typeSet.has(object.userData.type)) {
-                objects.push(object);
+            if (object.userData) {
+                // Include objects with specific types
+                if (object.userData.type && (
+                    typeSet.has(object.userData.type) || 
+                    // Include all island objects if flag is set
+                    (this.allIslandObjectsHighlightable && object.userData.islandObject)
+                )) {
+                    objects.push(object);
+                }
+                // Also include objects that have GLB model types (e.g., fir_tree_large)
+                else if (object.userData.type && object.userData.type.endsWith('.glb')) {
+                    objects.push(object);
+                }
             }
         });
         
@@ -287,11 +300,22 @@ class HoverDetection {
      * @returns {boolean} - Whether the object is highlightable
      */
     isHighlightableObject(object) {
-        return (
-            object.userData && 
+        // If it's a standard highlightable type
+        if (object.userData && 
             object.userData.type && 
-            this.highlightableTypes.includes(object.userData.type)
-        );
+            this.highlightableTypes.includes(object.userData.type)) {
+            return true;
+        }
+        
+        // If it's an island object and allIslandObjectsHighlightable is true
+        if (this.allIslandObjectsHighlightable && 
+            object.userData && 
+            (object.userData.islandObject || 
+             object.userData.type && object.userData.type.endsWith('.glb'))) {
+            return true;
+        }
+        
+        return false;
     }
     
     /**
@@ -430,6 +454,19 @@ class HoverDetection {
             if (this.debug) {
                 console.log('Removed highlightable type:', type);
             }
+        }
+    }
+    
+    /**
+     * Set whether all island objects should be highlightable
+     * @param {boolean} enabled - Whether all island objects should be highlightable
+     */
+    setAllIslandObjectsHighlightable(enabled) {
+        this.allIslandObjectsHighlightable = enabled;
+        this.cacheInvalidated = true; // Invalidate cache when this setting changes
+        
+        if (this.debug) {
+            console.log('All island objects highlightable:', enabled);
         }
     }
     

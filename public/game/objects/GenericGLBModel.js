@@ -43,7 +43,17 @@ class GenericGLBModel {
         
         // Store custom user data if any
         if (options.userData) {
-            this.group.userData = { ...options.userData };
+            this.group.userData = { 
+                ...options.userData,
+                type: this.type,
+                islandObject: true // Mark all models as island objects for interaction
+            };
+        } else {
+            // Set default userData
+            this.group.userData = { 
+                type: this.type,
+                islandObject: true // Mark all models as island objects for interaction
+            };
         }
         
         // Load the model if path is provided
