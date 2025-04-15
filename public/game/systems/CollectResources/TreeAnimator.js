@@ -13,6 +13,7 @@ class TreeAnimator {
         // Dependencies
         this.scene = options.scene || null;
         this.islandLoader = options.islandLoader || null;
+        this.playerShip = options.playerShip || null;
         
         // Tree finding settings
         this.treeTypes = ['firTreeLarge', 'firTreeMedium', 'firTreeSmall', 'palmTreeLarge', 'palmTreeBent'];
@@ -46,6 +47,15 @@ class TreeAnimator {
         
         // Debug
         this.debug = true;
+    }
+    
+    /**
+     * Set the player ship reference
+     * @param {Object} playerShip - The player's ship object
+     */
+    setPlayerShip(playerShip) {
+        this.playerShip = playerShip;
+        this.debugLog('Player ship reference updated');
     }
     
     /**
@@ -140,7 +150,7 @@ class TreeAnimator {
     }
     
     /**
-     * Select a random tree to animate
+     * Select a tree from the 5 closest trees to the player
      * @returns {Object|null} - The selected tree or null if none available
      */
     selectRandomTree() {
@@ -149,11 +159,86 @@ class TreeAnimator {
             return null;
         }
         
+        // If no player ship is available, fall back to fully random selection
+        if (!this.playerShip) {
+            this.debugLog('No player ship reference, selecting completely random tree');
+            const randomIndex = Math.floor(Math.random() * this.islandTrees.length);
+            const selectedTree = this.islandTrees[randomIndex];
+            
+            this.currentTree = selectedTree;
+            if (selectedTree.object) {
+                this.currentTreeOriginalRotation.copy(selectedTree.object.rotation);
+            }
+            return selectedTree;
+        }
+        
+        // Get player ship position
+        const playerPosition = new THREE.Vector3();
+        if (typeof this.playerShip.getPosition === 'function') {
+            playerPosition.copy(this.playerShip.getPosition());
+        } else if (this.playerShip.position) {
+            playerPosition.copy(this.playerShip.position);
+        } else {
+            this.debugLog('Could not get player position, falling back to random tree selection');
+            return this.selectRandomTreeFallback();
+        }
+        
+        this.debugLog(`Player position: ${playerPosition.x.toFixed(1)}, ${playerPosition.y.toFixed(1)}, ${playerPosition.z.toFixed(1)}`);
+        
+        // Calculate distance to each tree
+        const treesWithDistances = this.islandTrees.map(tree => {
+            const treePosition = new THREE.Vector3();
+            if (tree.object) {
+                tree.object.getWorldPosition(treePosition);
+                const distance = playerPosition.distanceTo(treePosition);
+                return { tree, distance, position: treePosition };
+            }
+            return { tree, distance: Infinity, position: new THREE.Vector3() };
+        });
+        
+        // Sort trees by distance (closest first)
+        treesWithDistances.sort((a, b) => a.distance - b.distance);
+        
+        // Debug log the closest trees
+        this.debugLog(`Closest 5 trees (of ${treesWithDistances.length} total):`);
+        treesWithDistances.slice(0, 5).forEach((item, index) => {
+            this.debugLog(`  ${index+1}. ${item.tree.type} at distance ${item.distance.toFixed(1)} - position: ` +
+                `(${item.position.x.toFixed(1)}, ${item.position.y.toFixed(1)}, ${item.position.z.toFixed(1)})`);
+        });
+        
+        // Take the 5 closest trees (or fewer if there aren't 5)
+        const closestTreeCount = Math.min(5, treesWithDistances.length);
+        const closestTrees = treesWithDistances.slice(0, closestTreeCount);
+        
+        // Select one of the closest trees randomly
+        const randomIndex = Math.floor(Math.random() * closestTreeCount);
+        const selectedTree = closestTrees[randomIndex].tree;
+        
+        this.debugLog(`Selected tree ${randomIndex+1} of the ${closestTreeCount} closest - ${selectedTree.type} ` +
+            `at distance ${closestTrees[randomIndex].distance.toFixed(1)}`);
+        
+        // Store reference to current tree
+        this.currentTree = selectedTree;
+        
+        // Get and store the original rotation
+        if (selectedTree.object) {
+            this.currentTreeOriginalRotation.copy(selectedTree.object.rotation);
+        }
+        
+        return selectedTree;
+    }
+    
+    /**
+     * Fallback method for random tree selection when player position is unavailable
+     * @returns {Object|null} - The selected tree or null if none available
+     * @private
+     */
+    selectRandomTreeFallback() {
         // Choose a random tree
         const randomIndex = Math.floor(Math.random() * this.islandTrees.length);
         const selectedTree = this.islandTrees[randomIndex];
         
-        this.debugLog(`Selected random tree of type: ${selectedTree.type}`);
+        this.debugLog(`Selected random tree of type: ${selectedTree.type} (fallback method)`);
         
         // Store reference to current tree
         this.currentTree = selectedTree;
@@ -611,8 +696,14 @@ class TreeAnimator {
     /**
      * Process the wood collection event
      * @param {Object} island - The island where wood is being collected
+     * @param {Object} playerShip - The player's ship (optional, updates the reference)
      */
-    processWoodCollection(island) {
+    processWoodCollection(island, playerShip) {
+        // Update player ship reference if provided
+        if (playerShip) {
+            this.playerShip = playerShip;
+        }
+        
         // Find trees on the island if needed
         if (!this.currentIsland || this.currentIsland !== island) {
             const trees = this.findTreesOnIsland(island);
@@ -623,10 +714,16 @@ class TreeAnimator {
             }
         }
         
-        // Select a new random tree for the collection cycle
-        this.selectRandomTree();
+        // If no tree is currently selected, choose one
+        if (!this.currentTree) {
+            this.selectRandomTree();
+        }
         
-        // Instead of just shaking, topple the tree over when wood is collected
+        // Store reference to the tree that was being chopped
+        const treeBeingFelled = this.currentTree;
+        this.debugLog(`Felling the tree that was being chopped: ${treeBeingFelled.type}`);
+        
+        // Start the felling animation on the current tree
         this.fellingTree = true;
         this.fellingStartTime = Date.now();
         this.fellingProgress = 0;
@@ -644,13 +741,42 @@ class TreeAnimator {
             this.shakeAmount = this.defaultShakeAmount;
             this.debugLog('Reset shake amount to default');
         }, 300);
+        
+        // Select a new tree only after the current one finishes falling and resetting
+        setTimeout(() => {
+            // Make sure we don't select the same tree again
+            const oldTree = this.currentTree;
+            
+            // Select a new random tree for the next cycle
+            this.selectRandomTree();
+            
+            // If we selected the same tree, try again (if there are multiple trees)
+            if (this.currentTree === oldTree && this.islandTrees.length > 1) {
+                this.debugLog('Selected the same tree again, trying to find a different one');
+                let attempts = 0;
+                const maxAttempts = 5;
+                
+                while (this.currentTree === oldTree && attempts < maxAttempts) {
+                    this.selectRandomTree();
+                    attempts++;
+                }
+            }
+            
+            this.debugLog(`Next tree selected for chopping: ${this.currentTree.type}`);
+        }, this.fellingDuration + this.resetDuration + 100); // Slightly after animation completes
     }
     
     /**
      * Process the axe chop sound
      * @param {Object} island - The island where wood is being collected
+     * @param {Object} playerShip - The player's ship (optional, updates the reference)
      */
-    processChopSound(island) {
+    processChopSound(island, playerShip) {
+        // Update player ship reference if provided
+        if (playerShip) {
+            this.playerShip = playerShip;
+        }
+        
         // Make sure we have trees from the island
         if (!this.currentIsland || this.currentIsland !== island) {
             const trees = this.findTreesOnIsland(island);

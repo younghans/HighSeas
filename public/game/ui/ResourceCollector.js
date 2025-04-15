@@ -11,16 +11,17 @@ class ResourceCollector {
      */
     constructor(options = {}) {
         this.gameUI = options.gameUI;
-        
-        // Create the core resource system
-        this.resourceSystem = new ResourceSystem({
-            playerShip: options.playerShip,
-            multiplayerManager: options.multiplayerManager
-        });
+        this.playerShip = options.playerShip || null;
         
         // Store scene and islandLoader references
         this.scene = options.scene || null;
         this.islandLoader = options.islandLoader || null;
+        
+        // Create the core resource system
+        this.resourceSystem = new ResourceSystem({
+            playerShip: this.playerShip,
+            multiplayerManager: options.multiplayerManager
+        });
         
         // Initialize resource gathering systems
         this.gatheringSystems = {
@@ -28,7 +29,8 @@ class ResourceCollector {
                 soundManager: options.soundManager || window.soundManager,
                 resourceSystem: this.resourceSystem,
                 scene: this.scene,
-                islandLoader: this.islandLoader
+                islandLoader: this.islandLoader,
+                playerShip: this.playerShip
             })
         };
         
@@ -419,10 +421,24 @@ class ResourceCollector {
     }
     
     /**
-     * Start resource collection process
+     * Start collecting a resource
      * @param {Object} options - Collection options
      */
     startCollection(options = {}) {
+        // Add player ship to the collection event options
+        const collectionInfo = {
+            ...options,
+            playerShip: this.playerShip
+        };
+        
+        // Dispatch custom event for collection start
+        const startEvent = new CustomEvent('resourceCollectionStarted', {
+            detail: collectionInfo
+        });
+        
+        document.dispatchEvent(startEvent);
+        
+        // Continue with the normal resource system collection
         this.resourceSystem.startCollection(options);
     }
     
@@ -615,6 +631,24 @@ class ResourceCollector {
         // Update island loader in gathering systems
         if (this.gatheringSystems.wood) {
             this.gatheringSystems.wood.islandLoader = islandLoader;
+        }
+    }
+    
+    /**
+     * Set the player ship reference
+     * @param {Object} playerShip - The player's ship
+     */
+    setPlayerShip(playerShip) {
+        this.playerShip = playerShip;
+        
+        // Update player ship in gathering systems
+        if (this.gatheringSystems.wood && typeof this.gatheringSystems.wood.setPlayerShip === 'function') {
+            this.gatheringSystems.wood.setPlayerShip(playerShip);
+        }
+        
+        // Update in resource system as well
+        if (this.resourceSystem) {
+            this.resourceSystem.playerShip = playerShip;
         }
     }
 }

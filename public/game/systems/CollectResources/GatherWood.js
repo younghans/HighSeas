@@ -15,6 +15,7 @@ class GatherWood {
         this.resourceSystem = options.resourceSystem;
         this.scene = options.scene || null;
         this.islandLoader = options.islandLoader || null;
+        this.playerShip = options.playerShip || null;
         
         // Sound effect paths
         this.chopSounds = [
@@ -37,7 +38,8 @@ class GatherWood {
         if (this.scene) {
             this.treeAnimator = new TreeAnimator({
                 scene: this.scene,
-                islandLoader: this.islandLoader
+                islandLoader: this.islandLoader,
+                playerShip: this.playerShip
             });
             console.log('TreeAnimator initialized for wood gathering');
         } else {
@@ -71,7 +73,8 @@ class GatherWood {
         if (this.scene) {
             this.treeAnimator = new TreeAnimator({
                 scene: this.scene,
-                islandLoader: this.islandLoader
+                islandLoader: this.islandLoader,
+                playerShip: this.playerShip
             });
             console.log('TreeAnimator reinitialized with new scene reference');
             
@@ -83,6 +86,21 @@ class GatherWood {
         } else {
             console.warn('Scene reference removed from GatherWood, tree animations will be disabled');
         }
+    }
+    
+    /**
+     * Set player ship reference and update TreeAnimator
+     * @param {Object} playerShip - The player's ship 
+     */
+    setPlayerShip(playerShip) {
+        this.playerShip = playerShip;
+        
+        // Update tree animator if it exists
+        if (this.treeAnimator) {
+            this.treeAnimator.setPlayerShip(playerShip);
+        }
+        
+        console.log('Player ship reference updated in GatherWood');
     }
     
     /**
@@ -133,10 +151,14 @@ class GatherWood {
             this.currentIsland = event.detail.island;
             console.log(`Wood collection started on island: ${this.currentIsland.userData ? this.currentIsland.userData.islandName || 'Unknown Island' : 'Unknown Island'}`);
             
+            // Update the player ship reference before finding trees
+            if (event.detail.playerShip) {
+                this.playerShip = event.detail.playerShip;
+            }
+            
             // Initialize tree animations if the animator exists
             if (this.treeAnimator) {
                 // Pass the island mesh directly to the TreeAnimator
-                // The mesh is the most reliable way to find trees
                 this.treeAnimator.findTreesOnIsland({ mesh: this.currentIsland });
             }
         }
@@ -179,8 +201,8 @@ class GatherWood {
         // Trigger tree animation for collection event
         if (this.treeAnimator && this.currentIsland) {
             console.log('Triggering tree animation for wood collection');
-            // Pass the island mesh directly to the TreeAnimator
-            this.treeAnimator.processWoodCollection({ mesh: this.currentIsland });
+            // Pass the island mesh and player ship directly to the TreeAnimator
+            this.treeAnimator.processWoodCollection({ mesh: this.currentIsland }, this.playerShip);
         }
     }
     
@@ -231,8 +253,8 @@ class GatherWood {
             // Trigger tree animation for chop sound
             if (this.treeAnimator && this.currentIsland) {
                 console.log('Triggering tree animation for chop sound');
-                // Pass the island mesh directly to the TreeAnimator
-                this.treeAnimator.processChopSound({ mesh: this.currentIsland });
+                // Pass the island mesh and player ship directly to the TreeAnimator
+                this.treeAnimator.processChopSound({ mesh: this.currentIsland }, this.playerShip);
             }
         }
     }
