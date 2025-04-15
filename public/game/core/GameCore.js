@@ -963,8 +963,8 @@ class GameCore {
                 new THREE.Vector3(300, 0, -800)
             ];
             
-            // Generate these islands with 15 trees per island
-            this.islandGenerator.generateIslands(procedualIslandPositions, 15);
+            // Generate these islands
+            this.islandGenerator.generateIslands(procedualIslandPositions);
             
             // Update island references for other systems
             this.updateIslandReferences();
@@ -982,12 +982,12 @@ class GameCore {
                 new THREE.Vector3(1000, 0, -200)
             ];
             
-            // Generate islands with 15 trees per island
-            this.islandGenerator.generateIslands(islandPositions, 15);
+            // Generate islands
+            this.islandGenerator.generateIslands(islandPositions);
             
             // Generate a larger custom island
             const customGeometry = new THREE.PlaneGeometry(400, 400, 80, 80);
-            this.islandGenerator.generateCustomIsland(new THREE.Vector3(-200, 0, 1000), customGeometry, 30);
+            this.islandGenerator.generateCustomIsland(new THREE.Vector3(-200, 0, 1000), customGeometry);
         });
     }
     

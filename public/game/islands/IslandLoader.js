@@ -118,7 +118,6 @@ class IslandLoader {
             const island = this.islandGenerator.generateCustomIsland(
                 position,
                 geometry,
-                islandData.params.treeCount,
                 islandData.params  // Pass the complete params object directly
             );
             
