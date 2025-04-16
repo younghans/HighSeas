@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tree Chopping Test</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Loading Tree Chopping Test...</div>
+
+    <!-- Firebase dependencies -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    
+    <!-- Initialize THREE.js -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.154.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.154.0/examples/"
+        }
+    }
+    </script>
+    
+    <!-- Mock Firebase configuration -->
+    <script>
+        // Initialize Firebase with mock configuration
+        const firebaseConfig = {
+            apiKey: "mock-api-key",
+            authDomain: "mock-project-id.firebaseapp.com",
+            databaseURL: "https://mock-project-id.firebaseio.com",
+            projectId: "mock-project-id",
+            storageBucket: "mock-project-id.appspot.com",
+            messagingSenderId: "mock-sender-id",
+            appId: "mock-app-id"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        
+        // Mock authenticated user
+        firebase.auth().onAuthStateChanged = (callback) => {
+            callback({
+                uid: "test-user-id",
+                email: "test@example.com",
+                displayName: "Test User"
+            });
+        };
+        
+        firebase.auth().currentUser = {
+            uid: "test-user-id",
+            email: "test@example.com",
+            displayName: "Test User"
+        };
+        
+        // Mock database reference
+        firebase.database().ref = (path) => {
+            console.log(`Database reference requested for path: ${path}`);
+            return {
+                once: (eventType) => {
+                    console.log(`Database once event: ${eventType}`);
+                    return Promise.resolve({
+                        exists: () => true,
+                        val: () => ({
+                            resources: {
+                                wood: 10,
+                                iron: 5,
+                                hemp: 3
+                            }
+                        })
+                    });
+                },
+                update: (data) => {
+                    console.log('Database update with data:', data);
+                    return Promise.resolve();
+                }
+            };
+        };
+    </script>
+    
+    <!-- Mock SoundManager -->
+    <script>
+        // Create a mock sound manager
+        class SoundManager {
+            constructor() {
+                this.sounds = {
+                    music: {},
+                    sfx: {}
+                };
+                console.log('Mock SoundManager initialized');
+            }
+            
+            loadSound(id, type, file) {
+                console.log(`Loading sound ${id} of type ${type} from file ${file}`);
+                this.sounds[type][id] = { id, file, loaded: true };
+            }
+            
+            play(id, type, options = {}) {
+                console.log(`Playing sound ${id} of type ${type} with options:`, options);
+                return true;
+            }
+            
+            stop(id, type) {
+                console.log(`Stopping sound ${id} of type ${type}`);
+            }
+        }
+        
+        window.soundManager = new SoundManager();
+    </script>
+    
+    <!-- Mock MultiplayerManager -->
+    <script>
+        // Create a mock multiplayer manager
+        class MultiplayerManager {
+            constructor() {
+                console.log('Mock MultiplayerManager initialized');
+            }
+            
+            updatePlayerResources(data) {
+                console.log('Updating player resources with:', data);
+                return Promise.resolve(true);
+            }
+            
+            updatePlayerPosition(ship) {
+                console.log('Updating player position:', ship);
+                return Promise.resolve(true);
+            }
+        }
+        
+        window.multiplayerManager = new MultiplayerManager();
+    </script>
+    
+    <!-- Load the test script as a module -->
+    <script type="module">
+        import TreeChoppingTest from './TreeChoppingTest.js';
+        
+        // Remove loading screen
+        document.getElementById('loading').style.display = 'none';
+    </script>
+</body>
+</html> 

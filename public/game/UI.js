@@ -11,7 +11,6 @@ import CooldownIndicator from './ui/CooldownIndicator.js';
 import DebugPanel from './ui/DebugPanel.js';
 import NotificationSystem from './ui/NotificationSystem.js';
 import LeaderboardComponent from './ui/LeaderboardComponent.js';
-import ResourceCollector from './ui/ResourceCollector.js';
 
 /**
  * GameUI class - handles all UI elements in the game
@@ -145,13 +144,6 @@ class GameUI {
         // Initialize chat manager with saved profanity filter preference
         this.chatManager = new ChatManager();
         this.chatManager.setProfanityFilter(this.profanityFilterEnabled);
-        
-        // Initialize resource collector
-        this.resourceCollector = new ResourceCollector({
-            gameUI: this,
-            playerShip: this.playerShip,
-            multiplayerManager: this.app.multiplayerManager
-        });
         
         // Create component instances
         this.leaderboardComponent = new LeaderboardComponent(this);
@@ -333,23 +325,6 @@ class GameUI {
         }
         
         console.log(`Game volume set to ${volume}%`);
-    }
-    
-    /**
-     * Get the resource collector instance
-     * @returns {ResourceCollector} The resource collector
-     */
-    getResourceCollector() {
-        return this.resourceCollector;
-    }
-    
-    /**
-     * Stop all active resource collection
-     */
-    stopResourceCollection() {
-        if (this.resourceCollector && this.resourceCollector.isCollecting) {
-            this.resourceCollector.stopCollection();
-        }
     }
 }
 

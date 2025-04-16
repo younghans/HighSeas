@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import Shipwright from '../ui/Shipwright.js';
 import IslandMenu from '../ui/IslandMenu.js';
 import HoverDetection from './HoverDetection.js';
+import ChopTree from '../systems/CollectResources/ChopTree.js';
 
 /**
  * IslandInteractionManager handles island interaction functionality
@@ -25,7 +26,6 @@ class IslandInteractionManager {
         this.islandMenu = new IslandMenu({
             gameUI: this.gameUI,
             buildingManager: this.buildingManager,
-            resourceCollector: this.gameUI ? this.gameUI.getResourceCollector() : null,
             onMenuClosed: () => {
                 this.islandMenuOpen = false;
             }
@@ -40,9 +40,18 @@ class IslandInteractionManager {
         // Connect shipwright to the island menu
         this.islandMenu.shipwright = this.shipwright;
         
+        // Initialize the ChopTree system
+        this.chopTree = new ChopTree({
+            scene: this.scene,
+            soundManager: options.soundManager || window.soundManager,
+            multiplayerManager: this.multiplayerManager
+        });
+        
         // Map of object types to their interaction handlers
         this.objectInteractionHandlers = {
             'shipBuildingShop': this.handleShipwrightInteraction.bind(this),
+            'firTreeLarge': this.handleTreeInteraction.bind(this),
+            'fir_tree_large': this.handleTreeInteraction.bind(this),
             'default': this.handleGenericObjectInteraction.bind(this) // Add default handler
         };
         
@@ -51,7 +60,7 @@ class IslandInteractionManager {
             scene: this.scene,
             camera: this.camera,
             islandGenerator: this.islandGenerator,
-            highlightableTypes: ['shipBuildingShop'], // Start with only the shipBuildingShop
+            highlightableTypes: ['shipBuildingShop', 'firTreeLarge', 'fir_tree_large'], // Add tree types
             debug: options.debug || false, // Pass debug flag
             throttleTime: options.hoverThrottleTime || 150, // Throttle hover checks
             frameSkip: options.hoverFrameSkip || 3, // Only process every N frames
@@ -583,6 +592,70 @@ class IslandInteractionManager {
     }
     
     /**
+     * Handle tree interaction to chop trees directly
+     * @param {THREE.Object3D} tree - The tree object that was clicked
+     */
+    handleTreeInteraction(tree) {
+        // Check if we're close enough to the tree
+        if (this.ship && this.ship.getPosition) {
+            const shipPosition = this.ship.getPosition();
+            const treePosition = new THREE.Vector3();
+            tree.getWorldPosition(treePosition);
+            
+            // Calculate distance between ship and tree (ignoring Y axis)
+            const shipPosFlat = new THREE.Vector3(shipPosition.x, 0, shipPosition.z);
+            const treePosFlat = new THREE.Vector3(treePosition.x, 0, treePosition.z);
+            const distance = shipPosFlat.distanceTo(treePosFlat);
+            
+            if (distance > this.ISLAND_INTERACTION_DISTANCE) {
+                // Too far away, move closer to the tree
+                console.log(`Too far from tree (${distance.toFixed(2)} units), moving closer`);
+                
+                // Calculate a position near the tree for the ship to move to
+                const direction = new THREE.Vector3().subVectors(treePosFlat, shipPosFlat).normalize();
+                
+                // Calculate a position that's within interaction distance of the tree
+                const targetPosition = new THREE.Vector3().addVectors(
+                    treePosFlat,
+                    direction.multiplyScalar(-this.ISLAND_INTERACTION_DISTANCE * 0.8)
+                );
+                
+                // Ensure Y position is the same as the ship's current Y position
+                targetPosition.y = shipPosition.y;
+                
+                // Store the tree for later interaction when the ship arrives
+                this.ship.targetTree = tree;
+                
+                // Move ship to the target position
+                this.ship.moveTo(targetPosition);
+                
+                // Sync with Firebase if multiplayer is enabled
+                if (this.multiplayerManager) {
+                    this.multiplayerManager.updatePlayerPosition(this.ship);
+                }
+                
+                return;
+            }
+            
+            // We're close enough, start chopping
+            console.log('Starting to chop tree:', tree.userData ? tree.userData.type : 'unknown tree type');
+            
+            // Stop the ship
+            this.ship.stopMoving();
+            
+            // Close island menu if open
+            if (this.islandMenuOpen) {
+                this.hideIslandMenu();
+            }
+            
+            // Start chopping the tree
+            if (this.chopTree) {
+                this.chopTree.startChopping(tree);
+            }
+        }
+    }
+    
+    /**
      * Set the types of objects that can be highlighted
      * @param {Array} types - Array of object types that can be highlighted
      */
@@ -628,7 +701,7 @@ class IslandInteractionManager {
                 scene: this.scene,
                 camera: this.camera,
                 islandGenerator: this.islandGenerator,
-                highlightableTypes: ['shipBuildingShop'],
+                highlightableTypes: ['shipBuildingShop', 'firTreeLarge', 'fir_tree_large'],
                 debug: this.debug || false,
                 throttleTime: 150,
                 frameSkip: 3,
@@ -651,9 +724,32 @@ class IslandInteractionManager {
         // Check if ship has reached target island
         this.checkShipReachedIsland();
         
+        // Check if ship has reached a target tree
+        this.checkShipReachedTree();
+        
         // Update hover detection
         if (this.highlightingEnabled && this.hoverDetection) {
             this.hoverDetection.update(delta);
+        }
+        
+        // Update tree chopping system
+        if (this.chopTree) {
+            this.chopTree.update(delta);
+        }
+    }
+    
+    /**
+     * Check if ship has reached a target tree for chopping
+     */
+    checkShipReachedTree() {
+        if (this.ship && this.ship.targetTree && !this.ship.isMoving) {
+            const tree = this.ship.targetTree;
+            
+            // Clear the target tree reference
+            this.ship.targetTree = null;
+            
+            // Handle the tree interaction now that we're close enough
+            this.handleTreeInteraction(tree);
         }
     }
 }
