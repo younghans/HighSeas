@@ -14,6 +14,7 @@ class ChopTree {
         this.scene = options.scene || null;
         this.soundManager = options.soundManager || window.soundManager;
         this.multiplayerManager = options.multiplayerManager || window.multiplayerManager;
+        this.camera = options.camera || null;
         
         // Sound effect paths
         this.chopSounds = [
@@ -63,6 +64,11 @@ class ChopTree {
         
         // Pre-load sounds
         this.preloadSounds();
+        
+        // Icon animation properties
+        this.woodIconPath = 'assets/images/icons/wood.png'; // Fixed path (removed leading slash)
+        this.animationDuration = 1200; // ms
+        this.iconSize = 50; // px
     }
 
     /**
@@ -541,6 +547,9 @@ class ChopTree {
             }
         };
         
+        // Create the flying wood icon animation
+        this.createFlyingWoodIcon();
+        
         // Use multiplayer manager to update player resources
         this.multiplayerManager.updatePlayerResources(inventoryUpdate)
             .then(success => {
@@ -568,6 +577,176 @@ class ChopTree {
                 // Try direct database update as fallback
                 this.directDatabaseUpdate(userId, 'wood', 1);
             });
+    }
+    
+    /**
+     * Create and animate a flying wood icon from the tree to inventory
+     */
+    createFlyingWoodIcon() {
+        if (!this.currentTree || !this.camera) {
+            console.warn('Cannot create flying wood icon:', 
+                !this.currentTree ? 'No current tree.' : 'No camera available.');
+            return;
+        }
+        
+        console.log('Creating flying wood icon animation');
+        
+        // Calculate screen position of the tree
+        const treePosition = new THREE.Vector3();
+        this.currentTree.getWorldPosition(treePosition);
+        console.log('Tree position in world:', treePosition);
+        
+        // Project 3D position to 2D screen coordinates
+        treePosition.project(this.camera);
+        console.log('Tree position projected:', treePosition);
+        
+        // Convert normalized device coordinates to screen coordinates
+        const screenX = (treePosition.x * 0.5 + 0.5) * window.innerWidth;
+        const screenY = (-(treePosition.y * 0.5) + 0.5) * window.innerHeight;
+        console.log('Screen coordinates:', screenX, screenY);
+        
+        // Try various selectors to find the inventory button
+        const inventoryButton = document.querySelector('.inventory-button') || 
+                               document.getElementById('inventory-button') || 
+                               document.querySelector('[data-ui="inventory"]') ||
+                               document.getElementById('bottom-button-container')?.querySelector('button') ||
+                               document.getElementById('bottom-menu-container');
+        
+        if (!inventoryButton) {
+            console.warn('Cannot find inventory button for wood icon animation, using default position');
+            // Use default position in the UI (bottom right)
+            const buttonX = window.innerWidth - 80;
+            const buttonY = window.innerHeight - 80;
+            this.createAndAnimateIcon(screenX, screenY, buttonX, buttonY);
+            return;
+        }
+        
+        // Get button's position
+        const buttonRect = inventoryButton.getBoundingClientRect();
+        const buttonX = buttonRect.left + buttonRect.width / 2;
+        const buttonY = buttonRect.top + buttonRect.height / 2;
+        console.log('Inventory button position:', buttonX, buttonY);
+        
+        this.createAndAnimateIcon(screenX, screenY, buttonX, buttonY);
+    }
+    
+    /**
+     * Create and animate the wood icon element
+     * @param {number} startX - Starting X position
+     * @param {number} startY - Starting Y position  
+     * @param {number} endX - Ending X position
+     * @param {number} endY - Ending Y position
+     */
+    createAndAnimateIcon(startX, startY, endX, endY) {
+        // Create the flying icon element
+        const flyingIcon = document.createElement('img');
+        flyingIcon.src = this.woodIconPath;
+        flyingIcon.alt = 'Wood collected';
+        flyingIcon.style.position = 'fixed';
+        flyingIcon.style.width = `${this.iconSize}px`;
+        flyingIcon.style.height = `${this.iconSize}px`;
+        flyingIcon.style.left = `${startX - this.iconSize/2}px`;
+        flyingIcon.style.top = `${startY - this.iconSize/2}px`;
+        flyingIcon.style.zIndex = '2000';
+        flyingIcon.style.opacity = '0';
+        flyingIcon.style.transform = 'scale(0) rotate(0deg)';
+        flyingIcon.style.transition = 'none'; // Start with no transition
+        flyingIcon.style.pointerEvents = 'none'; // Make sure it doesn't interfere with clicking
+        
+        console.log('Created flying icon:', flyingIcon.src);
+        
+        // Add to DOM
+        document.body.appendChild(flyingIcon);
+        
+        // Log error if image fails to load
+        flyingIcon.onerror = () => {
+            console.error('Failed to load wood icon image:', this.woodIconPath);
+        };
+        
+        // Log success if image loads
+        flyingIcon.onload = () => {
+            console.log('Wood icon image loaded successfully');
+        };
+        
+        // Animation phases:
+        // 1. Appear and grow
+        // 2. Rotate back and forth
+        // 3. Fly to inventory
+
+        // Phase 1: Appear and grow (500ms)
+        setTimeout(() => {
+            console.log('Starting icon animation - growing');
+            flyingIcon.style.transition = 'transform 500ms cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 500ms ease-in';
+            flyingIcon.style.opacity = '1';
+            flyingIcon.style.transform = 'scale(1.2) rotate(0deg)';
+        }, 10);
+        
+        // Phase 2: Rotate back and forth (800ms)
+        setTimeout(() => {
+            console.log('Icon rotating back and forth');
+            // Set up rotation animation
+            flyingIcon.style.transition = 'transform 200ms cubic-bezier(0.4, 0.0, 0.2, 1)';
+            flyingIcon.style.transform = 'scale(1.2) rotate(-15deg)';
+            
+            // First rotation (left)
+            setTimeout(() => {
+                flyingIcon.style.transform = 'scale(1.2) rotate(15deg)';
+                
+                // Second rotation (right)
+                setTimeout(() => {
+                    flyingIcon.style.transform = 'scale(1.2) rotate(-15deg)';
+                    
+                    // Third rotation (left)
+                    setTimeout(() => {
+                        flyingIcon.style.transform = 'scale(1.2) rotate(15deg)';
+                        
+                        // Return to center
+                        setTimeout(() => {
+                            flyingIcon.style.transform = 'scale(1.2) rotate(0deg)';
+                        }, 150);
+                    }, 150);
+                }, 150);
+            }, 150);
+        }, 550);
+        
+        // Phase 3: Fly to inventory (600ms)
+        setTimeout(() => {
+            console.log('Icon flying to inventory button');
+            // Set up flying animation
+            flyingIcon.style.transition = `transform 600ms cubic-bezier(0.2, 0.8, 0.2, 1), left 600ms cubic-bezier(0.2, 0.8, 0.2, 1), top 600ms cubic-bezier(0.2, 0.8, 0.2, 1)`;
+            flyingIcon.style.left = `${endX - this.iconSize/2}px`;
+            flyingIcon.style.top = `${endY - this.iconSize/2}px`;
+            flyingIcon.style.transform = 'scale(0.7) rotate(360deg)'; // Spin and shrink as it flies
+        }, 1400);
+        
+        // Phase 4: Fade out and complete
+        setTimeout(() => {
+            console.log('Animation complete, fading out icon');
+            flyingIcon.style.transition = 'opacity 300ms ease-out';
+            flyingIcon.style.opacity = '0';
+            
+            // Add visual feedback to inventory button
+            const inventoryButton = document.querySelector('.inventory-button') || 
+                               document.getElementById('inventory-button') || 
+                               document.querySelector('[data-ui="inventory"]') ||
+                               document.getElementById('bottom-button-container')?.querySelector('button') ||
+                               document.getElementById('bottom-menu-container');
+                               
+            if (inventoryButton) {
+                inventoryButton.classList.add('resource-added');
+                setTimeout(() => {
+                    inventoryButton.classList.remove('resource-added');
+                }, 500);
+            }
+            
+            // Remove element from DOM after fade out
+            setTimeout(() => {
+                if (flyingIcon.parentNode) {
+                    flyingIcon.parentNode.removeChild(flyingIcon);
+                    console.log('Removed flying icon from DOM');
+                }
+            }, 300);
+        }, 2100);
     }
     
     /**

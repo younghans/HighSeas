@@ -13,6 +13,11 @@ class Inventory {
         this.gameUI = options.gameUI;
         this.inventoryMenu = null;
         
+        // Resource icons mapping
+        this.resourceIcons = {
+            wood: '/assets/images/icons/wood.png'
+        };
+        
         this.createInventoryMenu();
         
         // Listen for resource collection events
@@ -199,9 +204,27 @@ class Inventory {
                 // Format resource name with first letter uppercase
                 const formattedName = resourceType.charAt(0).toUpperCase() + resourceType.slice(1);
                 
+                // Create left side container for icon + name
+                const leftContainer = document.createElement('div');
+                leftContainer.style.display = 'flex';
+                leftContainer.style.alignItems = 'center';
+                
+                // Check if we have an icon for this resource
+                if (this.resourceIcons[resourceType]) {
+                    // Create icon element
+                    const icon = document.createElement('img');
+                    icon.src = this.resourceIcons[resourceType];
+                    icon.alt = `${formattedName} icon`;
+                    icon.style.width = '20px';
+                    icon.style.height = '20px';
+                    icon.style.marginRight = '8px';
+                    leftContainer.appendChild(icon);
+                }
+                
                 // Resource name
                 const resourceName = document.createElement('span');
                 resourceName.textContent = formattedName;
+                leftContainer.appendChild(resourceName);
                 
                 // Resource amount
                 const resourceAmount = document.createElement('span');
@@ -209,7 +232,7 @@ class Inventory {
                 resourceAmount.style.fontWeight = 'bold';
                 
                 // Add to resource item
-                resourceItem.appendChild(resourceName);
+                resourceItem.appendChild(leftContainer);
                 resourceItem.appendChild(resourceAmount);
                 
                 // Add to list

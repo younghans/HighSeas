@@ -44,7 +44,8 @@ class IslandInteractionManager {
         this.chopTree = new ChopTree({
             scene: this.scene,
             soundManager: options.soundManager || window.soundManager,
-            multiplayerManager: this.multiplayerManager
+            multiplayerManager: this.multiplayerManager,
+            camera: this.camera
         });
         
         // Map of object types to their interaction handlers

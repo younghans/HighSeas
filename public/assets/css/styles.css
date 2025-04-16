@@ -1,0 +1,17 @@
+/* Animation for resource collection */
+.resource-added {
+    animation: pulse 0.5s ease-in-out;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.15);
+    }
+    100% {
+        transform: scale(1);
+    }
+} 
