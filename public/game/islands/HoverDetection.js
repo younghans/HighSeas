@@ -58,7 +58,10 @@ class HoverDetection {
         
         // Custom cursor settings
         this.customCursors = {
-            'fir_tree_large': 'url(/assets/images/cursors/hatchet_cursor.png) 5 5, auto'
+            'fir_tree_large': 'url(/assets/images/cursors/hatchet_cursor.png) 5 5, auto',
+            'firTreeLarge': 'url(/assets/images/cursors/hatchet_cursor.png) 5 5, auto',
+            'fir_tree_medium': 'url(/assets/images/cursors/hatchet_cursor.png) 5 5, auto',
+            'firTreeMedium': 'url(/assets/images/cursors/hatchet_cursor.png) 5 5, auto'
         };
         this.defaultCursor = 'default';
         this.currentCursorType = null;

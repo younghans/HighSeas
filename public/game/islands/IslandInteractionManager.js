@@ -53,13 +53,17 @@ class IslandInteractionManager {
             'shipBuildingShop': this.handleShipwrightInteraction.bind(this),
             'firTreeLarge': this.handleTreeInteraction.bind(this),
             'fir_tree_large': this.handleTreeInteraction.bind(this),
+            'firTreeMedium': this.handleTreeInteraction.bind(this),
+            'fir_tree_medium': this.handleTreeInteraction.bind(this),
             'default': this.handleGenericObjectInteraction.bind(this) // Add default handler
         };
         
         // Define custom cursor mappings
         this.customCursors = {
             'fir_tree_large': 'url(/assets/images/cursors/hatchet_cursor.png) 5 5, auto',
-            'firTreeLarge': 'url(/assets/images/cursors/hatchet_cursor.png) 5 5, auto'
+            'firTreeLarge': 'url(/assets/images/cursors/hatchet_cursor.png) 5 5, auto',
+            'fir_tree_medium': 'url(/assets/images/cursors/hatchet_cursor.png) 5 5, auto',
+            'firTreeMedium': 'url(/assets/images/cursors/hatchet_cursor.png) 5 5, auto'
         };
         
         // Debug flag from options or default to false
@@ -70,7 +74,7 @@ class IslandInteractionManager {
             scene: this.scene,
             camera: this.camera,
             islandGenerator: this.islandGenerator,
-            highlightableTypes: ['shipBuildingShop', 'firTreeLarge', 'fir_tree_large'], // Add tree types
+            highlightableTypes: ['shipBuildingShop', 'firTreeLarge', 'fir_tree_large', 'firTreeMedium', 'fir_tree_medium'], // Add tree types
             debug: this.debug, // Pass debug flag
             throttleTime: options.hoverThrottleTime || 150, // Throttle hover checks
             frameSkip: options.hoverFrameSkip || 3, // Only process every N frames
@@ -757,7 +761,7 @@ class IslandInteractionManager {
                 scene: this.scene,
                 camera: this.camera,
                 islandGenerator: this.islandGenerator,
-                highlightableTypes: ['shipBuildingShop', 'firTreeLarge', 'fir_tree_large'],
+                highlightableTypes: ['shipBuildingShop', 'firTreeLarge', 'fir_tree_large', 'firTreeMedium', 'fir_tree_medium'],
                 debug: this.debug || false,
                 throttleTime: 150,
                 frameSkip: 3,
