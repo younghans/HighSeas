@@ -56,6 +56,13 @@ class HoverDetection {
         // Debug flag
         this.debug = options.debug || false;
         
+        // Custom cursor settings
+        this.customCursors = {
+            'fir_tree_large': 'url(/assets/images/cursors/hatchet_cursor.png) 5 5, auto'
+        };
+        this.defaultCursor = 'default';
+        this.currentCursorType = null;
+        
         // Bind methods
         this.onMouseMove = this.onMouseMove.bind(this);
         this.onMouseClick = this.onMouseClick.bind(this);
@@ -76,6 +83,7 @@ class HoverDetection {
         
         if (this.debug) {
             console.log('HoverDetection initialized with highlightable types:', this.highlightableTypes);
+            console.log('Custom cursor settings initialized:', this.customCursors);
         }
     }
     
@@ -89,6 +97,9 @@ class HoverDetection {
         
         // Reset any highlighted object
         this.resetHighlight();
+        
+        // Reset cursor to default
+        this.setCursor(null);
         
         // Clear cache
         this.cachedInteractableObjects = [];
@@ -154,6 +165,28 @@ class HoverDetection {
     }
     
     /**
+     * Set cursor based on object type
+     * @param {string|null} type - Object type or null to reset to default
+     */
+    setCursor(type) {
+        if (type === this.currentCursorType) return; // No change needed
+        
+        this.currentCursorType = type;
+        
+        if (type && this.customCursors[type]) {
+            if (this.debug) {
+                console.log(`Setting cursor for type: ${type} to ${this.customCursors[type]}`);
+            }
+            document.body.style.cursor = this.customCursors[type];
+        } else {
+            if (this.debug && type) {
+                console.log(`No custom cursor for type: ${type}, using default`);
+            }
+            document.body.style.cursor = this.defaultCursor;
+        }
+    }
+    
+    /**
      * Check for objects to highlight using raycaster
      */
     checkForHighlights() {
@@ -175,17 +208,24 @@ class HoverDetection {
         // Update the raycaster
         this.raycaster.setFromCamera(this.mouse, this.camera);
         
+        // Flag to track if we found an object to highlight
+        let foundObject = false;
+        let objectType = null;
+        
         // First, quick check if we're pointing at an island
         const islands = this.islandGenerator ? this.islandGenerator.getIslands() : [];
         const islandIntersects = this.raycaster.intersectObjects(islands, false);
         
         if (islandIntersects.length > 0) {
             // We hit an island, check its objects
-            this.checkIslandObjectIntersections(islandIntersects[0].object);
+            foundObject = this.checkIslandObjectIntersections(islandIntersects[0].object);
+            if (foundObject && this.highlightedObject && this.highlightedObject.userData) {
+                objectType = this.highlightedObject.userData.type;
+            }
         }
         
         // If no building was highlighted through islands, try direct object detection
-        if (!this.highlightedObject) {
+        if (!foundObject) {
             // Update cache if invalidated
             if (this.cacheInvalidated) {
                 this.updateObjectCache();
@@ -201,11 +241,18 @@ class HoverDetection {
                     
                     if (object && this.isHighlightableObject(object)) {
                         this.highlightObject(object);
+                        foundObject = true;
+                        if (object.userData) {
+                            objectType = object.userData.type;
+                        }
                         break;
                     }
                 }
             }
         }
+        
+        // Set cursor based on the object type we found (or reset to default)
+        this.setCursor(objectType);
     }
     
     /**
@@ -223,6 +270,7 @@ class HoverDetection {
     /**
      * Check for intersections with objects on an island
      * @param {THREE.Object3D} island - The island to check
+     * @returns {boolean} - Whether an object was highlighted
      */
     checkIslandObjectIntersections(island) {
         // Since objects are now children of the island, we can directly use recursive raycasting
@@ -238,10 +286,12 @@ class HoverDetection {
                     if (this.debug) {
                         console.log('Highlighted island object:', object.userData.type);
                     }
-                    break;
+                    return true;
                 }
             }
         }
+        
+        return false;
     }
     
     /**
@@ -467,6 +517,19 @@ class HoverDetection {
         
         if (this.debug) {
             console.log('All island objects highlightable:', enabled);
+        }
+    }
+    
+    /**
+     * Set a custom cursor for a specific object type
+     * @param {string} objectType - The object type
+     * @param {string} cursorStyle - CSS cursor style
+     */
+    setCustomCursor(objectType, cursorStyle) {
+        this.customCursors[objectType] = cursorStyle;
+        
+        if (this.debug) {
+            console.log(`Set custom cursor for ${objectType}:`, cursorStyle);
         }
     }
     

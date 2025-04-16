@@ -1,0 +1,9 @@
+PLACEHOLDER
+The actual hatchet_cursor.png should be generated from the SVG file.
+This is just a placeholder file until the conversion can be done.
+
+To convert from SVG to PNG, you can use tools like:
+1. A browser (open SVG, screenshot)
+2. Online converters
+3. Image manipulation tools like GIMP or Photoshop
+4. Command-line tools like Inkscape (inkscape hatchet_cursor.svg -o hatchet_cursor.png) 

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="32" height="32" viewBox="0 0 32 32" version="1.1" xmlns="http://www.w3.org/2000/svg">
+  <!-- Axe handle (brown) -->
+  <path d="M28,28 L15,15" stroke="#8B4513" stroke-width="4" stroke-linecap="round"/>
+  
+  <!-- Axe head (grey with outline) -->
+  <path d="M5,5 L15,15 L9,9 Z" fill="#888888" stroke="#333333" stroke-width="1"/>
+  <path d="M5,5 L15,15" stroke="#666666" stroke-width="1"/>
+  
+  <!-- Edge highlight -->
+  <path d="M5,5 L9,9" stroke="#CCCCCC" stroke-width="1"/>
+</svg> 

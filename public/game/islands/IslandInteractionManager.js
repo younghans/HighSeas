@@ -56,18 +56,30 @@ class IslandInteractionManager {
             'default': this.handleGenericObjectInteraction.bind(this) // Add default handler
         };
         
+        // Define custom cursor mappings
+        this.customCursors = {
+            'fir_tree_large': 'url(/assets/images/cursors/hatchet_cursor.png) 5 5, auto',
+            'firTreeLarge': 'url(/assets/images/cursors/hatchet_cursor.png) 5 5, auto'
+        };
+        
+        // Debug flag from options or default to false
+        this.debug = options.debug || false;
+        
         // Initialize hover detection system
         this.hoverDetection = new HoverDetection({
             scene: this.scene,
             camera: this.camera,
             islandGenerator: this.islandGenerator,
             highlightableTypes: ['shipBuildingShop', 'firTreeLarge', 'fir_tree_large'], // Add tree types
-            debug: options.debug || false, // Pass debug flag
+            debug: this.debug, // Pass debug flag
             throttleTime: options.hoverThrottleTime || 150, // Throttle hover checks
             frameSkip: options.hoverFrameSkip || 3, // Only process every N frames
             islandInteractionManager: this, // Pass self-reference
             allIslandObjectsHighlightable: true // Enable highlighting for all island objects
         });
+        
+        // Configure custom cursors
+        this.configureCustomCursors();
         
         // Set up object click handler
         if (this.hoverDetection) {
@@ -106,6 +118,49 @@ class IslandInteractionManager {
         // Store in global for settings UI access
         if (window) {
             window.islandInteractionManager = this;
+        }
+        
+        if (this.debug) {
+            console.log('IslandInteractionManager initialized with custom cursors:', this.customCursors);
+        }
+    }
+    
+    /**
+     * Configure custom cursors for different object types
+     */
+    configureCustomCursors() {
+        if (!this.hoverDetection) {
+            if (this.debug) {
+                console.warn('Cannot configure custom cursors: HoverDetection not initialized');
+            }
+            return;
+        }
+        
+        // Apply each custom cursor
+        Object.entries(this.customCursors).forEach(([objectType, cursorStyle]) => {
+            this.hoverDetection.setCustomCursor(objectType, cursorStyle);
+            
+            if (this.debug) {
+                console.log(`Configured custom cursor for ${objectType}:`, cursorStyle);
+            }
+        });
+    }
+    
+    /**
+     * Set a custom cursor for a specific object type
+     * @param {string} objectType - The object type
+     * @param {string} cursorStyle - CSS cursor style
+     */
+    setCustomCursor(objectType, cursorStyle) {
+        this.customCursors[objectType] = cursorStyle;
+        
+        // If hover detection is initialized, update it
+        if (this.hoverDetection) {
+            this.hoverDetection.setCustomCursor(objectType, cursorStyle);
+        }
+        
+        if (this.debug) {
+            console.log(`Set custom cursor for ${objectType}:`, cursorStyle);
         }
     }
     
