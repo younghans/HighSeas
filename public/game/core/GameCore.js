@@ -202,7 +202,7 @@ class GameCore {
         
         // Update info panel for gameplay
         infoElement.innerHTML = `
-            <h2>Yarr!</h2>
+            <h2>High Seas!</h2>
             <p>Left-click: Move ship</p>
             <p>Right-click: Rotate camera</p>
             <p>Click enemy: Target</p>
@@ -803,7 +803,7 @@ class GameCore {
         const infoElement = document.getElementById('info');
         if (infoElement) {
             infoElement.innerHTML = `
-                <h2>Yarr!</h2>
+                <h2>High Seas!</h2>
                 <p>Left-click: Move ship</p>
                 <p>Right-click: Camera</p>
                 <p>Click enemy: Target</p>
@@ -814,7 +814,7 @@ class GameCore {
             const newInfoElement = document.createElement('div');
             newInfoElement.id = 'info';
             newInfoElement.innerHTML = `
-                <h2>Yarr!</h2>
+                <h2>High Seas!</h2>
                 <p>Left-click: Move ship</p>
                 <p>Right-click: Camera</p>
                 <p>Click enemy: Target</p>

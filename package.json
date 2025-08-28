@@ -1,7 +1,7 @@
 {
-  "name": "Yarr",
+  "name": "HighSeas",
   "version": "1.0.0",
-  "description": "Yarr game project",
+  "description": "High Seas game project",
   "main": "index.html",
   "scripts": {
     "start": "firebase serve",

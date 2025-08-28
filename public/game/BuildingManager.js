@@ -263,7 +263,7 @@ class BuildingManager {
         // Update info display via callback
         if (this.onInfoUpdate) {
             this.onInfoUpdate({
-                title: 'Yarr!',
+                title: 'High Seas!',
                 message: 'Left-click: Move ship\nRight-click: Camera'
             });
         }

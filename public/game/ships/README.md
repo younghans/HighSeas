@@ -1,6 +1,6 @@
 # Ship System
 
-This directory contains the ship system for the Yarr game. The system is designed to be modular and extensible, allowing for different types of ships to be added easily.
+This directory contains the ship system for the High Seas game. The system is designed to be modular and extensible, allowing for different types of ships to be added easily.
 
 ## Structure
 

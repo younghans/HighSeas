@@ -1,44 +1,59 @@
-# Yarr! - Pirate Ship Game
+# High Seas - Pirate Ship Game
 
-A 3D pirate ship game built with Three.js where you can sail the seas, discover islands, and build structures.
+A 3D multiplayer pirate ship game built with Three.js and Firebase where you sail the seas, engage in ship combat, discover islands, and build structures.
 
-## Project Structure
+## Features
 
-- `index.html` - The main entry point for the game
-- `game/` - Directory containing all game-related files
-  - `main.js` - Main game initialization and loop
-  - `IslandGenerator.js` - Handles island generation
-  - `world.js` - Manages the game world (sky, water, lighting)
-  - `ship.js` - Ship controls and physics
-  - `wind.js` - Wind system for the game
-  - `objects/` - Directory containing game objects
-    - `market-stall.js` - Market stall building
-    - `dock.js` - Dock building
+- 🏴‍☠️ **Multiplayer Combat** - Real-time ship-to-ship battles with other players
+- 🚢 **Multiple Ship Types** - Choose from dinghy, sloop, skiff, brig, cutter, and more
+- 🏝️ **Procedural Islands** - Explore randomly generated islands with resources
+- ⚔️ **Combat System** - Cannon battles with damage, health, and respawn mechanics
+- 🔨 **Building System** - Construct buildings, docks, and structures on islands
+- 🌊 **Realistic Water Physics** - Dynamic water with wake effects and weather
+- 🎮 **Authentication** - Guest login or Google account sign-in
+- 💬 **Chat System** - Communicate with other players
+- 🎵 **Spatial Audio** - Immersive 3D sound effects
+- 📊 **Leaderboard** - Track your progress against other players
 
-## How to Play
+## Ship Types
 
-1. Open `index.html` in a web browser
-2. Left-click to move the ship to a location
-3. Right-click and drag to move the camera
-4. Approach islands to interact with them
-5. Use the building mode to place structures on islands
+Each ship has unique combat characteristics:
+- **Dinghy**: Fast, lightweight rowing boat (80 HP, 1.3s reload)
+- **Sloop**: Balanced sailing ship (100 HP, medium range)
+- **Skiff**: Agile with powerful cannons (90 HP, 110 range)
+- **Brig**: Heavy warship (150 HP, 130 range, slow but powerful)
+- **Cutter**: Well-rounded vessel (120 HP, good all-around stats)
+
+## Quick Start
+
+```bash
+# Install dependencies
+npm install
+
+# Local development server
+npm start
+
+# Full local testing with Firebase emulators
+npm run emulators
+
+# Deploy to production
+npm run deploy
+```
+
+Access the game at `http://localhost:5000` after starting the development server.
 
 ## Controls
 
 - **Left-click**: Move ship to location
-- **Right-click drag**: Move camera
+- **Right-click**: Attack enemy ships  
+- **Right-click drag**: Move camera view
 - **ESC**: Exit build mode
 - **R**: Rotate building (when in build mode)
 
-## Features
 
-- 3D sailing with realistic water physics
-- Dynamic wind system
-- Island discovery and exploration
-- Building system for constructing on islands
-- Camera controls for viewing the world
+## Technologies
 
-## Dependencies
-
-- Three.js - 3D graphics library
-- Various Three.js addons (OrbitControls, Water, Sky, etc.) 
+- **Three.js** - 3D graphics and rendering
+- **Firebase** - Real-time database, authentication, and hosting
+- **WebGL** - Hardware-accelerated graphics
+- **ES6 Modules** - Modern JavaScript architecture
