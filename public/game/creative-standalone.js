@@ -27,11 +27,39 @@ class CreativeStandalone {
         this.islandParams = {
             size: 400,
             resolution: 80, // Fixed resolution
-            treeCount: 30,
             seed: Math.floor(Math.random() * 65536),
             noiseScale: 0.01,
             noiseHeight: 80,
             falloffFactor: 0.3
+        };
+        
+        // Island type and object configuration
+        this.islandType = 'forest'; // 'forest', 'rock', or 'plain'
+        this.objectConfig = {
+            forest: {
+                count: 10,
+                distribution: {
+                    firTreeLarge: 35,
+                    firTreeMedium: 45,
+                    firTreeSmall: 20
+                }
+            },
+            rock: {
+                count: 8,
+                distribution: {
+                    stoneLarge2: 25,
+                    stoneLarge3: 25,
+                    stoneLarge4: 25,
+                    stoneLarge5: 25
+                }
+            },
+            plain: {
+                count: 3,
+                distribution: {
+                    firTreeLarge: 50,
+                    stoneLarge2: 50
+                }
+            }
         };
     }
     
@@ -218,13 +246,17 @@ class CreativeStandalone {
             </div>
             
             <div style="margin-bottom: 15px;">
-                <label for="islandSize">Size: <span id="sizeValue">${this.islandParams.size}</span></label>
-                <input type="range" id="islandSize" min="100" max="1000" value="${this.islandParams.size}" style="width: 100%;">
+                <label for="islandType">Island Type:</label>
+                <select id="islandType" style="width: 100%; padding: 5px; margin-top: 5px;">
+                    <option value="forest" ${this.islandType === 'forest' ? 'selected' : ''}>Forest</option>
+                    <option value="rock" ${this.islandType === 'rock' ? 'selected' : ''}>Rock</option>
+                    <option value="plain" ${this.islandType === 'plain' ? 'selected' : ''}>Plain</option>
+                </select>
             </div>
             
             <div style="margin-bottom: 15px;">
-                <label for="islandTrees">Tree Count: <span id="treeValue">${this.islandParams.treeCount}</span></label>
-                <input type="range" id="islandTrees" min="0" max="100" value="${this.islandParams.treeCount}" style="width: 100%;">
+                <label for="islandSize">Size: <span id="sizeValue">${this.islandParams.size}</span></label>
+                <input type="range" id="islandSize" min="50" max="400" value="${this.islandParams.size}" style="width: 100%;">
             </div>
             
             <div style="margin-bottom: 15px;">
@@ -237,17 +269,32 @@ class CreativeStandalone {
             
             <div style="margin-bottom: 15px;">
                 <label for="noiseScale">Noise Scale: <span id="noiseScaleValue">${this.islandParams.noiseScale.toFixed(4)}</span></label>
-                <input type="range" id="noiseScale" min="0.001" max="0.02" step="0.001" value="${this.islandParams.noiseScale}" style="width: 100%;">
+                <input type="range" id="noiseScale" min="0.001" max="0.01" step="0.001" value="${this.islandParams.noiseScale}" style="width: 100%;">
             </div>
             
             <div style="margin-bottom: 15px;">
                 <label for="noiseHeight">Height Scale: <span id="noiseHeightValue">${this.islandParams.noiseHeight}</span></label>
-                <input type="range" id="noiseHeight" min="10" max="200" value="${this.islandParams.noiseHeight}" style="width: 100%;">
+                <input type="range" id="noiseHeight" min="0" max="100" value="${this.islandParams.noiseHeight}" style="width: 100%;">
             </div>
             
-            <div style="margin-bottom: 20px;">
+            <div style="margin-bottom: 15px;">
                 <label for="falloffFactor">Edge Falloff: <span id="falloffValue">${this.islandParams.falloffFactor.toFixed(2)}</span></label>
-                <input type="range" id="falloffFactor" min="0.1" max="1.0" step="0.05" value="${this.islandParams.falloffFactor}" style="width: 100%;">
+                <input type="range" id="falloffFactor" min="0" max="0.2" step="0.01" value="${this.islandParams.falloffFactor}" style="width: 100%;">
+            </div>
+            
+            <div id="objectConfig" style="margin-bottom: 20px; border: 1px solid #555; padding: 10px; border-radius: 5px;">
+                <h3 style="margin-top: 0; margin-bottom: 10px;">Object Configuration</h3>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="objectCount">Object Count: <span id="objectCountValue">${this.objectConfig[this.islandType].count}</span></label>
+                    <input type="range" id="objectCount" min="0" max="60" value="${this.objectConfig[this.islandType].count}" style="width: 100%;">
+                </div>
+                
+                <div id="distributionControls">
+                    <!-- Distribution controls will be populated by JavaScript -->
+                </div>
+                
+                <button id="generateObjects" style="padding: 8px; width: 100%; background-color: #6a9bd1; color: white; border: none; border-radius: 3px; cursor: pointer; margin-top: 10px;">Generate Objects</button>
             </div>
             
             <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
@@ -268,6 +315,9 @@ class CreativeStandalone {
         
         // Add event listeners
         this.setupUIEventListeners();
+        
+        // Initialize distribution controls
+        this.updateDistributionControls();
     }
     
     setupUIEventListeners() {
@@ -277,10 +327,10 @@ class CreativeStandalone {
             this.updateIslandPreview();
         });
         
-        document.getElementById('islandTrees').addEventListener('input', (e) => {
-            this.islandParams.treeCount = parseInt(e.target.value);
-            document.getElementById('treeValue').textContent = this.islandParams.treeCount;
-            this.updateIslandPreview();
+        document.getElementById('islandType').addEventListener('change', (e) => {
+            this.islandType = e.target.value;
+            this.updateDistributionControls();
+            this.updateObjectCountDisplay();
         });
         
         document.getElementById('islandSeed').addEventListener('change', (e) => {
@@ -312,6 +362,15 @@ class CreativeStandalone {
             this.islandParams.falloffFactor = parseFloat(e.target.value);
             document.getElementById('falloffValue').textContent = this.islandParams.falloffFactor.toFixed(2);
             this.updateIslandPreview();
+        });
+        
+        document.getElementById('objectCount').addEventListener('input', (e) => {
+            this.objectConfig[this.islandType].count = parseInt(e.target.value);
+            document.getElementById('objectCountValue').textContent = this.objectConfig[this.islandType].count;
+        });
+        
+        document.getElementById('generateObjects').addEventListener('click', () => {
+            this.generateIslandObjects();
         });
         
         document.getElementById('toggleWater').addEventListener('click', () => {
@@ -418,8 +477,7 @@ class CreativeStandalone {
             island.position.set(position.x, -5, position.z);
             this.scene.add(island);
             
-            // Place trees on the island
-            tempGenerator._placeTrees(island, customGeometry, numTrees);
+
             
             return island;
         };
@@ -427,8 +485,7 @@ class CreativeStandalone {
         // Generate the new island
         this.currentIsland = tempGenerator.generateCustomIsland(
             new THREE.Vector3(0, 0, 0),
-            geometry,
-            this.islandParams.treeCount
+            geometry
         );
         
         // Add this island to the main islandGenerator's collection
@@ -461,6 +518,297 @@ class CreativeStandalone {
         this.placedObjects = [];
     }
     
+    updateDistributionControls() {
+        const distributionContainer = document.getElementById('distributionControls');
+        if (!distributionContainer) return;
+        
+        const config = this.objectConfig[this.islandType];
+        const objectTypes = Object.keys(config.distribution);
+        
+        distributionContainer.innerHTML = '';
+        
+        objectTypes.forEach(objectType => {
+            const controlDiv = document.createElement('div');
+            controlDiv.style.marginBottom = '10px';
+            
+            const modelName = this.getModelDisplayName(objectType);
+            
+            controlDiv.innerHTML = `
+                <label for="${objectType}Slider" style="display: block; margin-bottom: 5px; font-size: 12px;">${modelName}: <span id="${objectType}Value">${config.distribution[objectType]}</span>%</label>
+                <input type="range" id="${objectType}Slider" min="0" max="100" value="${config.distribution[objectType]}" style="width: 100%;">
+            `;
+            
+            distributionContainer.appendChild(controlDiv);
+            
+            // Add event listener for this slider
+            const slider = document.getElementById(`${objectType}Slider`);
+            slider.addEventListener('input', (e) => {
+                const newValue = parseInt(e.target.value);
+                this.objectConfig[this.islandType].distribution[objectType] = newValue;
+                document.getElementById(`${objectType}Value`).textContent = newValue;
+                this.normalizeDistribution(objectType);
+            });
+        });
+    }
+    
+    getModelDisplayName(objectType) {
+        const displayNames = {
+            'firTreeLarge': 'Large Fir Tree',
+            'firTreeMedium': 'Medium Fir Tree',
+            'firTreeSmall': 'Small Fir Tree',
+            'stoneLarge2': 'Large Stone 2',
+            'stoneLarge3': 'Large Stone 3',
+            'stoneLarge4': 'Large Stone 4',
+            'stoneLarge5': 'Large Stone 5'
+        };
+        return displayNames[objectType] || objectType;
+    }
+    
+    normalizeDistribution(changedObjectType) {
+        const config = this.objectConfig[this.islandType];
+        const objectTypes = Object.keys(config.distribution);
+        
+        // Calculate total of all other types
+        let totalOthers = 0;
+        objectTypes.forEach(type => {
+            if (type !== changedObjectType) {
+                totalOthers += config.distribution[type];
+            }
+        });
+        
+        const changedValue = config.distribution[changedObjectType];
+        const remainingPercentage = 100 - changedValue;
+        
+        if (totalOthers > 0 && remainingPercentage >= 0) {
+            // Proportionally adjust other values
+            const scaleFactor = remainingPercentage / totalOthers;
+            
+            objectTypes.forEach(type => {
+                if (type !== changedObjectType) {
+                    const newValue = Math.round(config.distribution[type] * scaleFactor);
+                    config.distribution[type] = newValue;
+                    
+                    // Update UI
+                    const slider = document.getElementById(`${type}Slider`);
+                    const valueSpan = document.getElementById(`${type}Value`);
+                    if (slider && valueSpan) {
+                        slider.value = newValue;
+                        valueSpan.textContent = newValue;
+                    }
+                }
+            });
+        }
+    }
+    
+    updateObjectCountDisplay() {
+        const objectCountSlider = document.getElementById('objectCount');
+        const objectCountValue = document.getElementById('objectCountValue');
+        
+        if (objectCountSlider && objectCountValue) {
+            objectCountSlider.value = this.objectConfig[this.islandType].count;
+            objectCountValue.textContent = this.objectConfig[this.islandType].count;
+        }
+    }
+    
+    async generateIslandObjects() {
+        if (!this.currentIsland) {
+            console.warn('No island available for object placement');
+            return;
+        }
+        
+        // Clear existing generated objects (keep manually placed ones)
+        this.removeGeneratedObjects();
+        
+        const config = this.objectConfig[this.islandType];
+        const objectTypes = Object.keys(config.distribution);
+        
+        // Calculate how many of each type to place
+        const objectsToPlace = [];
+        objectTypes.forEach(objectType => {
+            const percentage = config.distribution[objectType] / 100;
+            const count = Math.round(config.count * percentage);
+            
+            for (let i = 0; i < count; i++) {
+                objectsToPlace.push(objectType);
+            }
+        });
+        
+        // Shuffle the array for random placement
+        for (let i = objectsToPlace.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [objectsToPlace[i], objectsToPlace[j]] = [objectsToPlace[j], objectsToPlace[i]];
+        }
+        
+        // Place objects on the island
+        for (const objectType of objectsToPlace) {
+            await this.placeObjectOnTerrain(objectType);
+        }
+    }
+    
+    removeGeneratedObjects() {
+        const objectsToRemove = [];
+        this.scene.traverse(object => {
+            if (object.userData && object.userData.isGenerated) {
+                objectsToRemove.push(object);
+            }
+        });
+        
+        objectsToRemove.forEach(object => {
+            this.scene.remove(object);
+        });
+        
+        // Remove generated objects from placedObjects array
+        this.placedObjects = this.placedObjects.filter(obj => !obj.isGenerated);
+    }
+    
+    async placeObjectOnTerrain(objectType) {
+        if (!this.currentIsland) return;
+        
+        const islandSize = this.islandParams.size;
+        const maxAttempts = 50;
+        let position = null;
+        
+        // Create a raycaster for finding surface positions (same as BuildingManager)
+        const raycaster = new THREE.Raycaster();
+        
+        // Try to find a good position on the terrain using raycasting
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            // Generate random position within island bounds
+            const x = (Math.random() - 0.5) * islandSize * 0.8; // Stay within 80% of island
+            const z = (Math.random() - 0.5) * islandSize * 0.8;
+            
+            // Cast a ray downward from above the island to find the surface
+            const rayOrigin = new THREE.Vector3(x, 200, z); // Start from high above
+            const rayDirection = new THREE.Vector3(0, -1, 0); // Point downward
+            
+            raycaster.set(rayOrigin, rayDirection);
+            
+            // Check for intersections with the island
+            const intersects = raycaster.intersectObject(this.currentIsland);
+            
+            if (intersects.length > 0) {
+                const intersection = intersects[0];
+                const surfacePoint = intersection.point;
+                
+                // Check if the point is on land (above water level) and not too steep
+                if (surfacePoint.y > 2 && surfacePoint.y < 100) {
+                    position = surfacePoint.clone();
+                    console.log(`✅ Found position for ${objectType} after ${attempt + 1} attempts at (${x.toFixed(1)}, ${surfacePoint.y.toFixed(1)}, ${z.toFixed(1)})`);
+                    break;
+                }
+            }
+        }
+        
+        if (!position) {
+            console.warn(`❌ Could not find suitable position for ${objectType} after ${maxAttempts} attempts`);
+            return;
+        }
+        
+        // Create the object
+        const objectInfo = this.availableObjects.find(obj => obj.id === objectType);
+        if (!objectInfo) {
+            console.warn(`Object type ${objectType} not found in available objects`);
+            return;
+        }
+        
+        try {
+            const rotation = Math.random() * Math.PI * 2; // Random rotation
+            
+            // Create the object with an onLoad callback for GLB models
+            // Note: objectInfo.constructor is an arrow function that returns the GenericGLBModel instance
+            const newObject = objectInfo.constructor({
+                position: position,
+                rotation: rotation,
+                onLoad: (group, gltf) => {
+                    // Model has finished loading
+                    console.log(`${objectType} loaded successfully at position (${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)})`);
+                }
+            });
+            
+            if (newObject) {
+                const threeObject = newObject.getObject ? newObject.getObject() : newObject;
+                threeObject.userData.type = objectType;
+                threeObject.userData.isGenerated = true; // Mark as generated
+                
+                this.scene.add(threeObject);
+                
+                // Add to placed objects array
+                this.placedObjects.push({
+                    type: objectType,
+                    position: {
+                        x: position.x,
+                        y: position.y,
+                        z: position.z
+                    },
+                    rotation: rotation,
+                    isGenerated: true
+                });
+            }
+        } catch (error) {
+            console.error(`Error creating object ${objectType}:`, error);
+        }
+    }
+    
+    sampleTerrainHeight(x, z, debug = false) {
+        if (!this.currentIsland || !this.currentIsland.geometry) {
+            if (debug) console.log('No island or geometry available');
+            return 0;
+        }
+        
+        const geometry = this.currentIsland.geometry;
+        const positions = geometry.attributes.position;
+        const size = this.islandParams.size;
+        const resolution = this.islandParams.resolution;
+        
+        // Convert world position to geometry coordinates
+        const localX = x + size / 2;
+        const localZ = z + size / 2;
+        
+        // Convert to grid coordinates
+        const gridX = (localX / size) * resolution;
+        const gridZ = (localZ / size) * resolution;
+        
+        // Find the nearest vertex
+        const nearestX = Math.round(gridX);
+        const nearestZ = Math.round(gridZ);
+        
+        // Make sure we're within bounds
+        if (nearestX < 0 || nearestX >= resolution + 1 || nearestZ < 0 || nearestZ >= resolution + 1) {
+            if (debug) {
+                console.log('Position out of bounds:', {
+                    inputPosition: { x, z },
+                    localPosition: { localX, localZ },
+                    gridPosition: { gridX, gridZ },
+                    nearestVertex: { nearestX, nearestZ },
+                    bounds: { resolution, maxVertex: resolution + 1 }
+                });
+            }
+            return 0;
+        }
+        
+        // Calculate vertex index
+        const index = nearestZ * (resolution + 1) + nearestX;
+        
+        if (index < positions.count) {
+            const height = positions.getZ(index);
+            if (debug) {
+                console.log('Terrain sampling:', {
+                    inputPosition: { x, z },
+                    localPosition: { localX, localZ },
+                    gridPosition: { gridX, gridZ },
+                    nearestVertex: { nearestX, nearestZ },
+                    vertexIndex: index,
+                    sampledHeight: height,
+                    totalVertices: positions.count
+                });
+            }
+            return height;
+        }
+        
+        if (debug) console.log('Index out of range:', { index, maxCount: positions.count });
+        return 0;
+    }
+    
     async loadAvailableObjects() {
         try {
             // Create an array to hold our available objects
@@ -472,14 +820,14 @@ class CreativeStandalone {
                     this.availableObjects.push({
                         name: 'Market Stall',
                         id: 'marketStall',
-                        constructor: module.default
+                        constructor: (options) => new module.default(options)
                     });
                 }),
                 import('./objects/dock.js').then(module => {
                     this.availableObjects.push({
                         name: 'Dock',
                         id: 'dock',
-                        constructor: module.default
+                        constructor: (options) => new module.default(options)
                     });
                 })
             ];
@@ -671,6 +1019,8 @@ class CreativeStandalone {
         const islandData = {
             name: islandName,
             params: { ...this.islandParams },
+            islandType: this.islandType,
+            objectConfig: JSON.parse(JSON.stringify(this.objectConfig)), // Deep copy
             createdAt: new Date().toISOString(),
             placedObjects: this.placedObjects
         };
@@ -734,12 +1084,19 @@ class CreativeStandalone {
             // Set island parameters from the loaded data
             this.islandParams = { ...islandData.params };
             
+            // Load island type and object configuration if available
+            if (islandData.islandType) {
+                this.islandType = islandData.islandType;
+            }
+            if (islandData.objectConfig) {
+                this.objectConfig = JSON.parse(JSON.stringify(islandData.objectConfig)); // Deep copy
+            }
+            
             // Update UI elements with the loaded parameters
             document.getElementById('islandName').value = islandData.name;
+            document.getElementById('islandType').value = this.islandType;
             document.getElementById('islandSize').value = this.islandParams.size;
             document.getElementById('sizeValue').textContent = this.islandParams.size;
-            document.getElementById('islandTrees').value = this.islandParams.treeCount;
-            document.getElementById('treeValue').textContent = this.islandParams.treeCount;
             document.getElementById('islandSeed').value = this.islandParams.seed;
             document.getElementById('seedValue').textContent = this.islandParams.seed;
             document.getElementById('noiseScale').value = this.islandParams.noiseScale;
@@ -748,6 +1105,10 @@ class CreativeStandalone {
             document.getElementById('noiseHeightValue').textContent = this.islandParams.noiseHeight;
             document.getElementById('falloffFactor').value = this.islandParams.falloffFactor;
             document.getElementById('falloffValue').textContent = this.islandParams.falloffFactor.toFixed(2);
+            
+            // Update object configuration UI
+            this.updateDistributionControls();
+            this.updateObjectCountDisplay();
             
             // Generate the island with the loaded parameters
             this.updateIslandPreview();

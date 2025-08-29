@@ -1,6 +1,6 @@
-# High Seas - Pirate Ship Game
+# [PlayHighSeas.com](https://playhighseas.com) - Pirate MMO
 
-A 3D multiplayer pirate ship game built with Three.js and Firebase where you sail the seas, engage in ship combat, discover islands, and build structures.
+A Pirate MMO built with ThreeJS where you sail the seas, discover islands, pillage loot, harvest resources, build, and more.
 
 ## Features
 
@@ -15,14 +15,7 @@ A 3D multiplayer pirate ship game built with Three.js and Firebase where you sai
 - 🎵 **Spatial Audio** - Immersive 3D sound effects
 - 📊 **Leaderboard** - Track your progress against other players
 
-## Ship Types
 
-Each ship has unique combat characteristics:
-- **Dinghy**: Fast, lightweight rowing boat (80 HP, 1.3s reload)
-- **Sloop**: Balanced sailing ship (100 HP, medium range)
-- **Skiff**: Agile with powerful cannons (90 HP, 110 range)
-- **Brig**: Heavy warship (150 HP, 130 range, slow but powerful)
-- **Cutter**: Well-rounded vessel (120 HP, good all-around stats)
 
 ## Quick Start
 
