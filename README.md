@@ -21,7 +21,7 @@ A Pirate MMO built with ThreeJS where you pillage the seas, discover islands, ha
 
 ```bash
 # Clone the repository
-git clone <your-repo-url>
+git clone <https://github.com/younghans/HighSeas>
 cd HighSeas
 
 # Install dependencies
