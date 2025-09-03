@@ -30,7 +30,11 @@ class CreativeStandalone {
             seed: Math.floor(Math.random() * 65536),
             noiseScale: 0.01,
             noiseHeight: 80,
-            falloffFactor: 0.3
+            falloffFactor: 0.3,
+            islandRadius: 0.8,      // Percentage of mesh size for island
+            edgeDepth: 5,           // How deep edges go underwater  
+            falloffCurve: 2,        // 1 = linear, 2 = quadratic, etc.
+            boundaryVariation: 0.1  // Amount of natural edge variation
         };
         
         // Island type and object configuration
@@ -282,6 +286,26 @@ class CreativeStandalone {
                 <input type="range" id="falloffFactor" min="0" max="0.2" step="0.01" value="${this.islandParams.falloffFactor}" style="width: 100%;">
             </div>
             
+            <div style="margin-bottom: 15px;">
+                <label for="islandRadius">Island Radius: <span id="islandRadiusValue">${this.islandParams.islandRadius.toFixed(2)}</span></label>
+                <input type="range" id="islandRadius" min="0.5" max="1.0" step="0.05" value="${this.islandParams.islandRadius}" style="width: 100%;">
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label for="edgeDepth">Edge Depth: <span id="edgeDepthValue">${this.islandParams.edgeDepth}</span></label>
+                <input type="range" id="edgeDepth" min="1" max="15" step="1" value="${this.islandParams.edgeDepth}" style="width: 100%;">
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label for="falloffCurve">Falloff Curve: <span id="falloffCurveValue">${this.islandParams.falloffCurve.toFixed(1)}</span></label>
+                <input type="range" id="falloffCurve" min="1" max="4" step="0.5" value="${this.islandParams.falloffCurve}" style="width: 100%;">
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label for="boundaryVariation">Boundary Variation: <span id="boundaryVariationValue">${this.islandParams.boundaryVariation.toFixed(2)}</span></label>
+                <input type="range" id="boundaryVariation" min="0" max="0.3" step="0.05" value="${this.islandParams.boundaryVariation}" style="width: 100%;">
+            </div>
+            
             <div id="objectConfig" style="margin-bottom: 20px; border: 1px solid #555; padding: 10px; border-radius: 5px;">
                 <h3 style="margin-top: 0; margin-bottom: 10px;">Object Configuration</h3>
                 
@@ -361,6 +385,30 @@ class CreativeStandalone {
         document.getElementById('falloffFactor').addEventListener('input', (e) => {
             this.islandParams.falloffFactor = parseFloat(e.target.value);
             document.getElementById('falloffValue').textContent = this.islandParams.falloffFactor.toFixed(2);
+            this.updateIslandPreview();
+        });
+        
+        document.getElementById('islandRadius').addEventListener('input', (e) => {
+            this.islandParams.islandRadius = parseFloat(e.target.value);
+            document.getElementById('islandRadiusValue').textContent = this.islandParams.islandRadius.toFixed(2);
+            this.updateIslandPreview();
+        });
+        
+        document.getElementById('edgeDepth').addEventListener('input', (e) => {
+            this.islandParams.edgeDepth = parseInt(e.target.value);
+            document.getElementById('edgeDepthValue').textContent = this.islandParams.edgeDepth;
+            this.updateIslandPreview();
+        });
+        
+        document.getElementById('falloffCurve').addEventListener('input', (e) => {
+            this.islandParams.falloffCurve = parseFloat(e.target.value);
+            document.getElementById('falloffCurveValue').textContent = this.islandParams.falloffCurve.toFixed(1);
+            this.updateIslandPreview();
+        });
+        
+        document.getElementById('boundaryVariation').addEventListener('input', (e) => {
+            this.islandParams.boundaryVariation = parseFloat(e.target.value);
+            document.getElementById('boundaryVariationValue').textContent = this.islandParams.boundaryVariation.toFixed(2);
             this.updateIslandPreview();
         });
         
@@ -447,11 +495,49 @@ class CreativeStandalone {
                 const y = positions.getY(i);
                 const distance = Math.sqrt(x * x + y * y);
                 
-                // Scale the falloff based on the island size
+                // Calculate island dimensions
                 const maxDimension = Math.max(this.islandParams.size, this.islandParams.size) / 2;
-                const scaledDistance = distance / maxDimension * 200; // Scale relative to a 400x400 island
-                const height = noise.perlin((x + position.x) * noiseScale, (y + position.z) * noiseScale) * 
-                               this.islandParams.noiseHeight - scaledDistance * falloffFactor;
+                
+                // Add boundary variation using noise for natural edges
+                const boundaryNoise = noise.perlin(x * 0.003, y * 0.003) * this.islandParams.boundaryVariation * maxDimension;
+                const effectiveRadius = maxDimension * this.islandParams.islandRadius + boundaryNoise;
+                
+                // Define zones for smooth transitions
+                const centerZone = effectiveRadius * 0.4;   // 40% radius - full height
+                const middleZone = effectiveRadius * 0.7;   // 70% radius - gradual falloff  
+                const edgeZone = effectiveRadius * 1.0;     // 100% radius - steep falloff to water
+                
+                // Get base height from Perlin noise
+                const baseHeight = noise.perlin((x + position.x) * noiseScale, (y + position.z) * noiseScale) * 
+                                  this.islandParams.noiseHeight;
+                
+                let height;
+                
+                if (distance > edgeZone) {
+                    // Force underwater beyond edge zone
+                    height = -this.islandParams.edgeDepth;
+                } else if (distance > middleZone) {
+                    // Steep falloff in edge zone using falloff curve
+                    const edgeFactor = (distance - middleZone) / (edgeZone - middleZone);
+                    const curvedFactor = Math.pow(edgeFactor, this.islandParams.falloffCurve);
+                    const heightMultiplier = 1 - curvedFactor;
+                    
+                    // Interpolate between base height and underwater
+                    height = (baseHeight * heightMultiplier) + (-this.islandParams.edgeDepth * curvedFactor);
+                } else if (distance > centerZone) {
+                    // Gentle falloff in middle zone
+                    const middleFactor = (distance - centerZone) / (middleZone - centerZone);
+                    const heightMultiplier = 1 - (middleFactor * 0.3); // Only reduce by 30% in middle zone
+                    height = baseHeight * heightMultiplier;
+                } else {
+                    // Full height in center zone
+                    height = baseHeight;
+                }
+                
+                // Apply additional falloff factor for fine-tuning
+                if (distance > centerZone) {
+                    height -= (distance - centerZone) * falloffFactor;
+                }
                 
                 positions.setZ(i, height);
                 
@@ -1105,6 +1191,14 @@ class CreativeStandalone {
             document.getElementById('noiseHeightValue').textContent = this.islandParams.noiseHeight;
             document.getElementById('falloffFactor').value = this.islandParams.falloffFactor;
             document.getElementById('falloffValue').textContent = this.islandParams.falloffFactor.toFixed(2);
+            document.getElementById('islandRadius').value = this.islandParams.islandRadius;
+            document.getElementById('islandRadiusValue').textContent = this.islandParams.islandRadius.toFixed(2);
+            document.getElementById('edgeDepth').value = this.islandParams.edgeDepth;
+            document.getElementById('edgeDepthValue').textContent = this.islandParams.edgeDepth;
+            document.getElementById('falloffCurve').value = this.islandParams.falloffCurve;
+            document.getElementById('falloffCurveValue').textContent = this.islandParams.falloffCurve.toFixed(1);
+            document.getElementById('boundaryVariation').value = this.islandParams.boundaryVariation;
+            document.getElementById('boundaryVariationValue').textContent = this.islandParams.boundaryVariation.toFixed(2);
             
             // Update object configuration UI
             this.updateDistributionControls();
