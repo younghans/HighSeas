@@ -1493,7 +1493,11 @@ class CreativeStandalone {
         // Generate new island with randomized parameters
         this.updateIslandPreview();
         
-        console.log('🎲 Randomized all island parameters!');
+        // Wait for island to be ready before generating objects
+        setTimeout(() => {
+            this.generateIslandObjects();
+            console.log('🎲 Randomized all island parameters and generated objects!');
+        }, 100); // Small delay to ensure island mesh is ready for raycasting
     }
     
     updateUIWithCurrentValues() {
