@@ -30,11 +30,27 @@ class CreativeStandalone {
             seed: Math.floor(Math.random() * 65536),
             noiseScale: 0.01,
             noiseHeight: 80,
-            falloffFactor: 0.3,
+            falloffFactor: 0.15,
             islandRadius: 0.8,      // Percentage of mesh size for island
-            edgeDepth: 5,           // How deep edges go underwater  
+            edgeDepth: 10,           // How deep edges go underwater  
             falloffCurve: 2,        // 1 = linear, 2 = quadratic, etc.
-            boundaryVariation: 0.1  // Amount of natural edge variation
+            boundaryVariation: 0.1, // Amount of natural edge variation
+            enableVertexCulling: true, // Remove underwater vertices for performance
+            waterLevel: 0           // Height below which vertices are considered underwater
+        };
+        
+        // Centralized parameter ranges for UI and randomization
+        this.parameterRanges = {
+            size: { min: 50, max: 400, step: 1, randomMin: 100, randomMax: 300 },
+            seed: { min: 0, max: 65535, step: 1, randomMin: 0, randomMax: 65535 },
+            noiseScale: { min: 0.005, max: 0.02, step: 0.001, randomMin: 0.005, randomMax: 0.02 },
+            noiseHeight: { min: 0, max: 100, step: 1, randomMin: 30, randomMax: 100 },
+            falloffFactor: { min: .05, max: 0.2, step: 0.01, randomMin: .05, randomMax: 0.2 },
+            islandRadius: { min: 0.5, max: 1.0, step: 0.05, randomMin: 0.5, randomMax: 1.0 },
+            edgeDepth: { min: 6, max: 15, step: 1, randomMin: 6, randomMax: 15 },
+            falloffCurve: { min: 1, max: 4, step: 0.5, randomMin: 1, randomMax: 4 },
+            boundaryVariation: { min: 0, max: 0.3, step: 0.05, randomMin: 0, randomMax: 0.3 },
+            objectCount: { min: 0, max: 60, step: 1, randomMin: 0, randomMax: 60 }
         };
         
         // Island type and object configuration
@@ -260,7 +276,7 @@ class CreativeStandalone {
             
             <div style="margin-bottom: 15px;">
                 <label for="islandSize">Size: <span id="sizeValue">${this.islandParams.size}</span></label>
-                <input type="range" id="islandSize" min="50" max="400" value="${this.islandParams.size}" style="width: 100%;">
+                <input type="range" id="islandSize" min="${this.parameterRanges.size.min}" max="${this.parameterRanges.size.max}" step="${this.parameterRanges.size.step}" value="${this.islandParams.size}" style="width: 100%;">
             </div>
             
             <div style="margin-bottom: 15px;">
@@ -273,37 +289,44 @@ class CreativeStandalone {
             
             <div style="margin-bottom: 15px;">
                 <label for="noiseScale">Noise Scale: <span id="noiseScaleValue">${this.islandParams.noiseScale.toFixed(4)}</span></label>
-                <input type="range" id="noiseScale" min="0.001" max="0.01" step="0.001" value="${this.islandParams.noiseScale}" style="width: 100%;">
+                <input type="range" id="noiseScale" min="${this.parameterRanges.noiseScale.min}" max="${this.parameterRanges.noiseScale.max}" step="${this.parameterRanges.noiseScale.step}" value="${this.islandParams.noiseScale}" style="width: 100%;">
             </div>
             
             <div style="margin-bottom: 15px;">
                 <label for="noiseHeight">Height Scale: <span id="noiseHeightValue">${this.islandParams.noiseHeight}</span></label>
-                <input type="range" id="noiseHeight" min="0" max="100" value="${this.islandParams.noiseHeight}" style="width: 100%;">
+                <input type="range" id="noiseHeight" min="${this.parameterRanges.noiseHeight.min}" max="${this.parameterRanges.noiseHeight.max}" step="${this.parameterRanges.noiseHeight.step}" value="${this.islandParams.noiseHeight}" style="width: 100%;">
             </div>
             
             <div style="margin-bottom: 15px;">
                 <label for="falloffFactor">Edge Falloff: <span id="falloffValue">${this.islandParams.falloffFactor.toFixed(2)}</span></label>
-                <input type="range" id="falloffFactor" min="0" max="0.2" step="0.01" value="${this.islandParams.falloffFactor}" style="width: 100%;">
+                <input type="range" id="falloffFactor" min="${this.parameterRanges.falloffFactor.min}" max="${this.parameterRanges.falloffFactor.max}" step="${this.parameterRanges.falloffFactor.step}" value="${this.islandParams.falloffFactor}" style="width: 100%;">
             </div>
             
             <div style="margin-bottom: 15px;">
                 <label for="islandRadius">Island Radius: <span id="islandRadiusValue">${this.islandParams.islandRadius.toFixed(2)}</span></label>
-                <input type="range" id="islandRadius" min="0.5" max="1.0" step="0.05" value="${this.islandParams.islandRadius}" style="width: 100%;">
+                <input type="range" id="islandRadius" min="${this.parameterRanges.islandRadius.min}" max="${this.parameterRanges.islandRadius.max}" step="${this.parameterRanges.islandRadius.step}" value="${this.islandParams.islandRadius}" style="width: 100%;">
             </div>
             
             <div style="margin-bottom: 15px;">
                 <label for="edgeDepth">Edge Depth: <span id="edgeDepthValue">${this.islandParams.edgeDepth}</span></label>
-                <input type="range" id="edgeDepth" min="1" max="15" step="1" value="${this.islandParams.edgeDepth}" style="width: 100%;">
+                <input type="range" id="edgeDepth" min="${this.parameterRanges.edgeDepth.min}" max="${this.parameterRanges.edgeDepth.max}" step="${this.parameterRanges.edgeDepth.step}" value="${this.islandParams.edgeDepth}" style="width: 100%;">
             </div>
             
             <div style="margin-bottom: 15px;">
                 <label for="falloffCurve">Falloff Curve: <span id="falloffCurveValue">${this.islandParams.falloffCurve.toFixed(1)}</span></label>
-                <input type="range" id="falloffCurve" min="1" max="4" step="0.5" value="${this.islandParams.falloffCurve}" style="width: 100%;">
+                <input type="range" id="falloffCurve" min="${this.parameterRanges.falloffCurve.min}" max="${this.parameterRanges.falloffCurve.max}" step="${this.parameterRanges.falloffCurve.step}" value="${this.islandParams.falloffCurve}" style="width: 100%;">
             </div>
             
             <div style="margin-bottom: 15px;">
                 <label for="boundaryVariation">Boundary Variation: <span id="boundaryVariationValue">${this.islandParams.boundaryVariation.toFixed(2)}</span></label>
-                <input type="range" id="boundaryVariation" min="0" max="0.3" step="0.05" value="${this.islandParams.boundaryVariation}" style="width: 100%;">
+                <input type="range" id="boundaryVariation" min="${this.parameterRanges.boundaryVariation.min}" max="${this.parameterRanges.boundaryVariation.max}" step="${this.parameterRanges.boundaryVariation.step}" value="${this.islandParams.boundaryVariation}" style="width: 100%;">
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label for="enableVertexCulling" style="display: flex; align-items: center; cursor: pointer;">
+                    <input type="checkbox" id="enableVertexCulling" ${this.islandParams.enableVertexCulling ? 'checked' : ''} style="margin-right: 10px;">
+                    Enable Vertex Culling (Performance)
+                </label>
             </div>
             
             <div id="objectConfig" style="margin-bottom: 20px; border: 1px solid #555; padding: 10px; border-radius: 5px;">
@@ -311,7 +334,7 @@ class CreativeStandalone {
                 
                 <div style="margin-bottom: 15px;">
                     <label for="objectCount">Object Count: <span id="objectCountValue">${this.objectConfig[this.islandType].count}</span></label>
-                    <input type="range" id="objectCount" min="0" max="60" value="${this.objectConfig[this.islandType].count}" style="width: 100%;">
+                    <input type="range" id="objectCount" min="${this.parameterRanges.objectCount.min}" max="${this.parameterRanges.objectCount.max}" step="${this.parameterRanges.objectCount.step}" value="${this.objectConfig[this.islandType].count}" style="width: 100%;">
                 </div>
                 
                 <div id="distributionControls">
@@ -328,6 +351,10 @@ class CreativeStandalone {
             <div style="display: flex; gap: 10px; justify-content: space-between; margin-bottom: 10px;">
                 <button id="saveIsland" style="padding: 10px; flex-grow: 1; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">Save Island</button>
                 <button id="loadIsland" style="padding: 10px; flex-grow: 1; background-color: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer;">Load Island</button>
+            </div>
+            
+            <div style="display: flex; justify-content: center; margin-bottom: 10px;">
+                <button id="randomizeAll" style="padding: 10px; width: 100%; background-color: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer;">🎲 Randomize All Parameters</button>
             </div>
             
             <div style="display: flex; justify-content: center;">
@@ -412,6 +439,11 @@ class CreativeStandalone {
             this.updateIslandPreview();
         });
         
+        document.getElementById('enableVertexCulling').addEventListener('change', (e) => {
+            this.islandParams.enableVertexCulling = e.target.checked;
+            this.updateIslandPreview();
+        });
+        
         document.getElementById('objectCount').addEventListener('input', (e) => {
             this.objectConfig[this.islandType].count = parseInt(e.target.value);
             document.getElementById('objectCountValue').textContent = this.objectConfig[this.islandType].count;
@@ -431,6 +463,10 @@ class CreativeStandalone {
         
         document.getElementById('loadIsland').addEventListener('click', () => {
             this.promptLoadIsland();
+        });
+        
+        document.getElementById('randomizeAll').addEventListener('click', () => {
+            this.randomizeAllParameters();
         });
         
         document.getElementById('exitCreator').addEventListener('click', () => {
@@ -502,41 +538,38 @@ class CreativeStandalone {
                 const boundaryNoise = noise.perlin(x * 0.003, y * 0.003) * this.islandParams.boundaryVariation * maxDimension;
                 const effectiveRadius = maxDimension * this.islandParams.islandRadius + boundaryNoise;
                 
-                // Define zones for smooth transitions
-                const centerZone = effectiveRadius * 0.4;   // 40% radius - full height
-                const middleZone = effectiveRadius * 0.7;   // 70% radius - gradual falloff  
-                const edgeZone = effectiveRadius * 1.0;     // 100% radius - steep falloff to water
-                
                 // Get base height from Perlin noise
                 const baseHeight = noise.perlin((x + position.x) * noiseScale, (y + position.z) * noiseScale) * 
                                   this.islandParams.noiseHeight;
                 
+                // Calculate smooth gradient falloff
+                const normalizedDistance = distance / effectiveRadius;
+                
                 let height;
                 
-                if (distance > edgeZone) {
-                    // Force underwater beyond edge zone
+                if (normalizedDistance > 1.3) {
+                    // Force underwater well beyond island boundary (softer than before)
                     height = -this.islandParams.edgeDepth;
-                } else if (distance > middleZone) {
-                    // Steep falloff in edge zone using falloff curve
-                    const edgeFactor = (distance - middleZone) / (edgeZone - middleZone);
-                    const curvedFactor = Math.pow(edgeFactor, this.islandParams.falloffCurve);
-                    const heightMultiplier = 1 - curvedFactor;
-                    
-                    // Interpolate between base height and underwater
-                    height = (baseHeight * heightMultiplier) + (-this.islandParams.edgeDepth * curvedFactor);
-                } else if (distance > centerZone) {
-                    // Gentle falloff in middle zone
-                    const middleFactor = (distance - centerZone) / (middleZone - centerZone);
-                    const heightMultiplier = 1 - (middleFactor * 0.3); // Only reduce by 30% in middle zone
-                    height = baseHeight * heightMultiplier;
                 } else {
-                    // Full height in center zone
-                    height = baseHeight;
-                }
-                
-                // Apply additional falloff factor for fine-tuning
-                if (distance > centerZone) {
-                    height -= (distance - centerZone) * falloffFactor;
+                    // Apply smooth exponential falloff
+                    const falloffStrength = Math.pow(Math.max(0, normalizedDistance), this.islandParams.falloffCurve);
+                    const heightMultiplier = Math.max(0, 1 - falloffStrength);
+                    
+                    // Smooth transition from full height to underwater
+                    height = baseHeight * heightMultiplier;
+                    
+                    // Apply distance-based reduction for additional control
+                    if (normalizedDistance > 0.5) {
+                        const distanceReduction = (normalizedDistance - 0.5) * falloffFactor * this.islandParams.noiseHeight;
+                        height -= distanceReduction;
+                    }
+                    
+                    // Gradually transition to underwater at the edges
+                    if (normalizedDistance > 1.0) {
+                        const underwaterFactor = (normalizedDistance - 1.0) / 0.3; // 0.3 = transition zone (1.0 to 1.3)
+                        const targetDepth = -this.islandParams.edgeDepth * underwaterFactor;
+                        height = Math.min(height, targetDepth);
+                    }
                 }
                 
                 positions.setZ(i, height);
@@ -554,11 +587,18 @@ class CreativeStandalone {
             }
             
             customGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-            customGeometry.computeVertexNormals();
+            
+            // Apply vertex culling if enabled
+            let finalGeometry = customGeometry;
+            if (this.islandParams.enableVertexCulling) {
+                finalGeometry = this.cullUnderwaterVertices(customGeometry);
+            }
+            
+            finalGeometry.computeVertexNormals();
             
             // Create and position the island mesh
             const islandMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
-            const island = new THREE.Mesh(customGeometry, islandMaterial);
+            const island = new THREE.Mesh(finalGeometry, islandMaterial);
             island.rotation.x = -Math.PI / 2;
             island.position.set(position.x, -5, position.z);
             this.scene.add(island);
@@ -895,6 +935,127 @@ class CreativeStandalone {
         return 0;
     }
     
+    cullUnderwaterVertices(geometry) {
+        const positions = geometry.attributes.position;
+        const colors = geometry.attributes.color;
+        const waterLevel = this.islandParams.waterLevel;
+        
+        // First pass: identify vertices above water and create mapping
+        const aboveWaterVertices = [];
+        const aboveWaterColors = [];
+        const vertexMap = new Map(); // Maps old vertex index to new vertex index
+        let newVertexIndex = 0;
+        
+        // Collect vertices above water level
+        for (let i = 0; i < positions.count; i++) {
+            const height = positions.getZ(i);
+            
+            if (height > waterLevel - 6) {
+                // Keep this vertex
+                aboveWaterVertices.push(
+                    positions.getX(i),
+                    positions.getY(i),
+                    positions.getZ(i)
+                );
+                
+                if (colors) {
+                    aboveWaterColors.push(
+                        colors.getX(i),
+                        colors.getY(i),
+                        colors.getZ(i)
+                    );
+                }
+                
+                vertexMap.set(i, newVertexIndex);
+                newVertexIndex++;
+            }
+        }
+        
+        // If no vertices above water, return a minimal geometry
+        if (aboveWaterVertices.length === 0) {
+            const emptyGeometry = new THREE.BufferGeometry();
+            emptyGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0]), 3));
+            emptyGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array([0.5, 0.5, 0.5]), 3));
+            return emptyGeometry;
+        }
+        
+        // Second pass: rebuild triangles using only above-water vertices
+        const newIndices = [];
+        const originalIndices = geometry.index;
+        
+        if (originalIndices) {
+            // Process existing triangles
+            for (let i = 0; i < originalIndices.count; i += 3) {
+                const v1 = originalIndices.getX(i);
+                const v2 = originalIndices.getX(i + 1);
+                const v3 = originalIndices.getX(i + 2);
+                
+                // Only keep triangle if all vertices are above water
+                if (vertexMap.has(v1) && vertexMap.has(v2) && vertexMap.has(v3)) {
+                    newIndices.push(
+                        vertexMap.get(v1),
+                        vertexMap.get(v2),
+                        vertexMap.get(v3)
+                    );
+                }
+            }
+        } else {
+            // Generate indices for non-indexed geometry (PlaneGeometry case)
+            const resolution = this.islandParams.resolution;
+            
+            for (let row = 0; row < resolution; row++) {
+                for (let col = 0; col < resolution; col++) {
+                    // Calculate vertex indices for this quad
+                    const topLeft = row * (resolution + 1) + col;
+                    const topRight = topLeft + 1;
+                    const bottomLeft = (row + 1) * (resolution + 1) + col;
+                    const bottomRight = bottomLeft + 1;
+                    
+                    // Check if all vertices of both triangles exist in our culled set
+                    const triangle1Valid = vertexMap.has(topLeft) && vertexMap.has(bottomLeft) && vertexMap.has(topRight);
+                    const triangle2Valid = vertexMap.has(topRight) && vertexMap.has(bottomLeft) && vertexMap.has(bottomRight);
+                    
+                    if (triangle1Valid) {
+                        newIndices.push(
+                            vertexMap.get(topLeft),
+                            vertexMap.get(bottomLeft),
+                            vertexMap.get(topRight)
+                        );
+                    }
+                    
+                    if (triangle2Valid) {
+                        newIndices.push(
+                            vertexMap.get(topRight),
+                            vertexMap.get(bottomLeft),
+                            vertexMap.get(bottomRight)
+                        );
+                    }
+                }
+            }
+        }
+        
+        // Create optimized geometry
+        const culledGeometry = new THREE.BufferGeometry();
+        culledGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(aboveWaterVertices), 3));
+        
+        if (aboveWaterColors.length > 0) {
+            culledGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(aboveWaterColors), 3));
+        }
+        
+        if (newIndices.length > 0) {
+            culledGeometry.setIndex(newIndices);
+        }
+        
+        // Log performance stats
+        const originalVertexCount = positions.count;
+        const culledVertexCount = aboveWaterVertices.length / 3;
+        const vertexReduction = ((originalVertexCount - culledVertexCount) / originalVertexCount * 100).toFixed(1);
+        
+        console.log(`🔧 Vertex culling: ${originalVertexCount} → ${culledVertexCount} vertices (${vertexReduction}% reduction)`);
+        
+        return culledGeometry;
+    }
+    
     async loadAvailableObjects() {
         try {
             // Create an array to hold our available objects
@@ -1199,6 +1360,7 @@ class CreativeStandalone {
             document.getElementById('falloffCurveValue').textContent = this.islandParams.falloffCurve.toFixed(1);
             document.getElementById('boundaryVariation').value = this.islandParams.boundaryVariation;
             document.getElementById('boundaryVariationValue').textContent = this.islandParams.boundaryVariation.toFixed(2);
+            document.getElementById('enableVertexCulling').checked = this.islandParams.enableVertexCulling;
             
             // Update object configuration UI
             this.updateDistributionControls();
@@ -1281,6 +1443,104 @@ class CreativeStandalone {
         } catch (error) {
             console.error(`Error recreating object of type ${objData.type}:`, error);
         }
+    }
+    
+    randomizeAllParameters() {
+        // Randomize island type
+        const islandTypes = ['forest', 'rock', 'plain'];
+        this.islandType = islandTypes[Math.floor(Math.random() * islandTypes.length)];
+        
+        // Randomize island parameters using centralized ranges
+        const ranges = this.parameterRanges;
+        this.islandParams.size = Math.floor(Math.random() * (ranges.size.randomMax - ranges.size.randomMin + 1)) + ranges.size.randomMin;
+        this.islandParams.seed = Math.floor(Math.random() * (ranges.seed.randomMax - ranges.seed.randomMin + 1)) + ranges.seed.randomMin;
+        this.islandParams.noiseScale = Math.random() * (ranges.noiseScale.randomMax - ranges.noiseScale.randomMin) + ranges.noiseScale.randomMin;
+        this.islandParams.noiseHeight = Math.floor(Math.random() * (ranges.noiseHeight.randomMax - ranges.noiseHeight.randomMin + 1)) + ranges.noiseHeight.randomMin;
+        this.islandParams.falloffFactor = Math.random() * (ranges.falloffFactor.randomMax - ranges.falloffFactor.randomMin) + ranges.falloffFactor.randomMin;
+        this.islandParams.islandRadius = Math.random() * (ranges.islandRadius.randomMax - ranges.islandRadius.randomMin) + ranges.islandRadius.randomMin;
+        this.islandParams.edgeDepth = Math.floor(Math.random() * (ranges.edgeDepth.randomMax - ranges.edgeDepth.randomMin + 1)) + ranges.edgeDepth.randomMin;
+        this.islandParams.falloffCurve = Math.random() * (ranges.falloffCurve.randomMax - ranges.falloffCurve.randomMin) + ranges.falloffCurve.randomMin;
+        this.islandParams.boundaryVariation = Math.random() * (ranges.boundaryVariation.randomMax - ranges.boundaryVariation.randomMin) + ranges.boundaryVariation.randomMin;
+        // Note: enableVertexCulling is NOT randomized - preserves user's preference
+        
+        // Randomize object count for current island type
+        this.objectConfig[this.islandType].count = Math.floor(Math.random() * (ranges.objectCount.randomMax - ranges.objectCount.randomMin + 1)) + ranges.objectCount.randomMin;
+        
+        // Randomize distribution percentages for current island type
+        const objectTypes = Object.keys(this.objectConfig[this.islandType].distribution);
+        const randomDistribution = {};
+        let remainingPercentage = 100;
+        
+        for (let i = 0; i < objectTypes.length; i++) {
+            const objectType = objectTypes[i];
+            if (i === objectTypes.length - 1) {
+                // Last object gets remaining percentage
+                randomDistribution[objectType] = remainingPercentage;
+            } else {
+                // Random percentage of remaining
+                const maxAllowed = Math.min(100, remainingPercentage);
+                const randomPercent = Math.floor(Math.random() * (maxAllowed + 1));
+                randomDistribution[objectType] = randomPercent;
+                remainingPercentage -= randomPercent;
+            }
+        }
+        
+        this.objectConfig[this.islandType].distribution = randomDistribution;
+        
+        // Update all UI elements with new values
+        this.updateUIWithCurrentValues();
+        
+        // Generate new island with randomized parameters
+        this.updateIslandPreview();
+        
+        console.log('🎲 Randomized all island parameters!');
+    }
+    
+    updateUIWithCurrentValues() {
+        // Update island name with a fun random name
+        const randomNames = [
+            'Mystic Isle', 'Treasure Cove', 'Skull Bay', 'Paradise Point', 'Storm Island',
+            'Coral Reef', 'Pirate Haven', 'Golden Shore', 'Emerald Atoll', 'Neptune\'s Rest',
+            'Siren\'s Call', 'Blackwater Isle', 'Phoenix Rock', 'Dragon\'s Lair', 'Sunset Bay'
+        ];
+        document.getElementById('islandName').value = randomNames[Math.floor(Math.random() * randomNames.length)];
+        
+        // Update island type dropdown
+        document.getElementById('islandType').value = this.islandType;
+        
+        // Update all parameter sliders and values
+        document.getElementById('islandSize').value = this.islandParams.size;
+        document.getElementById('sizeValue').textContent = this.islandParams.size;
+        
+        document.getElementById('islandSeed').value = this.islandParams.seed;
+        document.getElementById('seedValue').textContent = this.islandParams.seed;
+        
+        document.getElementById('noiseScale').value = this.islandParams.noiseScale;
+        document.getElementById('noiseScaleValue').textContent = this.islandParams.noiseScale.toFixed(4);
+        
+        document.getElementById('noiseHeight').value = this.islandParams.noiseHeight;
+        document.getElementById('noiseHeightValue').textContent = this.islandParams.noiseHeight;
+        
+        document.getElementById('falloffFactor').value = this.islandParams.falloffFactor;
+        document.getElementById('falloffValue').textContent = this.islandParams.falloffFactor.toFixed(2);
+        
+        document.getElementById('islandRadius').value = this.islandParams.islandRadius;
+        document.getElementById('islandRadiusValue').textContent = this.islandParams.islandRadius.toFixed(2);
+        
+        document.getElementById('edgeDepth').value = this.islandParams.edgeDepth;
+        document.getElementById('edgeDepthValue').textContent = this.islandParams.edgeDepth;
+        
+        document.getElementById('falloffCurve').value = this.islandParams.falloffCurve;
+        document.getElementById('falloffCurveValue').textContent = this.islandParams.falloffCurve.toFixed(1);
+        
+        document.getElementById('boundaryVariation').value = this.islandParams.boundaryVariation;
+        document.getElementById('boundaryVariationValue').textContent = this.islandParams.boundaryVariation.toFixed(2);
+        
+        // Note: enableVertexCulling checkbox is NOT updated - preserves user's preference
+        
+        // Update object configuration UI
+        this.updateDistributionControls();
+        this.updateObjectCountDisplay();
     }
     
     exit() {
