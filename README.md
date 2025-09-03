@@ -1,6 +1,6 @@
 # [PlayHighSeas.com](https://playhighseas.com) - Pirate MMO
 
-A Pirate MMO built with ThreeJS where you sail the seas, discover islands, pillage loot, harvest resources, build, and more.
+A Pirate MMO built with ThreeJS where you pillage the seas, discover islands, harvest resources, upgrade your ship, and more.
 
 ## Features
 
@@ -20,8 +20,17 @@ A Pirate MMO built with ThreeJS where you sail the seas, discover islands, pilla
 ## Quick Start
 
 ```bash
+# Clone the repository
+git clone <your-repo-url>
+cd HighSeas
+
 # Install dependencies
 npm install
+
+# Install Firebase Functions dependencies
+cd functions
+npm install
+cd ..
 
 # Local development server
 npm start
@@ -29,8 +38,6 @@ npm start
 # Full local testing with Firebase emulators
 npm run emulators
 
-# Deploy to production
-npm run deploy
 ```
 
 Access the game at `http://localhost:5000` after starting the development server.
@@ -48,5 +55,3 @@ Access the game at `http://localhost:5000` after starting the development server
 
 - **Three.js** - 3D graphics and rendering
 - **Firebase** - Real-time database, authentication, and hosting
-- **WebGL** - Hardware-accelerated graphics
-- **ES6 Modules** - Modern JavaScript architecture
