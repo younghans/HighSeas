@@ -31,8 +31,6 @@ class CreativeStandalone {
             noiseScale: 0.01,
             noiseHeight: 80,
             falloffFactor: 0.15,
-            islandRadius: 0.8,      // Percentage of mesh size for island
-            edgeDepth: 10,           // How deep edges go underwater  
             falloffCurve: 2,        // 1 = linear, 2 = quadratic, etc.
             boundaryVariation: 0.1, // Amount of natural edge variation
             enableVertexCulling: true, // Remove underwater vertices for performance
@@ -41,46 +39,45 @@ class CreativeStandalone {
         
         // Centralized parameter ranges for UI and randomization
         this.parameterRanges = {
-            size: { min: 50, max: 400, step: 1, randomMin: 100, randomMax: 300 },
-            seed: { min: 0, max: 65535, step: 1, randomMin: 0, randomMax: 65535 },
-            noiseScale: { min: 0.005, max: 0.02, step: 0.001, randomMin: 0.005, randomMax: 0.02 },
-            noiseHeight: { min: 0, max: 100, step: 1, randomMin: 30, randomMax: 100 },
-            falloffFactor: { min: .05, max: 0.2, step: 0.01, randomMin: .05, randomMax: 0.2 },
-            islandRadius: { min: 0.5, max: 1.0, step: 0.05, randomMin: 0.5, randomMax: 1.0 },
-            edgeDepth: { min: 6, max: 15, step: 1, randomMin: 6, randomMax: 15 },
-            falloffCurve: { min: 1, max: 4, step: 0.5, randomMin: 1, randomMax: 4 },
-            boundaryVariation: { min: 0, max: 0.3, step: 0.05, randomMin: 0, randomMax: 0.3 },
-            objectCount: { min: 0, max: 60, step: 1, randomMin: 0, randomMax: 60 }
+            size: { min: 100, max: 400, step: 1 },
+            seed: { min: 0, max: 65535, step: 1 },
+            noiseScale: { min: 0.01, max: 0.02, step: 0.001 },
+            noiseHeight: { min: 40, max: 100, step: 1 },
+            falloffFactor: { min: .05, max: 0.2, step: 0.01 },
+            falloffCurve: { min: 1, max: 4, step: 0.5 },
+            boundaryVariation: { min: 0, max: 0.3, step: 0.05 },
+            density: { min: 0.05, max: 0.8, step: 0.05 }
         };
         
-        // Island type and object configuration
-        this.islandType = 'forest'; // 'forest', 'rock', or 'plain'
-        this.objectConfig = {
-            forest: {
-                count: 10,
-                distribution: {
-                    firTreeLarge: 35,
-                    firTreeMedium: 45,
-                    firTreeSmall: 20
-                }
-            },
-            rock: {
-                count: 8,
-                distribution: {
-                    stoneLarge2: 25,
-                    stoneLarge3: 25,
-                    stoneLarge4: 25,
-                    stoneLarge5: 25
-                }
-            },
-            plain: {
-                count: 3,
-                distribution: {
-                    firTreeLarge: 50,
-                    stoneLarge2: 50
-                }
-            }
-        };
+                 // Island type and object configuration
+         this.islandType = 'forest'; // 'forest', 'rock', or 'plain'
+         this.objectConfig = {
+             forest: {
+                 density: 0.25, // 25% of available space
+                 distribution: {
+                     firTreeLarge: 35,
+                     firTreeMedium: 45,
+                     firTreeSmall: 20
+                 }
+             },
+             rock: {
+                 density: 0.20, // 20% of available space
+                 distribution: {
+                     stoneLarge2: 25,
+                     stoneLarge3: 25,
+                     stoneLarge4: 25,
+                     stoneLarge5: 25
+                 }
+             },
+             plain: {
+                 density: 0.15, // 15% of available space
+                 distribution: {
+                     palmTreeBent: 25,
+                     palmTreeLarge: 25,
+                     stoneLarge3: 50
+                 }
+             }
+         };
     }
     
     async init() {
@@ -302,15 +299,7 @@ class CreativeStandalone {
                 <input type="range" id="falloffFactor" min="${this.parameterRanges.falloffFactor.min}" max="${this.parameterRanges.falloffFactor.max}" step="${this.parameterRanges.falloffFactor.step}" value="${this.islandParams.falloffFactor}" style="width: 100%;">
             </div>
             
-            <div style="margin-bottom: 15px;">
-                <label for="islandRadius">Island Radius: <span id="islandRadiusValue">${this.islandParams.islandRadius.toFixed(2)}</span></label>
-                <input type="range" id="islandRadius" min="${this.parameterRanges.islandRadius.min}" max="${this.parameterRanges.islandRadius.max}" step="${this.parameterRanges.islandRadius.step}" value="${this.islandParams.islandRadius}" style="width: 100%;">
-            </div>
             
-            <div style="margin-bottom: 15px;">
-                <label for="edgeDepth">Edge Depth: <span id="edgeDepthValue">${this.islandParams.edgeDepth}</span></label>
-                <input type="range" id="edgeDepth" min="${this.parameterRanges.edgeDepth.min}" max="${this.parameterRanges.edgeDepth.max}" step="${this.parameterRanges.edgeDepth.step}" value="${this.islandParams.edgeDepth}" style="width: 100%;">
-            </div>
             
             <div style="margin-bottom: 15px;">
                 <label for="falloffCurve">Falloff Curve: <span id="falloffCurveValue">${this.islandParams.falloffCurve.toFixed(1)}</span></label>
@@ -332,10 +321,10 @@ class CreativeStandalone {
             <div id="objectConfig" style="margin-bottom: 20px; border: 1px solid #555; padding: 10px; border-radius: 5px;">
                 <h3 style="margin-top: 0; margin-bottom: 10px;">Object Configuration</h3>
                 
-                <div style="margin-bottom: 15px;">
-                    <label for="objectCount">Object Count: <span id="objectCountValue">${this.objectConfig[this.islandType].count}</span></label>
-                    <input type="range" id="objectCount" min="${this.parameterRanges.objectCount.min}" max="${this.parameterRanges.objectCount.max}" step="${this.parameterRanges.objectCount.step}" value="${this.objectConfig[this.islandType].count}" style="width: 100%;">
-                </div>
+                                 <div style="margin-bottom: 15px;">
+                     <label for="density">Object Density: <span id="densityValue">${Math.round(this.objectConfig[this.islandType].density * 100)}%</span></label>
+                     <input type="range" id="density" min="${this.parameterRanges.density.min}" max="${this.parameterRanges.density.max}" step="${this.parameterRanges.density.step}" value="${this.objectConfig[this.islandType].density}" style="width: 100%;">
+                 </div>
                 
                 <div id="distributionControls">
                     <!-- Distribution controls will be populated by JavaScript -->
@@ -378,11 +367,11 @@ class CreativeStandalone {
             this.updateIslandPreview();
         });
         
-        document.getElementById('islandType').addEventListener('change', (e) => {
-            this.islandType = e.target.value;
-            this.updateDistributionControls();
-            this.updateObjectCountDisplay();
-        });
+                 document.getElementById('islandType').addEventListener('change', (e) => {
+             this.islandType = e.target.value;
+             this.updateDistributionControls();
+             this.updateDensityDisplay();
+         });
         
         document.getElementById('islandSeed').addEventListener('change', (e) => {
             this.islandParams.seed = parseInt(e.target.value);
@@ -415,17 +404,7 @@ class CreativeStandalone {
             this.updateIslandPreview();
         });
         
-        document.getElementById('islandRadius').addEventListener('input', (e) => {
-            this.islandParams.islandRadius = parseFloat(e.target.value);
-            document.getElementById('islandRadiusValue').textContent = this.islandParams.islandRadius.toFixed(2);
-            this.updateIslandPreview();
-        });
         
-        document.getElementById('edgeDepth').addEventListener('input', (e) => {
-            this.islandParams.edgeDepth = parseInt(e.target.value);
-            document.getElementById('edgeDepthValue').textContent = this.islandParams.edgeDepth;
-            this.updateIslandPreview();
-        });
         
         document.getElementById('falloffCurve').addEventListener('input', (e) => {
             this.islandParams.falloffCurve = parseFloat(e.target.value);
@@ -444,10 +423,10 @@ class CreativeStandalone {
             this.updateIslandPreview();
         });
         
-        document.getElementById('objectCount').addEventListener('input', (e) => {
-            this.objectConfig[this.islandType].count = parseInt(e.target.value);
-            document.getElementById('objectCountValue').textContent = this.objectConfig[this.islandType].count;
-        });
+                 document.getElementById('density').addEventListener('input', (e) => {
+             this.objectConfig[this.islandType].density = parseFloat(e.target.value);
+             document.getElementById('densityValue').textContent = Math.round(this.objectConfig[this.islandType].density * 100) + '%';
+         });
         
         document.getElementById('generateObjects').addEventListener('click', () => {
             this.generateIslandObjects();
@@ -536,7 +515,7 @@ class CreativeStandalone {
                 
                 // Add boundary variation using noise for natural edges
                 const boundaryNoise = noise.perlin(x * 0.003, y * 0.003) * this.islandParams.boundaryVariation * maxDimension;
-                const effectiveRadius = maxDimension * this.islandParams.islandRadius + boundaryNoise;
+                const effectiveRadius = maxDimension + boundaryNoise;
                 
                 // Get base height from Perlin noise
                 const baseHeight = noise.perlin((x + position.x) * noiseScale, (y + position.z) * noiseScale) * 
@@ -547,9 +526,9 @@ class CreativeStandalone {
                 
                 let height;
                 
-                if (normalizedDistance > 1.3) {
-                    // Force underwater well beyond island boundary (softer than before)
-                    height = -this.islandParams.edgeDepth;
+                                 if (normalizedDistance > 1.3) {
+                     // Force underwater well beyond island boundary (softer than before)
+                     height = -10;
                 } else {
                     // Apply smooth exponential falloff
                     const falloffStrength = Math.pow(Math.max(0, normalizedDistance), this.islandParams.falloffCurve);
@@ -564,12 +543,12 @@ class CreativeStandalone {
                         height -= distanceReduction;
                     }
                     
-                    // Gradually transition to underwater at the edges
-                    if (normalizedDistance > 1.0) {
-                        const underwaterFactor = (normalizedDistance - 1.0) / 0.3; // 0.3 = transition zone (1.0 to 1.3)
-                        const targetDepth = -this.islandParams.edgeDepth * underwaterFactor;
-                        height = Math.min(height, targetDepth);
-                    }
+                                         // Gradually transition to underwater at the edges
+                     if (normalizedDistance > 1.0) {
+                         const underwaterFactor = (normalizedDistance - 1.0) / 0.3; // 0.3 = transition zone (1.0 to 1.3)
+                         const targetDepth = -10 * underwaterFactor;
+                         height = Math.min(height, targetDepth);
+                     }
                 }
                 
                 positions.setZ(i, height);
@@ -677,18 +656,20 @@ class CreativeStandalone {
         });
     }
     
-    getModelDisplayName(objectType) {
-        const displayNames = {
-            'firTreeLarge': 'Large Fir Tree',
-            'firTreeMedium': 'Medium Fir Tree',
-            'firTreeSmall': 'Small Fir Tree',
-            'stoneLarge2': 'Large Stone 2',
-            'stoneLarge3': 'Large Stone 3',
-            'stoneLarge4': 'Large Stone 4',
-            'stoneLarge5': 'Large Stone 5'
-        };
-        return displayNames[objectType] || objectType;
-    }
+         getModelDisplayName(objectType) {
+         const displayNames = {
+             'firTreeLarge': 'Large Fir Tree',
+             'firTreeMedium': 'Medium Fir Tree',
+             'firTreeSmall': 'Small Fir Tree',
+             'palmTreeBent': 'Palm Tree (Bent)',
+             'palmTreeLarge': 'Palm Tree (Large)',
+             'stoneLarge2': 'Large Stone 2',
+             'stoneLarge3': 'Large Stone 3',
+             'stoneLarge4': 'Large Stone 4',
+             'stoneLarge5': 'Large Stone 5'
+         };
+         return displayNames[objectType] || objectType;
+     }
     
     normalizeDistribution(changedObjectType) {
         const config = this.objectConfig[this.islandType];
@@ -726,66 +707,223 @@ class CreativeStandalone {
         }
     }
     
-    updateObjectCountDisplay() {
-        const objectCountSlider = document.getElementById('objectCount');
-        const objectCountValue = document.getElementById('objectCountValue');
-        
-        if (objectCountSlider && objectCountValue) {
-            objectCountSlider.value = this.objectConfig[this.islandType].count;
-            objectCountValue.textContent = this.objectConfig[this.islandType].count;
-        }
-    }
+         updateDensityDisplay() {
+         const densitySlider = document.getElementById('density');
+         const densityValue = document.getElementById('densityValue');
+         
+         if (densitySlider && densityValue) {
+             densitySlider.value = this.objectConfig[this.islandType].density;
+             densityValue.textContent = Math.round(this.objectConfig[this.islandType].density * 100) + '%';
+         }
+     }
     
-    async generateIslandObjects() {
-        if (!this.currentIsland) {
-            console.warn('No island available for object placement');
-            return;
-        }
-        
-        // Clear existing generated objects (keep manually placed ones)
-        this.removeGeneratedObjects();
-        
-        const config = this.objectConfig[this.islandType];
-        const objectTypes = Object.keys(config.distribution);
-        
-        // Calculate how many of each type to place
-        const objectsToPlace = [];
-        objectTypes.forEach(objectType => {
-            const percentage = config.distribution[objectType] / 100;
-            const count = Math.round(config.count * percentage);
-            
-            for (let i = 0; i < count; i++) {
-                objectsToPlace.push(objectType);
-            }
-        });
-        
-        // Shuffle the array for random placement
-        for (let i = objectsToPlace.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [objectsToPlace[i], objectsToPlace[j]] = [objectsToPlace[j], objectsToPlace[i]];
-        }
-        
-        // Place objects on the island
-        for (const objectType of objectsToPlace) {
-            await this.placeObjectOnTerrain(objectType);
-        }
-    }
+         async generateIslandObjects() {
+         if (!this.currentIsland) {
+             console.warn('No island available for object placement');
+             return;
+         }
+         
+         // Clear existing generated objects (keep manually placed ones)
+         this.removeGeneratedObjects();
+         
+         const config = this.objectConfig[this.islandType];
+         const density = config.density;
+         
+         console.log(`🌲 Generating objects with ${Math.round(density * 100)}% density for ${this.islandType} island`);
+         
+         // Step 1: Create and analyze grid
+         const gridData = this.analyzeIslandGrid();
+         
+         // Step 2: Calculate how many cells to populate based on density
+         const targetCells = Math.round(gridData.viableCells.length * density);
+         
+         console.log(`📊 Grid analysis: ${gridData.viableCells.length} viable cells, targeting ${targetCells} cells (${Math.round(density * 100)}% density)`);
+         
+         if (targetCells === 0) {
+             console.warn('No cells selected for object placement');
+             return;
+         }
+         
+         // Step 3: Randomly select cells for placement
+         const selectedCells = this.selectRandomCells(gridData.viableCells, targetCells);
+         
+         // Step 4: Distribute object types across selected cells
+         const objectsToPlace = this.distributeObjectTypes(selectedCells, config.distribution);
+         
+         // Step 5: Place objects in selected cells
+         for (const { cell, objectType } of objectsToPlace) {
+             await this.placeObjectInCell(cell, objectType);
+         }
+         
+         console.log(`✅ Successfully placed ${objectsToPlace.length} objects across ${selectedCells.length} cells`);
+     }
     
-    removeGeneratedObjects() {
-        const objectsToRemove = [];
-        this.scene.traverse(object => {
-            if (object.userData && object.userData.isGenerated) {
-                objectsToRemove.push(object);
-            }
-        });
-        
-        objectsToRemove.forEach(object => {
-            this.scene.remove(object);
-        });
-        
-        // Remove generated objects from placedObjects array
-        this.placedObjects = this.placedObjects.filter(obj => !obj.isGenerated);
-    }
+         analyzeIslandGrid() {
+         const gridSize = 16; // 16x16 grid for good detail/performance balance
+         const islandSize = this.islandParams.size;
+         const cellSize = islandSize / gridSize;
+         const viableCells = [];
+         
+         console.log(`🔍 Analyzing ${gridSize}x${gridSize} grid (${cellSize.toFixed(1)} unit cells) over ${islandSize} unit island`);
+         
+         // Create raycaster for height sampling
+         const raycaster = new THREE.Raycaster();
+         
+         for (let row = 0; row < gridSize; row++) {
+             for (let col = 0; col < gridSize; col++) {
+                 // Calculate center position of this grid cell
+                 const x = (col - gridSize / 2 + 0.5) * cellSize;
+                 const z = (row - gridSize / 2 + 0.5) * cellSize;
+                 
+                 // Test if this cell is viable for object placement
+                 const rayOrigin = new THREE.Vector3(x, 200, z);
+                 const rayDirection = new THREE.Vector3(0, -1, 0);
+                 raycaster.set(rayOrigin, rayDirection);
+                 
+                 const intersects = raycaster.intersectObject(this.currentIsland);
+                 
+                 if (intersects.length > 0) {
+                     const intersection = intersects[0];
+                     const height = intersection.point.y;
+                     
+                     // Check if cell meets placement criteria
+                     if (height > 2 && height < 100) { // Above water, not too high
+                         viableCells.push({
+                             row,
+                             col,
+                             x,
+                             z,
+                             height,
+                             cellSize
+                         });
+                     }
+                 }
+             }
+         }
+         
+         console.log(`✅ Found ${viableCells.length} viable cells out of ${gridSize * gridSize} total cells`);
+         
+         return {
+             gridSize,
+             cellSize,
+             viableCells
+         };
+     }
+     
+     selectRandomCells(viableCells, targetCount) {
+         // Shuffle viable cells and select the target number
+         const shuffled = [...viableCells];
+         for (let i = shuffled.length - 1; i > 0; i--) {
+             const j = Math.floor(Math.random() * (i + 1));
+             [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+         }
+         
+         return shuffled.slice(0, targetCount);
+     }
+     
+     distributeObjectTypes(selectedCells, distribution) {
+         const objectTypes = Object.keys(distribution);
+         const objectsToPlace = [];
+         
+         // Calculate how many of each type to place
+         selectedCells.forEach((cell, index) => {
+             // Use round-robin distribution based on percentages
+             let cumulativePercentage = 0;
+             const randomValue = Math.random() * 100;
+             
+             for (const objectType of objectTypes) {
+                 cumulativePercentage += distribution[objectType];
+                 if (randomValue <= cumulativePercentage) {
+                     objectsToPlace.push({ cell, objectType });
+                     break;
+                 }
+             }
+         });
+         
+         return objectsToPlace;
+     }
+     
+     async placeObjectInCell(cell, objectType) {
+         // Add some randomization within the cell for natural placement
+         const randomOffsetX = (Math.random() - 0.5) * cell.cellSize * 0.6; // Stay within 60% of cell
+         const randomOffsetZ = (Math.random() - 0.5) * cell.cellSize * 0.6;
+         
+         const finalX = cell.x + randomOffsetX;
+         const finalZ = cell.z + randomOffsetZ;
+         
+         // Use raycasting to get exact height at final position
+         const raycaster = new THREE.Raycaster();
+         const rayOrigin = new THREE.Vector3(finalX, 200, finalZ);
+         const rayDirection = new THREE.Vector3(0, -1, 0);
+         raycaster.set(rayOrigin, rayDirection);
+         
+         const intersects = raycaster.intersectObject(this.currentIsland);
+         
+         if (intersects.length === 0) {
+             console.warn(`Failed to find surface for ${objectType} at (${finalX.toFixed(1)}, ${finalZ.toFixed(1)})`);
+             return;
+         }
+         
+         const position = intersects[0].point.clone();
+         
+         // Create the object
+         const objectInfo = this.availableObjects.find(obj => obj.id === objectType);
+         if (!objectInfo) {
+             console.warn(`Object type ${objectType} not found in available objects`);
+             return;
+         }
+         
+         try {
+             const rotation = Math.random() * Math.PI * 2; // Random rotation
+             
+             const newObject = objectInfo.constructor({
+                 position: position,
+                 rotation: rotation,
+                 onLoad: (group, gltf) => {
+                     console.log(`${objectType} loaded at grid cell (${cell.row}, ${cell.col})`);
+                 }
+             });
+             
+             if (newObject) {
+                 const threeObject = newObject.getObject ? newObject.getObject() : newObject;
+                 threeObject.userData.type = objectType;
+                 threeObject.userData.isGenerated = true;
+                 threeObject.userData.gridCell = { row: cell.row, col: cell.col };
+                 
+                 this.scene.add(threeObject);
+                 
+                 this.placedObjects.push({
+                     type: objectType,
+                     position: {
+                         x: position.x,
+                         y: position.y,
+                         z: position.z
+                     },
+                     rotation: rotation,
+                     isGenerated: true,
+                     gridCell: { row: cell.row, col: cell.col }
+                 });
+             }
+         } catch (error) {
+             console.error(`Error creating object ${objectType}:`, error);
+         }
+     }
+
+     removeGeneratedObjects() {
+         const objectsToRemove = [];
+         this.scene.traverse(object => {
+             if (object.userData && object.userData.isGenerated) {
+                 objectsToRemove.push(object);
+             }
+         });
+         
+         objectsToRemove.forEach(object => {
+             this.scene.remove(object);
+         });
+         
+         // Remove generated objects from placedObjects array
+         this.placedObjects = this.placedObjects.filter(obj => !obj.isGenerated);
+     }
     
     async placeObjectOnTerrain(objectType) {
         if (!this.currentIsland) return;
@@ -1350,13 +1488,9 @@ class CreativeStandalone {
             document.getElementById('noiseScaleValue').textContent = this.islandParams.noiseScale.toFixed(4);
             document.getElementById('noiseHeight').value = this.islandParams.noiseHeight;
             document.getElementById('noiseHeightValue').textContent = this.islandParams.noiseHeight;
-            document.getElementById('falloffFactor').value = this.islandParams.falloffFactor;
-            document.getElementById('falloffValue').textContent = this.islandParams.falloffFactor.toFixed(2);
-            document.getElementById('islandRadius').value = this.islandParams.islandRadius;
-            document.getElementById('islandRadiusValue').textContent = this.islandParams.islandRadius.toFixed(2);
-            document.getElementById('edgeDepth').value = this.islandParams.edgeDepth;
-            document.getElementById('edgeDepthValue').textContent = this.islandParams.edgeDepth;
-            document.getElementById('falloffCurve').value = this.islandParams.falloffCurve;
+                         document.getElementById('falloffFactor').value = this.islandParams.falloffFactor;
+             document.getElementById('falloffValue').textContent = this.islandParams.falloffFactor.toFixed(2);
+             document.getElementById('falloffCurve').value = this.islandParams.falloffCurve;
             document.getElementById('falloffCurveValue').textContent = this.islandParams.falloffCurve.toFixed(1);
             document.getElementById('boundaryVariation').value = this.islandParams.boundaryVariation;
             document.getElementById('boundaryVariationValue').textContent = this.islandParams.boundaryVariation.toFixed(2);
@@ -1364,7 +1498,7 @@ class CreativeStandalone {
             
             // Update object configuration UI
             this.updateDistributionControls();
-            this.updateObjectCountDisplay();
+            this.updateDensityDisplay();
             
             // Generate the island with the loaded parameters
             this.updateIslandPreview();
@@ -1452,19 +1586,17 @@ class CreativeStandalone {
         
         // Randomize island parameters using centralized ranges
         const ranges = this.parameterRanges;
-        this.islandParams.size = Math.floor(Math.random() * (ranges.size.randomMax - ranges.size.randomMin + 1)) + ranges.size.randomMin;
-        this.islandParams.seed = Math.floor(Math.random() * (ranges.seed.randomMax - ranges.seed.randomMin + 1)) + ranges.seed.randomMin;
-        this.islandParams.noiseScale = Math.random() * (ranges.noiseScale.randomMax - ranges.noiseScale.randomMin) + ranges.noiseScale.randomMin;
-        this.islandParams.noiseHeight = Math.floor(Math.random() * (ranges.noiseHeight.randomMax - ranges.noiseHeight.randomMin + 1)) + ranges.noiseHeight.randomMin;
-        this.islandParams.falloffFactor = Math.random() * (ranges.falloffFactor.randomMax - ranges.falloffFactor.randomMin) + ranges.falloffFactor.randomMin;
-        this.islandParams.islandRadius = Math.random() * (ranges.islandRadius.randomMax - ranges.islandRadius.randomMin) + ranges.islandRadius.randomMin;
-        this.islandParams.edgeDepth = Math.floor(Math.random() * (ranges.edgeDepth.randomMax - ranges.edgeDepth.randomMin + 1)) + ranges.edgeDepth.randomMin;
-        this.islandParams.falloffCurve = Math.random() * (ranges.falloffCurve.randomMax - ranges.falloffCurve.randomMin) + ranges.falloffCurve.randomMin;
-        this.islandParams.boundaryVariation = Math.random() * (ranges.boundaryVariation.randomMax - ranges.boundaryVariation.randomMin) + ranges.boundaryVariation.randomMin;
+        this.islandParams.size = Math.floor(Math.random() * (ranges.size.max - ranges.size.min + 1)) + ranges.size.min;
+        this.islandParams.seed = Math.floor(Math.random() * (ranges.seed.max - ranges.seed.min + 1)) + ranges.seed.min;
+        this.islandParams.noiseScale = Math.random() * (ranges.noiseScale.max - ranges.noiseScale.min) + ranges.noiseScale.min;
+        this.islandParams.noiseHeight = Math.floor(Math.random() * (ranges.noiseHeight.max - ranges.noiseHeight.min + 1)) + ranges.noiseHeight.min;
+        this.islandParams.falloffFactor = Math.random() * (ranges.falloffFactor.max - ranges.falloffFactor.min) + ranges.falloffFactor.min;
+        this.islandParams.falloffCurve = Math.random() * (ranges.falloffCurve.max - ranges.falloffCurve.min) + ranges.falloffCurve.min;
+        this.islandParams.boundaryVariation = Math.random() * (ranges.boundaryVariation.max - ranges.boundaryVariation.min) + ranges.boundaryVariation.min;
         // Note: enableVertexCulling is NOT randomized - preserves user's preference
         
-        // Randomize object count for current island type
-        this.objectConfig[this.islandType].count = Math.floor(Math.random() * (ranges.objectCount.randomMax - ranges.objectCount.randomMin + 1)) + ranges.objectCount.randomMin;
+        // Randomize object density for current island type
+        this.objectConfig[this.islandType].density = Math.random() * (ranges.density.max - ranges.density.min) + ranges.density.min;
         
         // Randomize distribution percentages for current island type
         const objectTypes = Object.keys(this.objectConfig[this.islandType].distribution);
@@ -1525,16 +1657,10 @@ class CreativeStandalone {
         document.getElementById('noiseHeight').value = this.islandParams.noiseHeight;
         document.getElementById('noiseHeightValue').textContent = this.islandParams.noiseHeight;
         
-        document.getElementById('falloffFactor').value = this.islandParams.falloffFactor;
-        document.getElementById('falloffValue').textContent = this.islandParams.falloffFactor.toFixed(2);
-        
-        document.getElementById('islandRadius').value = this.islandParams.islandRadius;
-        document.getElementById('islandRadiusValue').textContent = this.islandParams.islandRadius.toFixed(2);
-        
-        document.getElementById('edgeDepth').value = this.islandParams.edgeDepth;
-        document.getElementById('edgeDepthValue').textContent = this.islandParams.edgeDepth;
-        
-        document.getElementById('falloffCurve').value = this.islandParams.falloffCurve;
+                 document.getElementById('falloffFactor').value = this.islandParams.falloffFactor;
+         document.getElementById('falloffValue').textContent = this.islandParams.falloffFactor.toFixed(2);
+         
+         document.getElementById('falloffCurve').value = this.islandParams.falloffCurve;
         document.getElementById('falloffCurveValue').textContent = this.islandParams.falloffCurve.toFixed(1);
         
         document.getElementById('boundaryVariation').value = this.islandParams.boundaryVariation;
@@ -1544,7 +1670,7 @@ class CreativeStandalone {
         
         // Update object configuration UI
         this.updateDistributionControls();
-        this.updateObjectCountDisplay();
+        this.updateDensityDisplay();
     }
     
     exit() {
