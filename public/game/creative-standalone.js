@@ -44,7 +44,7 @@ class CreativeStandalone {
             noiseScale: { min: 0.01, max: 0.02, step: 0.001 },
             noiseHeight: { min: 40, max: 100, step: 1 },
             falloffFactor: { min: .05, max: 0.2, step: 0.01 },
-            falloffCurve: { min: 1, max: 4, step: 0.5 },
+            falloffCurve: { min: 1, max: 10, step: 0.5 },
             boundaryVariation: { min: 0, max: 0.3, step: 0.05 },
             density: { min: 0.05, max: 0.8, step: 0.05 }
         };
@@ -239,41 +239,45 @@ class CreativeStandalone {
             document.body.appendChild(infoElement);
         }
         
-        // Create UI container
+        // Create UI container with responsive design
         const uiContainer = document.createElement('div');
         uiContainer.id = 'creativeUI';
         uiContainer.style.position = 'absolute';
-        uiContainer.style.right = '20px';
-        uiContainer.style.top = '20px';
-        uiContainer.style.width = '300px';
-        uiContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        uiContainer.style.right = '10px';
+        uiContainer.style.top = '10px';
+        uiContainer.style.width = 'min(350px, calc(100vw - 20px))';
+        uiContainer.style.maxHeight = 'calc(100vh - 20px)';
+        uiContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
         uiContainer.style.color = 'white';
-        uiContainer.style.padding = '20px';
-        uiContainer.style.borderRadius = '10px';
+        uiContainer.style.padding = 'min(20px, 2vw)';
+        uiContainer.style.borderRadius = '8px';
         uiContainer.style.fontFamily = 'Arial, sans-serif';
+        uiContainer.style.fontSize = 'min(14px, 3vw)';
         uiContainer.style.zIndex = '1000';
+        uiContainer.style.overflowY = 'auto';
+        uiContainer.style.boxSizing = 'border-box';
         
-        // Create UI content
+        // Create UI content with responsive styling
         uiContainer.innerHTML = `
-            <h2 style="text-align: center; margin-top: 0;">Island Creator</h2>
+            <h2 style="text-align: center; margin-top: 0; font-size: min(18px, 4vw); margin-bottom: min(15px, 3vw);">Island Creator</h2>
             
-            <div style="margin-bottom: 15px;">
-                <label for="islandName">Island Name:</label>
-                <input type="text" id="islandName" value="My Custom Island" style="width: 100%; padding: 5px; margin-top: 5px; box-sizing: border-box;">
+            <div style="margin-bottom: min(12px, 2.5vw);">
+                <label for="islandName" style="font-size: min(13px, 2.8vw); display: block; margin-bottom: min(5px, 1vw);">Island Name:</label>
+                <input type="text" id="islandName" value="My Custom Island" style="width: 100%; padding: min(5px, 1vw); font-size: min(12px, 2.5vw); box-sizing: border-box; border-radius: 3px; border: none;">
             </div>
             
-            <div style="margin-bottom: 15px;">
-                <label for="islandType">Island Type:</label>
-                <select id="islandType" style="width: 100%; padding: 5px; margin-top: 5px;">
+            <div style="margin-bottom: min(12px, 2.5vw);">
+                <label for="islandType" style="font-size: min(13px, 2.8vw); display: block; margin-bottom: min(5px, 1vw);">Island Type:</label>
+                <select id="islandType" style="width: 100%; padding: min(5px, 1vw); font-size: min(12px, 2.5vw); border-radius: 3px; border: none;">
                     <option value="forest" ${this.islandType === 'forest' ? 'selected' : ''}>Forest</option>
                     <option value="rock" ${this.islandType === 'rock' ? 'selected' : ''}>Rock</option>
                     <option value="plain" ${this.islandType === 'plain' ? 'selected' : ''}>Plain</option>
                 </select>
             </div>
             
-            <div style="margin-bottom: 15px;">
-                <label for="islandSize">Size: <span id="sizeValue">${this.islandParams.size}</span></label>
-                <input type="range" id="islandSize" min="${this.parameterRanges.size.min}" max="${this.parameterRanges.size.max}" step="${this.parameterRanges.size.step}" value="${this.islandParams.size}" style="width: 100%;">
+            <div style="margin-bottom: min(12px, 2.5vw);">
+                <label for="islandSize" style="font-size: min(13px, 2.8vw); display: block; margin-bottom: min(5px, 1vw);">Size: <span id="sizeValue">${this.islandParams.size}</span></label>
+                <input type="range" id="islandSize" min="${this.parameterRanges.size.min}" max="${this.parameterRanges.size.max}" step="${this.parameterRanges.size.step}" value="${this.islandParams.size}" style="width: 100%; height: min(20px, 4vw);">
             </div>
             
             <div style="margin-bottom: 15px;">
@@ -318,19 +322,19 @@ class CreativeStandalone {
                 </label>
             </div>
             
-            <div id="objectConfig" style="margin-bottom: 20px; border: 1px solid #555; padding: 10px; border-radius: 5px;">
-                <h3 style="margin-top: 0; margin-bottom: 10px;">Object Configuration</h3>
+            <div id="objectConfig" style="margin-bottom: min(15px, 3vw); border: 1px solid #555; padding: min(10px, 2vw); border-radius: 5px;">
+                <h3 style="margin-top: 0; margin-bottom: min(10px, 2vw); font-size: min(16px, 3.5vw);">Object Configuration</h3>
                 
-                                 <div style="margin-bottom: 15px;">
-                     <label for="density">Object Density: <span id="densityValue">${Math.round(this.objectConfig[this.islandType].density * 100)}%</span></label>
-                     <input type="range" id="density" min="${this.parameterRanges.density.min}" max="${this.parameterRanges.density.max}" step="${this.parameterRanges.density.step}" value="${this.objectConfig[this.islandType].density}" style="width: 100%;">
+                <div style="margin-bottom: min(12px, 2.5vw);">
+                     <label for="density" style="font-size: min(13px, 2.8vw); display: block; margin-bottom: min(5px, 1vw);">Object Density: <span id="densityValue">${Math.round(this.objectConfig[this.islandType].density * 100)}%</span></label>
+                     <input type="range" id="density" min="${this.parameterRanges.density.min}" max="${this.parameterRanges.density.max}" step="${this.parameterRanges.density.step}" value="${this.objectConfig[this.islandType].density}" style="width: 100%; height: min(20px, 4vw);">
                  </div>
                 
                 <div id="distributionControls">
                     <!-- Distribution controls will be populated by JavaScript -->
                 </div>
                 
-                <button id="generateObjects" style="padding: 8px; width: 100%; background-color: #6a9bd1; color: white; border: none; border-radius: 3px; cursor: pointer; margin-top: 10px;">Generate Objects</button>
+                <button id="generateObjects" style="padding: min(8px, 1.5vw); width: 100%; background-color: #6a9bd1; color: white; border: none; border-radius: 3px; cursor: pointer; margin-top: min(10px, 2vw); font-size: min(12px, 2.5vw);">Generate Objects</button>
             </div>
             
             <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
@@ -634,13 +638,13 @@ class CreativeStandalone {
         
         objectTypes.forEach(objectType => {
             const controlDiv = document.createElement('div');
-            controlDiv.style.marginBottom = '10px';
+            controlDiv.style.marginBottom = 'min(8px, 1.5vw)';
             
             const modelName = this.getModelDisplayName(objectType);
             
             controlDiv.innerHTML = `
-                <label for="${objectType}Slider" style="display: block; margin-bottom: 5px; font-size: 12px;">${modelName}: <span id="${objectType}Value">${config.distribution[objectType]}</span>%</label>
-                <input type="range" id="${objectType}Slider" min="0" max="100" value="${config.distribution[objectType]}" style="width: 100%;">
+                <label for="${objectType}Slider" style="display: block; margin-bottom: min(3px, 0.5vw); font-size: min(11px, 2.3vw);">${modelName}: <span id="${objectType}Value">${config.distribution[objectType]}</span>%</label>
+                <input type="range" id="${objectType}Slider" min="0" max="100" value="${config.distribution[objectType]}" style="width: 100%; height: min(18px, 3.5vw);">
             `;
             
             distributionContainer.appendChild(controlDiv);
@@ -1253,31 +1257,65 @@ class CreativeStandalone {
     }
     
     createBuildingUI() {
-        // Create building UI container
+        // Create main container for the collapsible building UI
         const buildingUIContainer = document.createElement('div');
         buildingUIContainer.id = 'buildingUI';
-        buildingUIContainer.style.position = 'absolute';
-        buildingUIContainer.style.bottom = '20px';
+        buildingUIContainer.style.position = 'fixed';
+        buildingUIContainer.style.bottom = '10px';
         buildingUIContainer.style.left = '50%';
         buildingUIContainer.style.transform = 'translateX(-50%)';
-        buildingUIContainer.style.display = 'flex';
-        buildingUIContainer.style.gap = '10px';
-        buildingUIContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-        buildingUIContainer.style.padding = '10px';
-        buildingUIContainer.style.borderRadius = '10px';
         buildingUIContainer.style.zIndex = '1000';
+        buildingUIContainer.style.maxWidth = 'calc(100vw - 20px)';
+        buildingUIContainer.style.textAlign = 'center';
         
-        // Create a button for each available model from MODELS registry
+        // Create toggle button
+        const toggleButton = document.createElement('button');
+        toggleButton.id = 'buildingToggle';
+        toggleButton.textContent = '🏗️ Building';
+        toggleButton.style.padding = 'min(8px 12px, 1.5vw 2.5vw)';
+        toggleButton.style.backgroundColor = '#4a6d8c';
+        toggleButton.style.color = 'white';
+        toggleButton.style.border = 'none';
+        toggleButton.style.borderRadius = '8px 8px 0 0';
+        toggleButton.style.cursor = 'pointer';
+        toggleButton.style.fontSize = 'min(14px, 3vw)';
+        toggleButton.style.fontWeight = 'bold';
+        toggleButton.style.marginBottom = '0';
+        toggleButton.style.transition = 'background-color 0.3s';
+        
+        // Create collapsible content panel
+        const contentPanel = document.createElement('div');
+        contentPanel.id = 'buildingContent';
+        contentPanel.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+        contentPanel.style.borderRadius = '8px 8px 8px 8px';
+        contentPanel.style.padding = 'min(10px, 2vw)';
+        contentPanel.style.display = 'none'; // Start collapsed
+        contentPanel.style.maxHeight = '40vh';
+        contentPanel.style.overflowY = 'auto';
+        contentPanel.style.overflowX = 'hidden';
+        
+        // Create building buttons container with responsive grid
+        const buttonsContainer = document.createElement('div');
+        buttonsContainer.style.display = 'grid';
+        buttonsContainer.style.gridTemplateColumns = 'repeat(auto-fit, minmax(min(120px, 25vw), 1fr))';
+        buttonsContainer.style.gap = 'min(8px, 1.5vw)';
+        buttonsContainer.style.marginBottom = 'min(10px, 2vw)';
+        
+        // Create buttons for each available model
         Object.values(MODELS).forEach(model => {
             const button = document.createElement('button');
             button.textContent = model.name;
-            button.style.padding = '10px 15px';
+            button.style.padding = 'min(8px 10px, 1.5vw 2vw)';
             button.style.backgroundColor = '#4a6d8c';
             button.style.color = 'white';
             button.style.border = 'none';
-            button.style.borderRadius = '5px';
+            button.style.borderRadius = '4px';
             button.style.cursor = 'pointer';
+            button.style.fontSize = 'min(11px, 2.2vw)';
             button.style.transition = 'background-color 0.3s';
+            button.style.whiteSpace = 'nowrap';
+            button.style.overflow = 'hidden';
+            button.style.textOverflow = 'ellipsis';
             
             button.addEventListener('mouseover', () => {
                 button.style.backgroundColor = '#5a8dac';
@@ -1291,25 +1329,27 @@ class CreativeStandalone {
                 this.enterBuildMode(model.id);
             });
             
-            buildingUIContainer.appendChild(button);
+            buttonsContainer.appendChild(button);
         });
         
-        // Add a separator
-        const separator = document.createElement('div');
-        separator.style.width = '1px';
-        separator.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
-        separator.style.margin = '0 5px';
-        buildingUIContainer.appendChild(separator);
+        // Create utility buttons container
+        const utilityContainer = document.createElement('div');
+        utilityContainer.style.display = 'flex';
+        utilityContainer.style.gap = 'min(8px, 1.5vw)';
+        utilityContainer.style.justifyContent = 'center';
+        utilityContainer.style.flexWrap = 'wrap';
         
         // Add Clear button
         const clearButton = document.createElement('button');
         clearButton.textContent = 'Clear All';
-        clearButton.style.padding = '10px 15px';
+        clearButton.style.padding = 'min(8px 12px, 1.5vw 2.5vw)';
         clearButton.style.backgroundColor = '#d9534f';
         clearButton.style.color = 'white';
         clearButton.style.border = 'none';
-        clearButton.style.borderRadius = '5px';
+        clearButton.style.borderRadius = '4px';
         clearButton.style.cursor = 'pointer';
+        clearButton.style.fontSize = 'min(12px, 2.5vw)';
+        clearButton.style.fontWeight = 'bold';
         clearButton.style.transition = 'background-color 0.3s';
         
         clearButton.addEventListener('mouseover', () => {
@@ -1324,7 +1364,23 @@ class CreativeStandalone {
             this.removeAllPlacedObjects();
         });
         
-        buildingUIContainer.appendChild(clearButton);
+        utilityContainer.appendChild(clearButton);
+        
+        // Assemble the UI
+        contentPanel.appendChild(buttonsContainer);
+        contentPanel.appendChild(utilityContainer);
+        buildingUIContainer.appendChild(toggleButton);
+        buildingUIContainer.appendChild(contentPanel);
+        
+        // Add toggle functionality
+        let isExpanded = false;
+        toggleButton.addEventListener('click', () => {
+            isExpanded = !isExpanded;
+            contentPanel.style.display = isExpanded ? 'block' : 'none';
+            toggleButton.style.borderRadius = isExpanded ? '8px 8px 0 0' : '8px';
+            toggleButton.style.backgroundColor = isExpanded ? '#5a8dac' : '#4a6d8c';
+            toggleButton.textContent = isExpanded ? '🏗️ Building Tools ▼' : '🏗️ Building Tools ▶';
+        });
         
         document.body.appendChild(buildingUIContainer);
     }
