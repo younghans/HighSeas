@@ -57,8 +57,9 @@ class GameUI {
         this.bottomLeftUIContainer.style.bottom = '20px';
         this.bottomLeftUIContainer.style.left = '20px';
         this.bottomLeftUIContainer.style.display = 'flex';
-        this.bottomLeftUIContainer.style.flexDirection = 'column';
-        this.bottomLeftUIContainer.style.alignItems = 'flex-start';
+        this.bottomLeftUIContainer.style.flexDirection = 'row';
+        this.bottomLeftUIContainer.style.alignItems = 'flex-end';
+        this.bottomLeftUIContainer.style.gap = '10px';
         this.bottomLeftUIContainer.style.zIndex = UIConstants.STYLES.Z_INDEX.UI;
         this.bottomLeftUIContainer.style.transition = 'all 0.3s ease';
         this.bottomLeftUIContainer.style.boxSizing = 'border-box';
@@ -152,6 +153,9 @@ class GameUI {
         this.targetInfo = new TargetInfoDisplay(this);
         this.cooldownIndicator = new CooldownIndicator(this);
         this.chatInterface = new ChatInterface(this, this.chatManager);
+        
+        // Create Discord button after chat interface (so it appears to the right of chat)
+        this.buttonManager.initDiscordButton();
         
         // Initialize the leaderboard component
         this.leaderboardComponent.initialize();

@@ -11,7 +11,9 @@ export default {
         WARNING: '#FFC107',
         INFO: '#2196F3',
         GOLD: '#FFD700',
-        GOLD_STROKE: '#E6B800'
+        GOLD_STROKE: '#E6B800',
+        DISCORD: '#5865F2',
+        DISCORD_HOVER: '#4752C4'
     },
     STYLES: {
         BUTTON_SIZE: '40px',
