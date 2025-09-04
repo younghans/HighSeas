@@ -30,9 +30,7 @@ class CreativeStandalone {
             seed: Math.floor(Math.random() * 65536),
             noiseScale: 0.01,
             noiseHeight: 80,
-            falloffFactor: 0.15,
             falloffCurve: 2,        // 1 = linear, 2 = quadratic, etc.
-            boundaryVariation: 0.1, // Amount of natural edge variation
             enableVertexCulling: true, // Remove underwater vertices for performance
             waterLevel: 0           // Height below which vertices are considered underwater
         };
@@ -41,11 +39,9 @@ class CreativeStandalone {
         this.parameterRanges = {
             size: { min: 100, max: 400, step: 1 },
             seed: { min: 0, max: 65535, step: 1 },
-            noiseScale: { min: 0.01, max: 0.02, step: 0.001 },
-            noiseHeight: { min: 40, max: 100, step: 1 },
-            falloffFactor: { min: .05, max: 0.2, step: 0.01 },
+            noiseScale: { min: 0.005, max: 0.015, step: 0.001 },
+            noiseHeight: { min: 40, max: 80, step: 1 },
             falloffCurve: { min: 1, max: 10, step: 0.5 },
-            boundaryVariation: { min: 0, max: 0.3, step: 0.05 },
             density: { min: 0.05, max: 0.8, step: 0.05 }
         };
         
@@ -298,11 +294,6 @@ class CreativeStandalone {
                 <input type="range" id="noiseHeight" min="${this.parameterRanges.noiseHeight.min}" max="${this.parameterRanges.noiseHeight.max}" step="${this.parameterRanges.noiseHeight.step}" value="${this.islandParams.noiseHeight}" style="width: 100%;">
             </div>
             
-            <div style="margin-bottom: 15px;">
-                <label for="falloffFactor">Edge Falloff: <span id="falloffValue">${this.islandParams.falloffFactor.toFixed(2)}</span></label>
-                <input type="range" id="falloffFactor" min="${this.parameterRanges.falloffFactor.min}" max="${this.parameterRanges.falloffFactor.max}" step="${this.parameterRanges.falloffFactor.step}" value="${this.islandParams.falloffFactor}" style="width: 100%;">
-            </div>
-            
             
             
             <div style="margin-bottom: 15px;">
@@ -310,10 +301,6 @@ class CreativeStandalone {
                 <input type="range" id="falloffCurve" min="${this.parameterRanges.falloffCurve.min}" max="${this.parameterRanges.falloffCurve.max}" step="${this.parameterRanges.falloffCurve.step}" value="${this.islandParams.falloffCurve}" style="width: 100%;">
             </div>
             
-            <div style="margin-bottom: 15px;">
-                <label for="boundaryVariation">Boundary Variation: <span id="boundaryVariationValue">${this.islandParams.boundaryVariation.toFixed(2)}</span></label>
-                <input type="range" id="boundaryVariation" min="${this.parameterRanges.boundaryVariation.min}" max="${this.parameterRanges.boundaryVariation.max}" step="${this.parameterRanges.boundaryVariation.step}" value="${this.islandParams.boundaryVariation}" style="width: 100%;">
-            </div>
             
             <div style="margin-bottom: 15px;">
                 <label for="enableVertexCulling" style="display: flex; align-items: center; cursor: pointer;">
@@ -402,13 +389,6 @@ class CreativeStandalone {
             this.updateIslandPreview();
         });
         
-        document.getElementById('falloffFactor').addEventListener('input', (e) => {
-            this.islandParams.falloffFactor = parseFloat(e.target.value);
-            document.getElementById('falloffValue').textContent = this.islandParams.falloffFactor.toFixed(2);
-            this.updateIslandPreview();
-        });
-        
-        
         
         document.getElementById('falloffCurve').addEventListener('input', (e) => {
             this.islandParams.falloffCurve = parseFloat(e.target.value);
@@ -416,11 +396,6 @@ class CreativeStandalone {
             this.updateIslandPreview();
         });
         
-        document.getElementById('boundaryVariation').addEventListener('input', (e) => {
-            this.islandParams.boundaryVariation = parseFloat(e.target.value);
-            document.getElementById('boundaryVariationValue').textContent = this.islandParams.boundaryVariation.toFixed(2);
-            this.updateIslandPreview();
-        });
         
         document.getElementById('enableVertexCulling').addEventListener('change', (e) => {
             this.islandParams.enableVertexCulling = e.target.checked;
@@ -507,7 +482,6 @@ class CreativeStandalone {
             
             // Use custom noise scale and height
             const noiseScale = this.islandParams.noiseScale;
-            const falloffFactor = this.islandParams.falloffFactor;
             
             for (let i = 0; i < positions.count; i++) {
                 const x = positions.getX(i);
@@ -517,9 +491,8 @@ class CreativeStandalone {
                 // Calculate island dimensions
                 const maxDimension = Math.max(this.islandParams.size, this.islandParams.size) / 2;
                 
-                // Add boundary variation using noise for natural edges
-                const boundaryNoise = noise.perlin(x * 0.003, y * 0.003) * this.islandParams.boundaryVariation * maxDimension;
-                const effectiveRadius = maxDimension + boundaryNoise;
+                // Use fixed circular boundary (no variation)
+                const effectiveRadius = maxDimension;
                 
                 // Get base height from Perlin noise
                 const baseHeight = noise.perlin((x + position.x) * noiseScale, (y + position.z) * noiseScale) * 
@@ -540,12 +513,6 @@ class CreativeStandalone {
                     
                     // Smooth transition from full height to underwater
                     height = baseHeight * heightMultiplier;
-                    
-                    // Apply distance-based reduction for additional control
-                    if (normalizedDistance > 0.5) {
-                        const distanceReduction = (normalizedDistance - 0.5) * falloffFactor * this.islandParams.noiseHeight;
-                        height -= distanceReduction;
-                    }
                     
                                          // Gradually transition to underwater at the edges
                      if (normalizedDistance > 1.0) {
@@ -1272,14 +1239,14 @@ class CreativeStandalone {
         const toggleButton = document.createElement('button');
         toggleButton.id = 'buildingToggle';
         toggleButton.textContent = '🏗️ Building';
-        toggleButton.style.padding = 'min(8px 12px, 1.5vw 2.5vw)';
-        toggleButton.style.backgroundColor = '#4a6d8c';
+        toggleButton.style.padding = 'min(10px, 2vw)';
+        toggleButton.style.width = 'auto';
+        toggleButton.style.backgroundColor = '#6a9bd1';
         toggleButton.style.color = 'white';
         toggleButton.style.border = 'none';
-        toggleButton.style.borderRadius = '8px 8px 0 0';
+        toggleButton.style.borderRadius = '5px';
         toggleButton.style.cursor = 'pointer';
-        toggleButton.style.fontSize = 'min(14px, 3vw)';
-        toggleButton.style.fontWeight = 'bold';
+        toggleButton.style.fontSize = 'min(12px, 2.5vw)';
         toggleButton.style.marginBottom = '0';
         toggleButton.style.transition = 'background-color 0.3s';
         
@@ -1306,10 +1273,10 @@ class CreativeStandalone {
             const button = document.createElement('button');
             button.textContent = model.name;
             button.style.padding = 'min(8px 10px, 1.5vw 2vw)';
-            button.style.backgroundColor = '#4a6d8c';
+            button.style.backgroundColor = '#6a9bd1';
             button.style.color = 'white';
             button.style.border = 'none';
-            button.style.borderRadius = '4px';
+            button.style.borderRadius = '3px';
             button.style.cursor = 'pointer';
             button.style.fontSize = 'min(11px, 2.2vw)';
             button.style.transition = 'background-color 0.3s';
@@ -1322,7 +1289,7 @@ class CreativeStandalone {
             });
             
             button.addEventListener('mouseout', () => {
-                button.style.backgroundColor = '#4a6d8c';
+                button.style.backgroundColor = '#6a9bd1';
             });
             
             button.addEventListener('click', () => {
@@ -1343,21 +1310,20 @@ class CreativeStandalone {
         const clearButton = document.createElement('button');
         clearButton.textContent = 'Clear All';
         clearButton.style.padding = 'min(8px 12px, 1.5vw 2.5vw)';
-        clearButton.style.backgroundColor = '#d9534f';
+        clearButton.style.backgroundColor = '#f44336';
         clearButton.style.color = 'white';
         clearButton.style.border = 'none';
-        clearButton.style.borderRadius = '4px';
+        clearButton.style.borderRadius = '5px';
         clearButton.style.cursor = 'pointer';
         clearButton.style.fontSize = 'min(12px, 2.5vw)';
-        clearButton.style.fontWeight = 'bold';
         clearButton.style.transition = 'background-color 0.3s';
         
         clearButton.addEventListener('mouseover', () => {
-            clearButton.style.backgroundColor = '#c9302c';
+            clearButton.style.backgroundColor = '#d32f2f';
         });
         
         clearButton.addEventListener('mouseout', () => {
-            clearButton.style.backgroundColor = '#d9534f';
+            clearButton.style.backgroundColor = '#f44336';
         });
         
         clearButton.addEventListener('click', () => {
@@ -1377,9 +1343,8 @@ class CreativeStandalone {
         toggleButton.addEventListener('click', () => {
             isExpanded = !isExpanded;
             contentPanel.style.display = isExpanded ? 'block' : 'none';
-            toggleButton.style.borderRadius = isExpanded ? '8px 8px 0 0' : '8px';
-            toggleButton.style.backgroundColor = isExpanded ? '#5a8dac' : '#4a6d8c';
-            toggleButton.textContent = isExpanded ? '🏗️ Building Tools ▼' : '🏗️ Building Tools ▶';
+            toggleButton.style.backgroundColor = isExpanded ? '#5a8dac' : '#6a9bd1';
+            toggleButton.textContent = isExpanded ? '🏗️ Building ▼' : '🏗️ Building ▶';
         });
         
         document.body.appendChild(buildingUIContainer);
@@ -1544,12 +1509,8 @@ class CreativeStandalone {
             document.getElementById('noiseScaleValue').textContent = this.islandParams.noiseScale.toFixed(4);
             document.getElementById('noiseHeight').value = this.islandParams.noiseHeight;
             document.getElementById('noiseHeightValue').textContent = this.islandParams.noiseHeight;
-                         document.getElementById('falloffFactor').value = this.islandParams.falloffFactor;
-             document.getElementById('falloffValue').textContent = this.islandParams.falloffFactor.toFixed(2);
-             document.getElementById('falloffCurve').value = this.islandParams.falloffCurve;
+            document.getElementById('falloffCurve').value = this.islandParams.falloffCurve;
             document.getElementById('falloffCurveValue').textContent = this.islandParams.falloffCurve.toFixed(1);
-            document.getElementById('boundaryVariation').value = this.islandParams.boundaryVariation;
-            document.getElementById('boundaryVariationValue').textContent = this.islandParams.boundaryVariation.toFixed(2);
             document.getElementById('enableVertexCulling').checked = this.islandParams.enableVertexCulling;
             
             // Update object configuration UI
@@ -1646,9 +1607,7 @@ class CreativeStandalone {
         this.islandParams.seed = Math.floor(Math.random() * (ranges.seed.max - ranges.seed.min + 1)) + ranges.seed.min;
         this.islandParams.noiseScale = Math.random() * (ranges.noiseScale.max - ranges.noiseScale.min) + ranges.noiseScale.min;
         this.islandParams.noiseHeight = Math.floor(Math.random() * (ranges.noiseHeight.max - ranges.noiseHeight.min + 1)) + ranges.noiseHeight.min;
-        this.islandParams.falloffFactor = Math.random() * (ranges.falloffFactor.max - ranges.falloffFactor.min) + ranges.falloffFactor.min;
         this.islandParams.falloffCurve = Math.random() * (ranges.falloffCurve.max - ranges.falloffCurve.min) + ranges.falloffCurve.min;
-        this.islandParams.boundaryVariation = Math.random() * (ranges.boundaryVariation.max - ranges.boundaryVariation.min) + ranges.boundaryVariation.min;
         // Note: enableVertexCulling is NOT randomized - preserves user's preference
         
         // Randomize object density for current island type
@@ -1713,14 +1672,8 @@ class CreativeStandalone {
         document.getElementById('noiseHeight').value = this.islandParams.noiseHeight;
         document.getElementById('noiseHeightValue').textContent = this.islandParams.noiseHeight;
         
-                 document.getElementById('falloffFactor').value = this.islandParams.falloffFactor;
-         document.getElementById('falloffValue').textContent = this.islandParams.falloffFactor.toFixed(2);
-         
-         document.getElementById('falloffCurve').value = this.islandParams.falloffCurve;
+        document.getElementById('falloffCurve').value = this.islandParams.falloffCurve;
         document.getElementById('falloffCurveValue').textContent = this.islandParams.falloffCurve.toFixed(1);
-        
-        document.getElementById('boundaryVariation').value = this.islandParams.boundaryVariation;
-        document.getElementById('boundaryVariationValue').textContent = this.islandParams.boundaryVariation.toFixed(2);
         
         // Note: enableVertexCulling checkbox is NOT updated - preserves user's preference
         
