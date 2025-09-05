@@ -42,6 +42,25 @@ class CreativeStandalone {
             waterLevel: 0           // Height below which vertices are considered underwater
         };
         
+        // Camera movement controls
+        this.keys = {
+            w: false,
+            a: false,
+            s: false,
+            d: false,
+            shift: false,
+            space: false
+        };
+        this.moveSpeed = 60; // Base movement speed
+        this.fastMoveSpeed = 120; // Fast movement speed when holding shift
+        
+        // FPS counter variables
+        this.frameCount = 0;
+        this.lastTime = 0;
+        this.fps = 0;
+        this.fpsUpdateInterval = 0.5; // Update FPS display every 0.5 seconds
+        this.fpsAccumulator = 0;
+        
         // Centralized parameter ranges for UI and randomization
         this.parameterRanges = {
             size: { min: 100, max: 400, step: 1 },
@@ -209,6 +228,9 @@ class CreativeStandalone {
         // Add click event listener for building placement
         this.renderer.domElement.addEventListener('click', this.onMouseClick.bind(this));
         
+        // Add keyboard event listeners for camera movement
+        this.setupKeyboardControls();
+        
         // Start animation loop
         this.animate();
     }
@@ -238,6 +260,153 @@ class CreativeStandalone {
         this.controls.update();
     }
     
+    setupKeyboardControls() {
+        // Add keyboard event listeners for WASD movement
+        window.addEventListener('keydown', (event) => {
+            this.onKeyDown(event);
+        });
+        
+        window.addEventListener('keyup', (event) => {
+            this.onKeyUp(event);
+        });
+    }
+    
+    onKeyDown(event) {
+        // Prevent default behavior for handled keys to avoid page scrolling
+        const key = event.key.toLowerCase();
+        
+        switch (key) {
+            case 'w':
+                this.keys.w = true;
+                event.preventDefault();
+                break;
+            case 'a':
+                this.keys.a = true;
+                event.preventDefault();
+                break;
+            case 's':
+                this.keys.s = true;
+                event.preventDefault();
+                break;
+            case 'd':
+                this.keys.d = true;
+                event.preventDefault();
+                break;
+            case 'shift':
+                this.keys.shift = true;
+                event.preventDefault();
+                break;
+            case ' ':
+                this.keys.space = true;
+                event.preventDefault();
+                break;
+        }
+    }
+    
+    onKeyUp(event) {
+        const key = event.key.toLowerCase();
+        
+        switch (key) {
+            case 'w':
+                this.keys.w = false;
+                break;
+            case 'a':
+                this.keys.a = false;
+                break;
+            case 's':
+                this.keys.s = false;
+                break;
+            case 'd':
+                this.keys.d = false;
+                break;
+            case 'shift':
+                this.keys.shift = false;
+                break;
+            case ' ':
+                this.keys.space = false;
+                break;
+        }
+    }
+    
+    updateCameraMovement(delta) {
+        // Only allow camera movement in creative mode
+        if (!this.camera || !this.controls) return;
+        
+        const currentSpeed = this.keys.shift ? this.fastMoveSpeed : this.moveSpeed;
+        const moveDistance = currentSpeed * delta;
+        
+        // Get camera's forward, right, and up vectors
+        const forward = new THREE.Vector3();
+        const right = new THREE.Vector3();
+        const up = new THREE.Vector3(0, 1, 0);
+        
+        this.camera.getWorldDirection(forward);
+        right.crossVectors(forward, up).normalize();
+        
+        // Create a movement vector
+        const movement = new THREE.Vector3();
+        
+        // Forward/backward movement (W/S)
+        if (this.keys.w) {
+            movement.add(forward.clone().multiplyScalar(moveDistance));
+        }
+        if (this.keys.s) {
+            movement.add(forward.clone().multiplyScalar(-moveDistance));
+        }
+        
+        // Left/right movement (A/D)
+        if (this.keys.a) {
+            movement.add(right.clone().multiplyScalar(-moveDistance));
+        }
+        if (this.keys.d) {
+            movement.add(right.clone().multiplyScalar(moveDistance));
+        }
+        
+        // Up/down movement (Space/Shift+Space)
+        if (this.keys.space) {
+            movement.y += moveDistance;
+        }
+        
+        // Apply movement to both camera and controls target
+        if (movement.length() > 0) {
+            this.camera.position.add(movement);
+            this.controls.target.add(movement);
+            this.controls.update();
+            
+            // Update player position for LOD in procedural mode
+            if (this.proceduralMode && this.proceduralWorldGenerator && this.proceduralWorldGenerator.lodEnabled) {
+                this.proceduralWorldGenerator.updatePlayerPosition(this.camera.position);
+            }
+        }
+    }
+    
+    updateFPS(delta) {
+        this.frameCount++;
+        this.fpsAccumulator += delta;
+        
+        // Update FPS display every fpsUpdateInterval seconds
+        if (this.fpsAccumulator >= this.fpsUpdateInterval) {
+            this.fps = Math.round(this.frameCount / this.fpsAccumulator);
+            
+            // Update the FPS counter display
+            const fpsElement = document.getElementById('fpsCounter');
+            if (fpsElement) {
+                // Color-code the FPS for performance indication
+                let color = '#00ff00'; // Green for good FPS (60+)
+                if (this.fps < 60) color = '#ffff00'; // Yellow for moderate FPS (30-59)
+                if (this.fps < 30) color = '#ff6600'; // Orange for low FPS (15-29)
+                if (this.fps < 15) color = '#ff0000'; // Red for very low FPS (<15)
+                
+                fpsElement.style.color = color;
+                fpsElement.textContent = `FPS: ${this.fps}`;
+            }
+            
+            // Reset counters
+            this.frameCount = 0;
+            this.fpsAccumulator = 0;
+        }
+    }
+    
     createUI() {
         // Create info panel if it doesn't exist
         if (!document.getElementById('info')) {
@@ -256,6 +425,16 @@ class CreativeStandalone {
             infoElement.innerHTML = `
                 <h2>Island Creator</h2>
                 <p>Create your island!</p>
+                <div style="font-size: 9px; margin-top: 8px; opacity: 0.8;">
+                    <strong>Controls:</strong><br>
+                    WASD: Move camera<br>
+                    Space: Move up<br>
+                    Shift: Move faster<br>
+                    Right-click + drag: Rotate view
+                </div>
+                <div id="fpsCounter" style="font-size: 10px; margin-top: 8px; color: #00ff00; font-weight: bold;">
+                    FPS: --
+                </div>
             `;
             document.body.appendChild(infoElement);
         }
@@ -1434,6 +1613,12 @@ class CreativeStandalone {
         
         const delta = this.clock.getDelta();
         
+        // Update FPS counter
+        this.updateFPS(delta);
+        
+        // Update camera movement based on keyboard input
+        this.updateCameraMovement(delta);
+        
         // Update world (sky, water, lighting, etc.)
         if (this.world) {
             this.world.update(delta);
@@ -1754,7 +1939,7 @@ class CreativeStandalone {
             buildingManagerUIElement.remove();
         }
         
-        // Remove info panel
+        // Remove info panel (which includes FPS counter)
         const infoElement = document.getElementById('info');
         if (infoElement) {
             infoElement.remove();
@@ -1776,6 +1961,8 @@ class CreativeStandalone {
         
         // Remove event listeners
         window.removeEventListener('resize', this.onWindowResize.bind(this));
+        window.removeEventListener('keydown', this.onKeyDown.bind(this));
+        window.removeEventListener('keyup', this.onKeyUp.bind(this));
         
         // Dispose of controls
         if (this.controls) {
