@@ -6,6 +6,8 @@ import World from './world.js';
 import BuildingManager from './BuildingManager.js';
 import GenericGLBModel from './objects/GenericGLBModel.js';
 import { MODELS } from './ModelRegistry.js';
+import ProceduralWorldGenerator from './world/ProceduralWorldGenerator.js';
+import WorldGeneratorUI from './world/WorldGeneratorUI.js';
 
 class CreativeStandalone {
     constructor() {
@@ -22,6 +24,11 @@ class CreativeStandalone {
         this.availableObjects = [];
         this.placedObjects = []; // Array to store information about placed objects
         this.waterVisible = true; // Add water visibility state
+        
+        // Procedural world generation
+        this.proceduralWorldGenerator = null;
+        this.worldGeneratorUI = null;
+        this.proceduralMode = false; // Toggle between single island and procedural world modes
         
         // Default island parameters
         this.islandParams = {
@@ -103,6 +110,21 @@ class CreativeStandalone {
         // Initialize island generator
         this.islandGenerator = new IslandGenerator(this.scene);
         
+        // Initialize procedural world generator
+        this.proceduralWorldGenerator = new ProceduralWorldGenerator({
+            scene: this.scene,
+            worldSeed: Date.now(),
+            worldWidth: 20000,
+            worldHeight: 20000,
+            islandDensity: 0.3,
+            minIslandDistance: 800,
+            maxIslandDistance: 1500,
+            generateObjects: true,
+            lodEnabled: true,
+            maxIslandRenderDistance: 5000,
+            maxObjectRenderDistance: 2000
+        });
+        
         // Initialize building manager
         const buildingUIContainer = document.createElement('div');
         buildingUIContainer.id = 'buildingManagerUI';
@@ -171,7 +193,10 @@ class CreativeStandalone {
         // Create UI
         this.createUI();
         
-        // Generate initial island
+        // Initialize world generator UI
+        this.worldGeneratorUI = new WorldGeneratorUI(this.proceduralWorldGenerator);
+        
+        // Generate initial island (single island mode by default)
         this.updateIslandPreview();
         
         // Create building UI
@@ -337,6 +362,10 @@ class CreativeStandalone {
                 <button id="randomizeAll" style="padding: 10px; width: 100%; background-color: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer;">🎲 Randomize All Parameters</button>
             </div>
             
+            <div style="display: flex; justify-content: center; margin-bottom: 10px;">
+                <button id="toggleMode" style="padding: 10px; width: 100%; background-color: #9C27B0; color: white; border: none; border-radius: 5px; cursor: pointer;">🌊 Switch to Procedural World Mode</button>
+            </div>
+            
             <div style="display: flex; justify-content: center;">
                 <button id="exitCreator" style="padding: 10px; width: 100%; background-color: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;">Exit Creator</button>
             </div>
@@ -425,6 +454,10 @@ class CreativeStandalone {
         
         document.getElementById('randomizeAll').addEventListener('click', () => {
             this.randomizeAllParameters();
+        });
+        
+        document.getElementById('toggleMode').addEventListener('click', () => {
+            this.toggleMode();
         });
         
         document.getElementById('exitCreator').addEventListener('click', () => {
@@ -1411,6 +1444,18 @@ class CreativeStandalone {
             this.controls.update();
         }
         
+        // Update LOD based on camera position (throttled to avoid excessive calls)
+        if (this.proceduralMode && this.proceduralWorldGenerator && this.proceduralWorldGenerator.lodEnabled) {
+            // Only update LOD every 60 frames (roughly once per second at 60 FPS)
+            if (!this.lodUpdateCounter) this.lodUpdateCounter = 0;
+            this.lodUpdateCounter++;
+            
+            if (this.lodUpdateCounter >= 60) {
+                this.proceduralWorldGenerator.updatePlayerPosition(this.camera.position);
+                this.lodUpdateCounter = 0;
+            }
+        }
+        
         // Render
         if (this.renderer && this.scene && this.camera) {
             this.renderer.render(this.scene, this.camera);
@@ -1776,6 +1821,68 @@ class CreativeStandalone {
                 toggleButton.textContent = this.waterVisible ? 'Water: On' : 'Water: Off';
                 toggleButton.style.backgroundColor = this.waterVisible ? '#2196F3' : '#555555';
             }
+        }
+    }
+    
+    // Toggle between single island and procedural world modes
+    toggleMode() {
+        this.proceduralMode = !this.proceduralMode;
+        
+        const toggleButton = document.getElementById('toggleMode');
+        const creativeUI = document.getElementById('creativeUI');
+        let worldGeneratorUIElement = document.getElementById('worldGeneratorUI');
+        
+        if (this.proceduralMode) {
+            // Switch to procedural world mode
+            console.log('🌊 Switching to Procedural World Mode');
+            
+            // Hide single island UI
+            if (creativeUI) {
+                creativeUI.style.display = 'none';
+            }
+            
+            // Show procedural world UI
+            if (!worldGeneratorUIElement) {
+                worldGeneratorUIElement = this.worldGeneratorUI.createUI();
+                document.body.appendChild(worldGeneratorUIElement);
+            } else {
+                worldGeneratorUIElement.style.display = 'block';
+            }
+            
+            // Clear current single island
+            this.removeAllPlacedObjects();
+            if (this.currentIsland) {
+                this.scene.remove(this.currentIsland);
+                this.currentIsland = null;
+            }
+            
+            // Update button text
+            toggleButton.textContent = '🏝️ Switch to Single Island Mode';
+            toggleButton.style.backgroundColor = '#4CAF50';
+            
+        } else {
+            // Switch to single island mode
+            console.log('🏝️ Switching to Single Island Mode');
+            
+            // Hide procedural world UI
+            if (worldGeneratorUIElement) {
+                worldGeneratorUIElement.style.display = 'none';
+            }
+            
+            // Show single island UI
+            if (creativeUI) {
+                creativeUI.style.display = 'block';
+            }
+            
+            // Clear procedural world
+            this.proceduralWorldGenerator.clearGeneratedWorld();
+            
+            // Generate single island
+            this.updateIslandPreview();
+            
+            // Update button text
+            toggleButton.textContent = '🌊 Switch to Procedural World Mode';
+            toggleButton.style.backgroundColor = '#9C27B0';
         }
     }
 }
