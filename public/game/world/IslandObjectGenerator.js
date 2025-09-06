@@ -7,7 +7,7 @@ import { MODELS } from '../ModelRegistry.js';
  * Extracted from creative-standalone to be reusable across different systems
  */
 class IslandObjectGenerator {
-    constructor(scene) {
+    constructor(scene, performanceMonitor = null) {
         this.scene = scene;
         this.availableObjects = [];
         this.isInitialized = false;
@@ -16,6 +16,9 @@ class IslandObjectGenerator {
         this.placementCache = new Map(); // Cache for object placement calculations
         this.maxCacheSize = 100; // Limit memory usage
         this.frameYieldThreshold = 3; // Yield after 3 objects to prevent freezing
+        
+        // Performance monitoring
+        this.performanceMonitor = performanceMonitor;
     }
     
     /**
@@ -95,6 +98,8 @@ class IslandObjectGenerator {
      * @returns {Array} Array of placed object data
      */
     async generateObjectsOnIsland(island, objectConfig, islandParams, random = Math, islandId = null, seed = null) {
+        const totalTimer = this.performanceMonitor?.startTimer('objects', 'placement');
+        
         if (!this.isInitialized) {
             await this.init();
         }
@@ -109,12 +114,17 @@ class IslandObjectGenerator {
         
         // Check cache first if we have island ID and seed
         if (islandId && seed !== null) {
+            const cacheTimer = this.performanceMonitor?.startTimer('objects', 'cacheCheck');
             const cacheKey = this.generateCacheKey(islandId, seed, objectConfig, islandParams);
             const cachedPlacement = this.getCachedPlacement(cacheKey);
+            this.performanceMonitor?.endTimer(cacheTimer);
             
             if (cachedPlacement) {
                 // Use cached placement data - much faster!
+                const cacheCreateTimer = this.performanceMonitor?.startTimer('objects', 'cacheCreation');
                 const placedObjects = await this.createObjectsFromCachedData(cachedPlacement, island);
+                this.performanceMonitor?.endTimer(cacheCreateTimer);
+                this.performanceMonitor?.endTimer(totalTimer);
                 console.log(`✅ Successfully placed ${placedObjects.length} objects from cache`);
                 return placedObjects;
             }
@@ -124,7 +134,9 @@ class IslandObjectGenerator {
         console.log(`🔄 Calculating new object placement (will be cached for future use)`);
         
         // Step 1: Create and analyze grid
+        const gridTimer = this.performanceMonitor?.startTimer('objects', 'gridAnalysis');
         const gridData = this.analyzeIslandGrid(island, islandParams);
+        this.performanceMonitor?.endTimer(gridTimer);
         
         // Step 2: Calculate how many cells to populate based on density
         const targetCells = Math.round(gridData.viableCells.length * density);
@@ -133,20 +145,27 @@ class IslandObjectGenerator {
         
         if (targetCells === 0) {
             console.warn('No cells selected for object placement');
+            this.performanceMonitor?.endTimer(totalTimer);
             return [];
         }
         
         // Step 3: Randomly select cells for placement
+        const selectionTimer = this.performanceMonitor?.startTimer('objects', 'cellSelection');
         const selectedCells = this.selectRandomCells(gridData.viableCells, targetCells, random);
+        this.performanceMonitor?.endTimer(selectionTimer);
         
         // Step 4: Distribute object types across selected cells
         const objectsToPlace = this.distributeObjectTypes(selectedCells, objectConfig.distribution, random);
         
         // Step 5: Place objects in selected cells with frame yielding
+        const placementTimer = this.performanceMonitor?.startTimer('objects', 'actualPlacement');
         const placedObjects = [];
         for (let i = 0; i < objectsToPlace.length; i++) {
             const { cell, objectType } = objectsToPlace[i];
+            const singlePlaceTimer = this.performanceMonitor?.startTimer('objects', 'singlePlacement');
             const placedObject = await this.placeObjectInCell(island, cell, objectType, random);
+            this.performanceMonitor?.endTimer(singlePlaceTimer);
+            
             if (placedObject) {
                 placedObjects.push(placedObject);
             }
@@ -156,13 +175,17 @@ class IslandObjectGenerator {
                 await new Promise(resolve => setTimeout(resolve, 0));
             }
         }
+        this.performanceMonitor?.endTimer(placementTimer);
         
         // Cache the placement data for future use
         if (islandId && seed !== null && placedObjects.length > 0) {
+            const cacheTimer = this.performanceMonitor?.startTimer('objects', 'caching');
             const cacheKey = this.generateCacheKey(islandId, seed, objectConfig, islandParams);
             this.cachePlacement(cacheKey, placedObjects);
+            this.performanceMonitor?.endTimer(cacheTimer);
         }
         
+        this.performanceMonitor?.endTimer(totalTimer);
         console.log(`✅ Successfully placed ${placedObjects.length} objects across ${selectedCells.length} cells`);
         return placedObjects;
     }

@@ -1,3 +1,6 @@
+import PerformanceMonitor from '../performance/PerformanceMonitor.js';
+import PerformanceDebugPanel from '../ui/PerformanceDebugPanel.js';
+
 /**
  * WorldGeneratorUI - User interface for configuring and testing procedural world generation
  */
@@ -5,6 +8,18 @@ class WorldGeneratorUI {
     constructor(worldGenerator) {
         this.worldGenerator = worldGenerator;
         this.isGenerating = false;
+        
+        // Initialize performance monitoring
+        this.performanceMonitor = new PerformanceMonitor();
+        this.performanceDebugPanel = null;
+        
+        // Inject performance monitor into world generator
+        this.worldGenerator.performanceMonitor = this.performanceMonitor;
+        
+        // Pass performance monitor to object generator too
+        if (this.worldGenerator.islandObjectGenerator) {
+            this.worldGenerator.islandObjectGenerator.performanceMonitor = this.performanceMonitor;
+        }
     }
     
     /**
@@ -179,6 +194,39 @@ class WorldGeneratorUI {
                 <h3 style="margin: 0 0 8px 0; font-size: 14px;">World Statistics:</h3>
                 <div id="statsContent" style="font-size: 11px; color: #ccc;">
                     <div>No world generated yet</div>
+                </div>
+            </div>
+            
+            <!-- Performance Monitoring -->
+            <div id="performanceSection" style="border: 1px solid #555; padding: 10px; border-radius: 5px; background: rgba(0,0,0,0.3); margin-top: 12px;">
+                <h3 style="margin: 0 0 8px 0; font-size: 14px; color: #ff9900;">🔧 Performance Monitor</h3>
+                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                    <button id="togglePerformanceMonitoring" style="
+                        flex: 1;
+                        padding: 6px 10px;
+                        background: #333;
+                        color: white;
+                        border: 1px solid #555;
+                        border-radius: 3px;
+                        cursor: pointer;
+                        font-size: 11px;
+                        transition: background-color 0.3s;
+                    ">Enable Monitoring</button>
+                    <button id="showPerformancePanel" style="
+                        flex: 1;
+                        padding: 6px 10px;
+                        background: #4CAF50;
+                        color: white;
+                        border: 1px solid #555;
+                        border-radius: 3px;
+                        cursor: pointer;
+                        font-size: 11px;
+                        transition: background-color 0.3s;
+                    ">Show Panel</button>
+                </div>
+                <div id="performanceStatus" style="font-size: 11px; color: #ccc;">
+                    <div>Monitoring: <span id="monitoringStatus" style="color: #ff0000;">Disabled</span></div>
+                    <div>Panel: <span id="panelStatus" style="color: #666;">Hidden</span></div>
                 </div>
             </div>
         `;
@@ -438,6 +486,15 @@ class WorldGeneratorUI {
         container.querySelector('#clearWorld').addEventListener('click', () => {
             this.clearWorld();
         });
+        
+        // Performance Monitoring Controls
+        container.querySelector('#togglePerformanceMonitoring').addEventListener('click', () => {
+            this.togglePerformanceMonitoring(container);
+        });
+        
+        container.querySelector('#showPerformancePanel').addEventListener('click', () => {
+            this.showPerformancePanel(container);
+        });
     }
     
     /**
@@ -589,6 +646,57 @@ class WorldGeneratorUI {
      */
     delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
+    }
+    
+    /**
+     * Toggle performance monitoring on/off
+     * @param {HTMLElement} container - UI container element
+     */
+    togglePerformanceMonitoring(container) {
+        const isEnabled = this.performanceMonitor.enabled;
+        this.performanceMonitor.setEnabled(!isEnabled);
+        
+        // Update UI elements
+        const toggleBtn = container.querySelector('#togglePerformanceMonitoring');
+        const monitoringStatus = container.querySelector('#monitoringStatus');
+        
+        if (this.performanceMonitor.enabled) {
+            toggleBtn.textContent = 'Disable Monitoring';
+            toggleBtn.style.background = '#ff6600';
+            monitoringStatus.textContent = 'Enabled';
+            monitoringStatus.style.color = '#00ff00';
+        } else {
+            toggleBtn.textContent = 'Enable Monitoring';
+            toggleBtn.style.background = '#333';
+            monitoringStatus.textContent = 'Disabled';
+            monitoringStatus.style.color = '#ff0000';
+        }
+    }
+    
+    /**
+     * Show/hide the performance debug panel
+     * @param {HTMLElement} container - UI container element
+     */
+    showPerformancePanel(container) {
+        if (!this.performanceDebugPanel) {
+            // Create the performance debug panel
+            this.performanceDebugPanel = new PerformanceDebugPanel(null, this.performanceMonitor);
+        }
+        
+        const panelStatus = container.querySelector('#panelStatus');
+        const showBtn = container.querySelector('#showPerformancePanel');
+        
+        if (this.performanceDebugPanel.isVisible) {
+            this.performanceDebugPanel.hide();
+            showBtn.textContent = 'Show Panel';
+            panelStatus.textContent = 'Hidden';
+            panelStatus.style.color = '#666';
+        } else {
+            this.performanceDebugPanel.show();
+            showBtn.textContent = 'Hide Panel';
+            panelStatus.textContent = 'Visible';
+            panelStatus.style.color = '#00ff00';
+        }
     }
 }
 

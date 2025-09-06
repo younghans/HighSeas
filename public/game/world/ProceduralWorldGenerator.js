@@ -31,10 +31,13 @@ class ProceduralWorldGenerator {
         this.maxObjectRenderDistance = options.maxObjectRenderDistance || 2000; // Objects beyond this are not rendered
         this.playerPosition = new THREE.Vector3(0, 0, 0); // Track player position for LOD calculations
         
+        // Performance monitoring
+        this.performanceMonitor = options.performanceMonitor || null;
+        
         // Initialize systems
         this.random = new SeededRandom(this.worldSeed);
         this.islandTemplate = new IslandTemplate();
-        this.islandObjectGenerator = new IslandObjectGenerator(options.scene);
+        this.islandObjectGenerator = new IslandObjectGenerator(options.scene, this.performanceMonitor);
         this.scene = options.scene;
         
         // Generated world data
@@ -60,11 +63,17 @@ class ProceduralWorldGenerator {
     async generateWorld() {
         console.log('🚀 Starting procedural world generation...');
         
+        const worldGenTimer = this.performanceMonitor?.startTimer('world', 'totalGeneration');
+        
         // Step 1: Generate island placement layout
+        const layoutTimer = this.performanceMonitor?.startTimer('world', 'layoutGeneration');
         this.generateIslandLayout();
+        this.performanceMonitor?.endTimer(layoutTimer);
         
         // Step 2: Assign templates and parameters to each island
+        const templateTimer = this.performanceMonitor?.startTimer('world', 'templateAssignment');
         this.assignIslandTemplates();
+        this.performanceMonitor?.endTimer(templateTimer);
         
         // Step 3: Generate the actual 3D islands (with LOD if enabled)
         if (this.lodEnabled) {
@@ -84,6 +93,8 @@ class ProceduralWorldGenerator {
         
         // Step 5: Update world metadata
         this.updateWorldMetadata();
+        
+        this.performanceMonitor?.endTimer(worldGenTimer);
         
         console.log(`✅ World generation complete! Generated ${this.generatedIslands.length} islands`);
         console.log('🎯 Biome distribution:', this.worldMetadata.biomeDistribution);
@@ -212,6 +223,8 @@ class ProceduralWorldGenerator {
     async generateIslandMeshes() {
         console.log('🏗️ Generating 3D island meshes...');
         
+        const meshGenTimer = this.performanceMonitor?.startTimer('islands', 'meshGeneration');
+        
         if (!this.scene) {
             console.warn('No scene provided, skipping mesh generation');
             return;
@@ -222,7 +235,10 @@ class ProceduralWorldGenerator {
         
         for (const placement of this.islandPlacements) {
             try {
+                const singleIslandTimer = this.performanceMonitor?.startTimer('islands', 'singleIsland');
                 const island = await this.generateSingleIsland(placement);
+                this.performanceMonitor?.endTimer(singleIslandTimer);
+                
                 if (island) {
                     this.generatedIslands.push({
                         id: placement.id,
@@ -234,6 +250,9 @@ class ProceduralWorldGenerator {
                     generatedCount++;
                 }
                 
+                // Track object counts
+                this.performanceMonitor?.trackObjectCount('islands', generatedCount);
+                
                 // Progress logging
                 if (generatedCount % 10 === 0 || generatedCount === totalCount) {
                     console.log(`🏝️ Generated ${generatedCount}/${totalCount} islands (${Math.round(generatedCount/totalCount*100)}%)`);
@@ -244,6 +263,7 @@ class ProceduralWorldGenerator {
             }
         }
         
+        this.performanceMonitor?.endTimer(meshGenTimer);
         console.log(`✅ Successfully generated ${generatedCount} island meshes`);
     }
     
@@ -317,6 +337,8 @@ class ProceduralWorldGenerator {
     async generateObjectsOnAllIslands() {
         console.log('🌲 Generating objects on all islands...');
         
+        const objectGenTimer = this.performanceMonitor?.startTimer('objects', 'allIslands');
+        
         if (!this.islandObjectGenerator) {
             console.warn('Island object generator not available');
             return;
@@ -326,6 +348,7 @@ class ProceduralWorldGenerator {
         await this.islandObjectGenerator.init();
         
         let processedCount = 0;
+        let totalObjectsPlaced = 0;
         const totalCount = this.generatedIslands.length;
         
         for (const islandData of this.generatedIslands) {
@@ -334,6 +357,8 @@ class ProceduralWorldGenerator {
                 
                 // Create seeded random for this specific island (same seed as island generation)
                 const islandRandom = new SeededRandom(placement.localSeed);
+                
+                const singleIslandObjectTimer = this.performanceMonitor?.startTimer('objects', 'singleIsland');
                 
                 // Generate objects using the island's template configuration with caching
                 const placedObjects = await this.islandObjectGenerator.generateObjectsOnIsland(
@@ -345,10 +370,17 @@ class ProceduralWorldGenerator {
                     placement.localSeed // Seed for caching
                 );
                 
+                this.performanceMonitor?.endTimer(singleIslandObjectTimer);
+                
                 // Store placed objects data with the island
                 islandData.placedObjects = placedObjects;
+                totalObjectsPlaced += placedObjects.length;
                 
                 processedCount++;
+                
+                // Track object counts
+                this.performanceMonitor?.trackObjectCount('objects', totalObjectsPlaced, 'total');
+                this.performanceMonitor?.trackObjectCount('objects', processedCount, 'islandsWithObjects');
                 
                 // Progress logging for object generation
                 if (processedCount % 5 === 0 || processedCount === totalCount) {
@@ -361,6 +393,7 @@ class ProceduralWorldGenerator {
             }
         }
         
+        this.performanceMonitor?.endTimer(objectGenTimer);
         console.log(`✅ Successfully generated objects on ${processedCount} islands`);
     }
     
@@ -726,6 +759,8 @@ class ProceduralWorldGenerator {
     async updateLOD() {
         if (!this.lodEnabled || this.generatedIslands.length === 0) return;
         
+        const lodUpdateTimer = this.performanceMonitor?.startTimer('lod', 'updateLOD');
+        
         let islandsLoaded = 0;
         let islandsUnloaded = 0;
         let objectsLoaded = 0;
@@ -739,13 +774,17 @@ class ProceduralWorldGenerator {
             if (distanceToPlayer <= this.maxIslandRenderDistance) {
                 // Island should be loaded
                 if (!islandData.isLoaded && !islandData.mesh) {
+                    const loadTimer = this.performanceMonitor?.startTimer('lod', 'loadIsland');
                     await this.loadIsland(islandData);
+                    this.performanceMonitor?.endTimer(loadTimer);
                     islandsLoaded++;
                 }
             } else {
                 // Island should be unloaded
                 if (islandData.isLoaded && islandData.mesh) {
+                    const unloadTimer = this.performanceMonitor?.startTimer('lod', 'unloadIsland');
                     this.unloadIsland(islandData);
+                    this.performanceMonitor?.endTimer(unloadTimer);
                     islandsUnloaded++;
                 }
             }
@@ -755,18 +794,30 @@ class ProceduralWorldGenerator {
                 if (distanceToPlayer <= this.maxObjectRenderDistance) {
                     // Objects should be loaded
                     if (!islandData.hasObjects) {
+                        const loadObjectsTimer = this.performanceMonitor?.startTimer('lod', 'loadObjects');
                         await this.loadIslandObjects(islandData);
+                        this.performanceMonitor?.endTimer(loadObjectsTimer);
                         objectsLoaded++;
                     }
                 } else {
                     // Objects should be unloaded
                     if (islandData.hasObjects) {
+                        const unloadObjectsTimer = this.performanceMonitor?.startTimer('lod', 'unloadObjects');
                         this.unloadIslandObjects(islandData);
+                        this.performanceMonitor?.endTimer(unloadObjectsTimer);
                         objectsUnloaded++;
                     }
                 }
             }
         }
+        
+        // Track LOD metrics
+        this.performanceMonitor?.trackObjectCount('lod', islandsLoaded, 'islandsLoaded');
+        this.performanceMonitor?.trackObjectCount('lod', islandsUnloaded, 'islandsUnloaded');
+        this.performanceMonitor?.trackObjectCount('lod', objectsLoaded, 'objectsLoaded');
+        this.performanceMonitor?.trackObjectCount('lod', objectsUnloaded, 'objectsUnloaded');
+        
+        this.performanceMonitor?.endTimer(lodUpdateTimer);
         
         // Log LOD changes if anything happened
         if (islandsLoaded > 0 || islandsUnloaded > 0 || objectsLoaded > 0 || objectsUnloaded > 0) {

@@ -401,6 +401,11 @@ class CreativeStandalone {
                 fpsElement.textContent = `FPS: ${this.fps}`;
             }
             
+            // Track FPS in performance monitor if available
+            if (this.worldGeneratorUI?.performanceMonitor) {
+                this.worldGeneratorUI.performanceMonitor.trackFPS(this.fps);
+            }
+            
             // Reset counters
             this.frameCount = 0;
             this.fpsAccumulator = 0;
